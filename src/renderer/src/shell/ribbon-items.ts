@@ -36,6 +36,7 @@ import {
   Underline,
   Undo2,
 } from 'lucide-react';
+import { insertImages, pickImageFiles } from '../editor/insert-image';
 import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
 
@@ -183,11 +184,13 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       label: 'Medien',
       items: [
         {
-          id: 'image',
-          label: 'Bild',
-          icon: Image,
-          iconOnly: false,
-          disabledReason: LATER('Bilder einfügen'),
+          ...editorItem('image', 'Bild', Image, () => {}, { iconOnly: false }),
+          // Öffnet den Windows-Dateidialog; auch Drag & Drop und Strg+V funktionieren
+          run: ({ editor, state, dispatch }) => {
+            const journalId = state.openJournal?.id;
+            if (!editor || !journalId) return;
+            void pickImageFiles().then((files) => insertImages(editor, files, journalId, dispatch));
+          },
         },
         editorItem(
           'table',

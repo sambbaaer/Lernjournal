@@ -30,6 +30,8 @@ export type ServiceDeps = {
   now?: () => Date;
   lockEnv?: Env;
   env?: Record<string, string | undefined>;
+  // Wird nach jedem erfolgreichen Öffnen aufgerufen (z. B. verwaiste Bilder aufräumen)
+  afterOpen?: () => void;
 };
 
 type OpenProject = { dir: string; db: Db; lock: ProjectLock; migratedFromVersion: number | null };
@@ -150,6 +152,11 @@ export class ProjectService {
         lock: lockResult.lock,
         migratedFromVersion: result.from !== result.to ? result.from : null,
       };
+      try {
+        this.deps.afterOpen?.();
+      } catch (err) {
+        console.error('[projekt] Aufräumen nach dem Öffnen fehlgeschlagen:', err);
+      }
       return { status: 'opened', project: this.info() };
     } catch (err) {
       db?.close();

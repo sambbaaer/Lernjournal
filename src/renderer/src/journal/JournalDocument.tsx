@@ -269,6 +269,7 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
               {SECTION_TITLES[k]}
             </h2>
             <SectionEditor
+              journalId={journal.id}
               label={SECTION_TITLES[k]}
               hint={SECTION_HINTS[k]}
               content={journal.sections[k] as JSONContent}

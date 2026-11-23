@@ -16,6 +16,7 @@ import {
 import { validateSections } from '@shared/editor-schema';
 import { effectiveSchoolYear, localIsoDate } from '@shared/school-year';
 import { transaction, type Db } from '../db/connection';
+import type { MediaService } from '../media/media-service';
 
 type Row = {
   id: string;
@@ -44,6 +45,7 @@ export class JournalService {
     private readonly getDb: () => Db,
     private readonly projectDir: () => string,
     private readonly now: () => Date = () => new Date(),
+    private readonly media?: MediaService,
   ) {}
 
   private get db() {
@@ -155,6 +157,8 @@ export class JournalService {
     this.row(id);
     validateSections(sections); // wirft InvalidContentError
     transaction(this.db, () => {
+      // Nur Bilder dieses Journals; Legenden in die Tabelle media übernehmen
+      this.media?.checkAndSyncCaptions(id, sections);
       this.db
         .prepare('UPDATE journal SET sections_json = ?, updated_at = ? WHERE id = ?')
         .run(JSON.stringify(sections), this.now().toISOString(), id);
@@ -188,34 +192,46 @@ export class JournalService {
     const src = this.row(id);
     const newId = randomUUID();
     const ts = this.now().toISOString();
-    transaction(this.db, () => {
-      this.db
-        .prepare(
-          `INSERT INTO journal (id, title, work_date, status, learning_place, school_year_override, sections_json, created_at, updated_at)
+    let copiedFiles: string[] = [];
+    try {
+      transaction(this.db, () => {
+        this.db
+          .prepare(
+            `INSERT INTO journal (id, title, work_date, status, learning_place, school_year_override, sections_json, created_at, updated_at)
            VALUES (?, ?, ?, 'draft', ?, NULL, ?, ?, ?)`,
-        )
-        .run(
-          newId,
-          copyTitle(src.title),
-          localIsoDate(this.now()),
-          src.learning_place,
-          src.sections_json,
-          ts,
-          ts,
-        );
-      this.db
-        .prepare(
-          'INSERT INTO journal_category (journal_id, category_id) SELECT ?, category_id FROM journal_category WHERE journal_id = ?',
-        )
-        .run(newId, id);
-      this.db
-        .prepare(
-          'INSERT INTO journal_tag (journal_id, tag_id) SELECT ?, tag_id FROM journal_tag WHERE journal_id = ?',
-        )
-        .run(newId, id);
-      // Bilder (AJ-07): Dateien werden dann mitkopiert; bis dahin gibt es keine
-      this.syncFts(newId);
-    });
+          )
+          .run(
+            newId,
+            copyTitle(src.title),
+            localIsoDate(this.now()),
+            src.learning_place,
+            src.sections_json,
+            ts,
+            ts,
+          );
+        this.db
+          .prepare(
+            'INSERT INTO journal_category (journal_id, category_id) SELECT ?, category_id FROM journal_category WHERE journal_id = ?',
+          )
+          .run(newId, id);
+        this.db
+          .prepare(
+            'INSERT INTO journal_tag (journal_id, tag_id) SELECT ?, tag_id FROM journal_tag WHERE journal_id = ?',
+          )
+          .run(newId, id);
+        // Bilder physisch mitkopieren (neue IDs) und Verweise im Inhalt ersetzen
+        if (this.media) {
+          const copy = this.media.copyForJournal(id, newId, src.sections_json);
+          copiedFiles = copy.files;
+          this.db.prepare('UPDATE journal SET sections_json = ? WHERE id = ?').run(copy.sectionsJson, newId);
+        }
+        this.syncFts(newId);
+      });
+    } catch (err) {
+      // Transaktion zurückgerollt → kopierte Dateien wieder entfernen
+      copiedFiles.forEach((f) => rmSync(f, { force: true }));
+      throw err;
+    }
     return this.get(newId);
   }
 

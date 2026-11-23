@@ -21,6 +21,9 @@ const api: LernjournalApi = {
   profile: {
     update: (req) => ipcRenderer.invoke('profile:update', req),
   },
+  media: {
+    add: (req) => ipcRenderer.invoke('media:add', req),
+  },
   journal: {
     list: (req) => ipcRenderer.invoke('journal:list', req),
     get: (req) => ipcRenderer.invoke('journal:get', req),

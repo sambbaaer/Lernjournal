@@ -23,6 +23,9 @@ export interface LernjournalApi {
   profile: {
     update: Call<'profile:update'>;
   };
+  media: {
+    add: Call<'media:add'>;
+  };
   journal: {
     list: Call<'journal:list'>;
     get: Call<'journal:get'>;

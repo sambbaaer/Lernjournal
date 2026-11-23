@@ -84,6 +84,18 @@ src/renderer/src/editor/      SectionEditor, EditorContext (aktiver Editor fürs
 - Neue Formatierung? Erweiterung in `baseExtensions()` aufnehmen, DOCX-Abbildung (ADR 0002) ergänzen, Schema-Test erweitern.
 - Menüband-Befehle für den Editor über `editorItem()` in `ribbon-items.ts`; `onMouseDown.preventDefault()` verhindert, dass ein Klick dem Editor die Markierung nimmt.
 
+## Bilder
+```
+src/renderer/src/editor/image-processing.ts   Ausrichtung, max. 2400 px, neu kodieren (Metadaten weg)
+src/renderer/src/editor/insert-image.ts       Dialog, Drag & Drop, Strg+V → media:add → Knoten «figure»
+src/renderer/src/editor/FigureView.tsx        Bild + Legendenfeld im Editor
+src/main/media/image-info.ts                  Format/Masse aus den Bytes (PNG, JPEG, WebP)
+src/main/media/media-service.ts               speichern (atomar, SHA-256), auflösen, kopieren, aufräumen
+```
+- Anzeige über `app://lernjournal/media/<uuid>` – aufgelöst über die Datenbank, nie über Pfade aus der URL.
+- Ein Journal darf nur eigene Bilder referenzieren (`checkAndSyncCaptions` beim Speichern).
+- Aus dem Inhalt entfernte Bilder bleiben bis zum nächsten Öffnen des Projekts (Rückgängig bleibt möglich) und werden dann aufgeräumt, wenn sie älter als 1 Stunde sind.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

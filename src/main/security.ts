@@ -61,10 +61,14 @@ export function contentSecurityPolicy(devServerUrl?: string): string {
   ];
   if (!devServerUrl) return prod.join('; ');
   const ws = devServerUrl.replace(/^http/, 'ws');
-  return prod
-    .map((d) => (d.startsWith('script-src') ? "script-src 'self' 'unsafe-inline'" : d))
-    .map((d) => (d.startsWith('connect-src') ? `connect-src 'self' ${ws}` : d))
-    .join('; ');
+  return (
+    prod
+      // Bilder kommen auch im Dev-Modus über app://lernjournal/media/…
+      .map((d) => (d.startsWith('img-src') ? `img-src 'self' data: blob: ${APP_ORIGIN}` : d))
+      .map((d) => (d.startsWith('script-src') ? "script-src 'self' 'unsafe-inline'" : d))
+      .map((d) => (d.startsWith('connect-src') ? `connect-src 'self' ${ws}` : d))
+      .join('; ')
+  );
 }
 
 // Übersetzt app://lernjournal/pfad in eine Datei im Renderer-Ordner.

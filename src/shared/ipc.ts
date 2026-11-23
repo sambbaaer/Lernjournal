@@ -148,6 +148,18 @@ export const ipcContract = {
     request: z.object({ id: JournalId, sections: SectionsSchema }),
     response: JournalSummarySchema,
   },
+  // Bild speichern: Bytes kommen bereits verkleinert und ohne Metadaten aus dem
+  // Renderer; der Hauptprozess prüft Format und Masse selbst nochmals.
+  'media:add': {
+    request: z.object({
+      journalId: JournalId,
+      data: z
+        .instanceof(Uint8Array)
+        .refine((d) => d.byteLength > 0 && d.byteLength <= 15 * 1024 * 1024, 'Ungültige Grösse'),
+      originalName: z.string().max(260),
+    }),
+    response: z.object({ id: z.string(), width: z.number(), height: z.number(), mime: z.string() }),
+  },
   'journal:setStatus': {
     request: z.object({ id: JournalId, status: z.enum(['draft', 'completed', 'archived']) }),
     response: JournalSummarySchema,

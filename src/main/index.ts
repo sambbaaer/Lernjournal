@@ -7,6 +7,7 @@ import { ipcContract } from '@shared/ipc';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
+import { MediaService } from './media/media-service';
 import { createProjectHandlers } from './project/project-handlers';
 import { ProjectService } from './project/project-service';
 import {
@@ -36,10 +37,23 @@ if (e2eDir) {
 }
 
 // Höchstens ein geöffnetes Projekt pro App-Instanz
-const projects = new ProjectService({ appVersion: app.getVersion() });
+// Beim Öffnen eines Projekts verwaiste Bilder aufräumen (älter als 1 Stunde)
+const projects: ProjectService = new ProjectService({
+  appVersion: app.getVersion(),
+  afterOpen: () => {
+    const r = media.collectGarbage();
+    if (r.rows || r.files) console.log(`[medien] aufgeräumt: ${r.rows} Einträge, ${r.files} Dateien`);
+  },
+});
+const media = new MediaService(
+  () => projects.db,
+  () => projects.dir,
+);
 const journals = new JournalService(
   () => projects.db,
   () => projects.dir,
+  () => new Date(),
+  media,
 );
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
@@ -86,6 +100,25 @@ function startup() {
 // app://lernjournal/… liefert Dateien aus dem Renderer-Ordner mit CSP-Header.
 function registerAppProtocol() {
   protocol.handle(APP_SCHEME, async (request) => {
+    // Bilder des geöffneten Projekts: app://lernjournal/media/<uuid>
+    // Aufgelöst über die Datenbank (nie über Pfade aus der URL).
+    const mediaMatch = /^app:\/\/lernjournal\/media\/([0-9a-f-]{36})$/i.exec(request.url);
+    if (mediaMatch) {
+      const found = projects.isOpen ? media.resolve(mediaMatch[1]!) : null;
+      if (!found) return new Response('Nicht gefunden', { status: 404 });
+      try {
+        return new Response(await readFile(found.file), {
+          status: 200,
+          headers: {
+            'Content-Type': found.mime,
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'no-store',
+          },
+        });
+      } catch {
+        return new Response('Nicht gefunden', { status: 404 });
+      }
+    }
     const file = resolveAppFile(rendererDir, request.url);
     if (!file) return new Response('Nicht gefunden', { status: 404 });
     try {
@@ -167,6 +200,7 @@ function registerIpc() {
         },
       }),
       ...createJournalHandlers(journals),
+      'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
     trusted,
   );

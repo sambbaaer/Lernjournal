@@ -27,7 +27,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 |---|---|---|---|---|
 | AJ-05 ✔ | Journal-CRUD, Status, Lernort | Anlegen (Strg+N), öffnen, Metadaten mit automatischem Speichern, Status Entwurf/Abgeschlossen/Archiviert, duplizieren (mit Kategorien/Schlagwörtern, ohne Links), löschen mit Bestätigung inkl. Bilddateien; Lehrjahr/Semester aus Lehrbeginn (13 Grenzfall-Tests), manuell überschreibbar; Journalliste mit Filter und Tastatur | 04 | M |
 | AJ-06 ✔ | Geführter Tiptap-Editor | Ein Editor je Abschnitt mit Hilfetext-Platzhaltern; Menüband (Fett/Kursiv/Unterstrichen, Listen, Überschrift 2/3, Rückgängig) mit Zustandsanzeige; Tabellen mit kontextuellem Register; Weblinks (nur http/https); Einfügen aus Word bereinigt; gemeinsames Schema prüft Inhalte auch im Hauptprozess; Autosave 800 ms / max. 10 s, Strg+S | 05 | L |
-| AJ-07 | Medien/Legenden | Bilder einfügen (Drag & Drop, Zwischenablage, Dialog), verkleinern, EXIF-Ort entfernen, lokal speichern und erneut laden; keine verwaisten Dateien | 06 | M |
+| AJ-07 ✔ | Medien/Legenden | Bilder per Dialog, Drag & Drop und Strg+V; EXIF-Ausrichtung übernommen, auf 2400 px verkleinert, neu kodiert (alle Metadaten inkl. GPS entfernt); Hauptprozess prüft Format/Masse aus den Bytes, speichert atomar mit SHA-256; Legende im Bild (Alt-Text), durchsuchbar; Duplikat kopiert Bilder; verwaiste Bilder werden beim Öffnen aufgeräumt | 06 | M |
 | AJ-08 | Autosave und Fehlerzustände | korrekter Speicherstatus, Flush, Absturztest mit `integrity_check` | 06 | M |
 
 ## Phase 3 – Fachbuch
