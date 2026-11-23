@@ -1,6 +1,7 @@
 // Befehlsliste: Jeder Befehl hat genau EINE Definition mit Text, Tastenkürzel
 // und Verfügbarkeit. Menüband, Datei-Menü und Tastatur benutzen dieselben
 // Befehle – dadurch stimmen Tooltips, Kürzel und Verhalten immer überein.
+import { saveNow } from '../editor/save-registry';
 import { createJournal } from '../journal/actions';
 import type { Action, AppState } from './app-state';
 
@@ -47,6 +48,8 @@ export const commands: Record<CommandId, Command> = {
     // Es wird automatisch gespeichert. Ohne offene Änderungen nur Hinweis –
     // niemals «Gespeichert» anzeigen, wenn nichts gespeichert wurde (SPEC).
     run: (s, d) => {
+      // Geöffnetes Journal: ausstehende Änderungen sofort speichern
+      if (s.openJournal && s.view === 'journal' && saveNow()) return;
       if (s.saveStatus.kind === 'idle')
         d({ type: 'notice', text: 'Nichts zu speichern – Änderungen werden automatisch gespeichert.' });
     },

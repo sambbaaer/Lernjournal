@@ -56,3 +56,80 @@ body {
     color: GrayText;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Editor-Inhalte (Tiptap). Bewusst nahe an der Word-Ausgabe (ADR 0002), damit
+   der Export so aussieht wie das, was Lernende beim Schreiben sehen.
+   --------------------------------------------------------------------------- */
+.lj-editor {
+  min-height: 4.5rem;
+  padding: 0.25rem 0.5rem;
+  margin: 0 -0.5rem;
+  border-radius: 2px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  outline: none;
+}
+/* Sichtbarer, aber ruhiger Fokus: Rahmen um den aktiven Abschnitt */
+.lj-editor:focus-visible,
+.lj-editor.ProseMirror-focused {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+.lj-editor > * + * {
+  margin-top: 0.6em;
+}
+.lj-editor h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 1em;
+}
+.lj-editor h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: italic;
+  margin-top: 0.8em;
+}
+.lj-editor ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.lj-editor ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.lj-editor li > p {
+  margin: 0;
+}
+.lj-editor a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: text;
+}
+.lj-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.lj-editor th,
+.lj-editor td {
+  border: 1px solid var(--color-border-strong);
+  padding: 0.25rem 0.5rem;
+  vertical-align: top;
+}
+.lj-editor th {
+  background: var(--color-pressed);
+  font-weight: 600;
+  text-align: left;
+}
+/* Markierte Tabellenzellen (Mehrfachauswahl) */
+.lj-editor .selectedCell {
+  background: var(--color-selected);
+}
+/* Hilfetext im leeren Abschnitt: wird nur angezeigt, nie gespeichert */
+.lj-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--color-ink-muted);
+  pointer-events: none;
+}

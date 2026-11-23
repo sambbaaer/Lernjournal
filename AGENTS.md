@@ -1,6 +1,6 @@
 # Agent-Anweisungen – Lernjournal
 
-Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist massgeblich; QUELLEN.md trennt offizielle Vorgaben (BiVo, Bildungsplan, QV) von eigenen Produktentscheiden. Stand: Phase 0, AJ-01 (Grundgerüst) und AJ-02 (App-Shell) abgeschlossen; AJ-04 (Schema/Migrationen/Sperre) und AJ-03 (Projekt anlegen/öffnen) ebenfalls; AJ-05 (Journal-CRUD) ebenfalls; nächstes Ticket AJ-06 (Tiptap-Editor). Entwicklungsanleitung und IPC-Muster: docs/ENTWICKLUNG.md. Vor jedem Commit `npm run check`.
+Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist massgeblich; QUELLEN.md trennt offizielle Vorgaben (BiVo, Bildungsplan, QV) von eigenen Produktentscheiden. Stand: Phase 0, AJ-01 (Grundgerüst) und AJ-02 (App-Shell) abgeschlossen; AJ-04 (Schema/Migrationen/Sperre) und AJ-03 (Projekt anlegen/öffnen) ebenfalls; AJ-05 (Journal-CRUD) und AJ-06 (Editor) ebenfalls; nächstes Ticket AJ-07 (Bilder/Legenden). Entwicklungsanleitung und IPC-Muster: docs/ENTWICKLUNG.md. Vor jedem Commit `npm run check`.
 
 - App-Name **Lernjournal**; Office-vertraute, eigenständige Desktop-UI, keine kopierten Microsoft-Assets.
 - Windows, Electron + React/TS + Tiptap + SQLite (`node:sqlite`, ADR 0001) + `docx` (ADR 0002); offline-first.

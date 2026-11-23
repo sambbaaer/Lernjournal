@@ -7,6 +7,7 @@ type JournalChannels =
   | 'journal:get'
   | 'journal:create'
   | 'journal:updateMeta'
+  | 'journal:updateSections'
   | 'journal:setStatus'
   | 'journal:duplicate'
   | 'journal:delete';
@@ -17,6 +18,7 @@ export function createJournalHandlers(journals: JournalService): Pick<Handlers, 
     'journal:get': ({ id }) => journals.get(id),
     'journal:create': () => journals.create(),
     'journal:updateMeta': ({ id, meta }) => journals.updateMeta(id, meta),
+    'journal:updateSections': ({ id, sections }) => journals.updateSections(id, sections),
     'journal:setStatus': ({ id, status }) => journals.setStatus(id, status),
     'journal:duplicate': ({ id }) => journals.duplicate(id),
     'journal:delete': ({ id }) => ({ deleted: journals.delete(id) }),

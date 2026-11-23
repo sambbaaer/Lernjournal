@@ -2,15 +2,19 @@
 // «Vereinfachtes Menüband» wie in aktuellem Office: eine kompakte Zeile pro
 // Register statt einer hohen, halb leeren Fläche (SPEC).
 //
-// Editor-Befehle (Fett, Bild einfügen …) sind bis AJ-06 nicht verfügbar und
-// zeigen den Grund im Tooltip. Sie stehen trotzdem schon da, damit Layout,
-// Tastaturbedienung und Barrierefreiheit jetzt geprüft werden können.
+// Editor-Befehle wirken auf den zuletzt fokussierten Abschnitts-Editor.
+// Steht die Einfügemarke in einer Tabelle, erscheint das kontextuelle
+// Register «Tabelle» (wie «Tabellenlayout» in Word).
+import type { Editor } from '@tiptap/react';
 import type { LucideIcon } from 'lucide-react';
 import {
+  BetweenHorizontalEnd,
+  BetweenHorizontalStart,
+  BetweenVerticalEnd,
+  BetweenVerticalStart,
   Bold,
   CircleCheck,
-  ClipboardPaste,
-  Copy,
+  Columns2,
   FileDown,
   Files,
   FolderTree,
@@ -22,17 +26,25 @@ import {
   Link2,
   List,
   ListOrdered,
-  MapPin,
+  PanelTop,
   Pilcrow,
   Redo2,
-  Scissors,
+  Rows2,
   Table,
   Tags,
+  Trash2,
   Underline,
   Undo2,
 } from 'lucide-react';
 import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
+
+export type RibbonCtx = {
+  state: AppState;
+  dispatch: (a: Action) => void;
+  editor: Editor | null;
+  openLinkDialog: () => void;
+};
 
 export type RibbonItem = {
   id: string;
@@ -41,71 +53,127 @@ export type RibbonItem = {
   shortcut?: string;
   // Nur das Symbol zeigen (Text bleibt für Screenreader und Tooltip erhalten)
   iconOnly?: boolean;
-  disabledReason: (s: AppState) => string | null;
-  run?: (s: AppState, dispatch: (a: Action) => void) => void;
+  disabledReason: (c: RibbonCtx) => string | null;
+  run?: (c: RibbonCtx) => void;
+  // Umschaltknopf: gedrückt (aria-pressed), z. B. «Fett» an der Einfügemarke aktiv
+  pressed?: (c: RibbonCtx) => boolean;
 };
 export type RibbonGroup = { id: string; label: string; items: RibbonItem[] };
 
-const NO_JOURNAL = () => 'Nur in einem geöffneten Journal verfügbar';
-const editor = (
+const NO_EDITOR = 'Zuerst in einen Abschnitt des Journals klicken';
+const LATER = (what: string) => () => `${what} folgt in einem der nächsten Entwicklungsschritte`;
+
+// Hilfsfunktion für Editor-Befehle: verfügbar, wenn ein Journal offen und ein
+// Abschnitt aktiv ist; «can» prüft zusätzlich, ob der Befehl gerade möglich ist.
+function editorItem(
   id: string,
   label: string,
   icon: LucideIcon,
-  shortcut?: string,
-  iconOnly = true,
-): RibbonItem => ({
-  id,
-  label,
-  icon,
-  shortcut,
-  iconOnly,
-  disabledReason: NO_JOURNAL,
-});
+  action: (e: Editor) => void,
+  opts: {
+    shortcut?: string;
+    iconOnly?: boolean;
+    can?: (e: Editor) => boolean;
+    pressed?: (e: Editor) => boolean;
+  } = {},
+): RibbonItem {
+  return {
+    id,
+    label,
+    icon,
+    shortcut: opts.shortcut,
+    iconOnly: opts.iconOnly ?? true,
+    disabledReason: ({ state, editor }) => {
+      if (state.view !== 'journal' || !editor || editor.isDestroyed) return NO_EDITOR;
+      if (opts.can && !opts.can(editor)) return 'Hier gerade nicht möglich';
+      return null;
+    },
+    run: ({ editor }) => editor && action(editor),
+    pressed: opts.pressed
+      ? ({ editor }) => !!editor && !editor.isDestroyed && opts.pressed!(editor)
+      : undefined,
+  };
+}
 
-export const RIBBON_TABS: { id: RibbonTab; label: string }[] = [
-  { id: 'start', label: 'Start' },
-  { id: 'einfuegen', label: 'Einfügen' },
-  { id: 'journal', label: 'Journal' },
-  { id: 'exportieren', label: 'Exportieren' },
-];
+const chain = (e: Editor) => e.chain().focus();
+
+export function ribbonTabs(c: RibbonCtx): { id: RibbonTab; label: string; contextual?: boolean }[] {
+  const tabs: { id: RibbonTab; label: string; contextual?: boolean }[] = [
+    { id: 'start', label: 'Start' },
+    { id: 'einfuegen', label: 'Einfügen' },
+    { id: 'journal', label: 'Journal' },
+    { id: 'exportieren', label: 'Exportieren' },
+  ];
+  if (inTable(c)) tabs.push({ id: 'tabelle', label: 'Tabelle', contextual: true });
+  return tabs;
+}
+
+export function inTable(c: RibbonCtx): boolean {
+  return c.state.view === 'journal' && !!c.editor && !c.editor.isDestroyed && c.editor.isActive('table');
+}
 
 export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
   start: [
     {
       id: 'verlauf',
       label: 'Rückgängig',
-      items: [editor('undo', 'Rückgängig', Undo2, 'Ctrl+Z'), editor('redo', 'Wiederholen', Redo2, 'Ctrl+Y')],
-    },
-    {
-      id: 'zwischenablage',
-      label: 'Zwischenablage',
       items: [
-        editor('paste', 'Einfügen', ClipboardPaste, 'Ctrl+V'),
-        editor('cut', 'Ausschneiden', Scissors, 'Ctrl+X'),
-        editor('copy', 'Kopieren', Copy, 'Ctrl+C'),
+        editorItem('undo', 'Rückgängig', Undo2, (e) => chain(e).undo().run(), {
+          shortcut: 'Ctrl+Z',
+          can: (e) => e.can().undo(),
+        }),
+        editorItem('redo', 'Wiederholen', Redo2, (e) => chain(e).redo().run(), {
+          shortcut: 'Ctrl+Y',
+          can: (e) => e.can().redo(),
+        }),
       ],
     },
     {
       id: 'schrift',
       label: 'Schrift',
       items: [
-        editor('bold', 'Fett', Bold, 'Ctrl+B'),
-        editor('italic', 'Kursiv', Italic, 'Ctrl+I'),
-        editor('underline', 'Unterstrichen', Underline, 'Ctrl+U'),
+        editorItem('bold', 'Fett', Bold, (e) => chain(e).toggleBold().run(), {
+          shortcut: 'Ctrl+B',
+          pressed: (e) => e.isActive('bold'),
+        }),
+        editorItem('italic', 'Kursiv', Italic, (e) => chain(e).toggleItalic().run(), {
+          shortcut: 'Ctrl+I',
+          pressed: (e) => e.isActive('italic'),
+        }),
+        editorItem('underline', 'Unterstrichen', Underline, (e) => chain(e).toggleUnderline().run(), {
+          shortcut: 'Ctrl+U',
+          pressed: (e) => e.isActive('underline'),
+        }),
       ],
     },
     {
       id: 'absatz',
       label: 'Absatz',
-      items: [editor('bullets', 'Aufzählung', List), editor('numbers', 'Nummerierung', ListOrdered)],
+      items: [
+        editorItem('bullets', 'Aufzählung', List, (e) => chain(e).toggleBulletList().run(), {
+          pressed: (e) => e.isActive('bulletList'),
+        }),
+        editorItem('numbers', 'Nummerierung', ListOrdered, (e) => chain(e).toggleOrderedList().run(), {
+          pressed: (e) => e.isActive('orderedList'),
+        }),
+      ],
     },
     {
       id: 'formatvorlagen',
       label: 'Formatvorlagen',
       items: [
-        editor('normal', 'Standard', Pilcrow, undefined, false),
-        editor('h2', 'Überschrift 2', Heading2, undefined, false),
-        editor('h3', 'Überschrift 3', Heading3, undefined, false),
+        editorItem('normal', 'Standard', Pilcrow, (e) => chain(e).setParagraph().run(), {
+          iconOnly: false,
+          pressed: (e) => e.isActive('paragraph'),
+        }),
+        editorItem('h2', 'Überschrift 2', Heading2, (e) => chain(e).toggleHeading({ level: 2 }).run(), {
+          iconOnly: false,
+          pressed: (e) => e.isActive('heading', { level: 2 }),
+        }),
+        editorItem('h3', 'Überschrift 3', Heading3, (e) => chain(e).toggleHeading({ level: 3 }).run(), {
+          iconOnly: false,
+          pressed: (e) => e.isActive('heading', { level: 3 }),
+        }),
       ],
     },
   ],
@@ -114,16 +182,40 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       id: 'medien',
       label: 'Medien',
       items: [
-        editor('image', 'Bild', Image, undefined, false),
-        editor('table', 'Tabelle', Table, undefined, false),
+        {
+          id: 'image',
+          label: 'Bild',
+          icon: Image,
+          iconOnly: false,
+          disabledReason: LATER('Bilder einfügen'),
+        },
+        editorItem(
+          'table',
+          'Tabelle',
+          Table,
+          (e) => chain(e).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+          { iconOnly: false, can: (e) => e.can().insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
+        ),
       ],
     },
     {
       id: 'links',
       label: 'Verknüpfungen',
       items: [
-        editor('journal-link', 'Link zu Journal', Link2, undefined, false),
-        editor('web-link', 'Weblink', Globe, undefined, false),
+        {
+          id: 'journal-link',
+          label: 'Link zu Journal',
+          icon: Link2,
+          iconOnly: false,
+          disabledReason: LATER('Verknüpfen von Journalen'),
+        },
+        {
+          ...editorItem('web-link', 'Weblink', Globe, () => {}, {
+            iconOnly: false,
+            pressed: (e) => e.isActive('link'),
+          }),
+          run: (c) => c.openLinkDialog(),
+        },
       ],
     },
   ],
@@ -136,22 +228,37 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           id: 'status',
           label: 'Abgeschlossen',
           icon: CircleCheck,
-          disabledReason: (s) =>
-            s.openJournal && s.view === 'journal' ? null : 'Nur in einem geöffneten Journal verfügbar',
-          run: (s, d) => {
-            const j = s.openJournal;
-            if (j) void setJournalStatus(d, j.id, j.status === 'completed' ? 'draft' : 'completed');
+          iconOnly: false,
+          disabledReason: ({ state }) =>
+            state.openJournal && state.view === 'journal'
+              ? null
+              : 'Nur in einem geöffneten Journal verfügbar',
+          pressed: ({ state }) => state.openJournal?.status === 'completed',
+          run: ({ state, dispatch }) => {
+            const j = state.openJournal;
+            if (j) void setJournalStatus(dispatch, j.id, j.status === 'completed' ? 'draft' : 'completed');
           },
         },
-        editor('lernort', 'Lernort', MapPin, undefined, false),
       ],
     },
     {
       id: 'ordnen',
       label: 'Ordnen',
       items: [
-        editor('categories', 'Kategorien', FolderTree, undefined, false),
-        editor('tags', 'Schlagwörter', Tags, undefined, false),
+        {
+          id: 'categories',
+          label: 'Kategorien',
+          icon: FolderTree,
+          iconOnly: false,
+          disabledReason: LATER('Kategorien zuordnen'),
+        },
+        {
+          id: 'tags',
+          label: 'Schlagwörter',
+          icon: Tags,
+          iconOnly: false,
+          disabledReason: LATER('Schlagwörter zuordnen'),
+        },
       ],
     },
   ],
@@ -160,14 +267,91 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       id: 'word',
       label: 'Word',
       items: [
-        editor('export-single', 'Dieses Journal als Word', FileDown, undefined, false),
+        {
+          id: 'export-single',
+          label: 'Dieses Journal als Word',
+          icon: FileDown,
+          iconOnly: false,
+          disabledReason: LATER('Word-Export'),
+        },
         {
           id: 'export-collection',
           label: 'Mehrere Journale als Word',
           icon: Files,
+          iconOnly: false,
           disabledReason: () => null,
-          run: (_s, d) => d({ type: 'navigate', view: 'export' }),
+          run: ({ dispatch }) => dispatch({ type: 'navigate', view: 'export' }),
         },
+      ],
+    },
+  ],
+  tabelle: [
+    {
+      id: 'zeilen',
+      label: 'Zeilen',
+      items: [
+        editorItem(
+          'row-before',
+          'Zeile oberhalb einfügen',
+          BetweenHorizontalStart,
+          (e) => chain(e).addRowBefore().run(),
+          {
+            can: (e) => e.can().addRowBefore(),
+          },
+        ),
+        editorItem(
+          'row-after',
+          'Zeile unterhalb einfügen',
+          BetweenHorizontalEnd,
+          (e) => chain(e).addRowAfter().run(),
+          {
+            can: (e) => e.can().addRowAfter(),
+          },
+        ),
+        editorItem('row-delete', 'Zeile löschen', Rows2, (e) => chain(e).deleteRow().run(), {
+          can: (e) => e.can().deleteRow(),
+        }),
+      ],
+    },
+    {
+      id: 'spalten',
+      label: 'Spalten',
+      items: [
+        editorItem(
+          'col-before',
+          'Spalte links einfügen',
+          BetweenVerticalStart,
+          (e) => chain(e).addColumnBefore().run(),
+          {
+            can: (e) => e.can().addColumnBefore(),
+          },
+        ),
+        editorItem(
+          'col-after',
+          'Spalte rechts einfügen',
+          BetweenVerticalEnd,
+          (e) => chain(e).addColumnAfter().run(),
+          {
+            can: (e) => e.can().addColumnAfter(),
+          },
+        ),
+        editorItem('col-delete', 'Spalte löschen', Columns2, (e) => chain(e).deleteColumn().run(), {
+          can: (e) => e.can().deleteColumn(),
+        }),
+      ],
+    },
+    {
+      id: 'tabelle',
+      label: 'Tabelle',
+      items: [
+        editorItem('header-row', 'Kopfzeile', PanelTop, (e) => chain(e).toggleHeaderRow().run(), {
+          iconOnly: false,
+          can: (e) => e.can().toggleHeaderRow(),
+        }),
+        editorItem('table-delete', 'Tabelle löschen', Trash2, (e) => chain(e).deleteTable().run(), {
+          iconOnly: false,
+          can: (e) => e.can().deleteTable(),
+        }),
       ],
     },
   ],

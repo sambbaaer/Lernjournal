@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { InvalidContentError } from '@shared/editor-schema';
 import { ProjectService } from '../project/project-service';
 import { copyTitle, JournalNotFoundError, JournalService } from './journal-service';
 
@@ -134,6 +135,42 @@ describe('Journal-Dienst', () => {
     expect(existsSync(file)).toBe(false);
     expect(db.prepare('SELECT count(*) n FROM media').get()).toEqual({ n: 0 });
     expect(db.prepare('SELECT count(*) n FROM journal_fts').get()).toEqual({ n: 0 });
+  });
+
+  it('Inhalt speichern: geprüft, Suchindex enthält den Text', () => {
+    const j = journals.create({ title: 'Farbe' });
+    const sections = {
+      ...j.sections,
+      reflexion: {
+        type: 'doc' as const,
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Feuchtwasser früher prüfen' }] }],
+      },
+    };
+    journals.updateSections(j.id, sections);
+    expect(journals.get(j.id).sections.reflexion).toEqual(sections.reflexion);
+    expect(
+      projects.db.prepare("SELECT count(*) n FROM journal_fts WHERE journal_fts MATCH 'feuchtwasser'").get(),
+    ).toEqual({ n: 1 });
+  });
+
+  it('Inhalt mit gefährlichem Link wird abgelehnt, alter Inhalt bleibt', () => {
+    const j = journals.create();
+    const bad = {
+      ...j.sections,
+      auftrag: {
+        type: 'doc' as const,
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'x', marks: [{ type: 'link', attrs: { href: 'javascript:alert(1)' } }] },
+            ],
+          },
+        ],
+      },
+    };
+    expect(() => journals.updateSections(j.id, bad)).toThrow(InvalidContentError);
+    expect(journals.get(j.id).sections).toEqual(j.sections);
   });
 
   it('Suchindex folgt dem Titel', () => {

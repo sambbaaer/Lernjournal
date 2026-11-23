@@ -28,6 +28,7 @@ export interface LernjournalApi {
     get: Call<'journal:get'>;
     create: Call<'journal:create'>;
     updateMeta: Call<'journal:updateMeta'>;
+    updateSections: Call<'journal:updateSections'>;
     setStatus: Call<'journal:setStatus'>;
     duplicate: Call<'journal:duplicate'>;
     delete: Call<'journal:delete'>;

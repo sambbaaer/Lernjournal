@@ -10,6 +10,7 @@ import { commands } from '../state/commands';
 import { nextRegion, REGIONS, type Region } from '../state/regions';
 import { matchesShortcut } from '../state/shortcuts';
 import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
+import { EditorProvider } from '../editor/EditorContext';
 import { loadJournals } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
 import { NewProjectWizard } from '../project/NewProjectWizard';
@@ -118,55 +119,57 @@ export function AppShell({ version }: { version: string | null }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      {/* «Zum Inhalt springen» für Tastatur und Screenreader */}
-      <a
-        href="#document"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-surface focus:p-2"
-      >
-        Zum Inhalt springen
-      </a>
-      {!state.projectLoaded ? (
-        <main
-          className="flex flex-1 items-center justify-center bg-canvas text-sm text-ink-muted"
-          aria-busy="true"
+    <EditorProvider>
+      <div className="flex h-full flex-col">
+        {/* «Zum Inhalt springen» für Tastatur und Screenreader */}
+        <a
+          href="#document"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-surface focus:p-2"
         >
-          Lädt …
-        </main>
-      ) : state.wizardOpen ? (
-        <NewProjectWizard />
-      ) : !state.project ? (
-        <Welcome />
-      ) : state.backstage ? (
-        <Backstage
-          page={state.backstage}
-          version={version}
-          onClose={() => dispatch({ type: 'closeBackstage' })}
-        />
-      ) : (
-        <>
-          <Ribbon fileButtonRef={fileButtonRef} />
-          {state.project.syncProvider && !state.syncWarningDismissed && (
-            <SyncWarning
-              provider={state.project.syncProvider}
-              onDismiss={() => dispatch({ type: 'dismissSyncWarning' })}
-            />
-          )}
-          <div className="flex min-h-0 flex-1">
-            <NavigationPane />
-            <main
-              id="document"
-              data-region="document"
-              tabIndex={-1}
-              aria-label={VIEW_LABELS[state.view]}
-              className="min-w-0 flex-1 overflow-auto bg-canvas"
-            >
-              {views[state.view]}
-            </main>
-          </div>
-        </>
-      )}
-      <StatusBar version={version} />
-    </div>
+          Zum Inhalt springen
+        </a>
+        {!state.projectLoaded ? (
+          <main
+            className="flex flex-1 items-center justify-center bg-canvas text-sm text-ink-muted"
+            aria-busy="true"
+          >
+            Lädt …
+          </main>
+        ) : state.wizardOpen ? (
+          <NewProjectWizard />
+        ) : !state.project ? (
+          <Welcome />
+        ) : state.backstage ? (
+          <Backstage
+            page={state.backstage}
+            version={version}
+            onClose={() => dispatch({ type: 'closeBackstage' })}
+          />
+        ) : (
+          <>
+            <Ribbon fileButtonRef={fileButtonRef} />
+            {state.project.syncProvider && !state.syncWarningDismissed && (
+              <SyncWarning
+                provider={state.project.syncProvider}
+                onDismiss={() => dispatch({ type: 'dismissSyncWarning' })}
+              />
+            )}
+            <div className="flex min-h-0 flex-1">
+              <NavigationPane />
+              <main
+                id="document"
+                data-region="document"
+                tabIndex={-1}
+                aria-label={VIEW_LABELS[state.view]}
+                className="min-w-0 flex-1 overflow-auto bg-canvas"
+              >
+                {views[state.view]}
+              </main>
+            </div>
+          </>
+        )}
+        <StatusBar version={version} />
+      </div>
+    </EditorProvider>
   );
 }

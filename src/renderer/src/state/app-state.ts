@@ -4,7 +4,7 @@
 
 // 'journal' = ein einzelnes Journal ist geöffnet (Dokumentansicht)
 export type View = 'start' | 'journale' | 'journal' | 'fachbuch' | 'export' | 'einstellungen';
-export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren';
+export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren' | 'tabelle';
 export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' | 'info';
 
 import type { ProjectInfo } from '@shared/ipc';

@@ -74,6 +74,16 @@ src/renderer/src/journal/   actions.ts, JournalList, JournalDocument, StatusBadg
 - Bilddateien werden beim Löschen **nach** dem erfolgreichen Commit entfernt.
 - Metadaten speichern nach 600 ms Ruhe und beim Verlassen der Ansicht; «Gespeichert» erscheint erst nach Bestätigung durch den Hauptprozess.
 
+## Editor
+```
+src/shared/editor-schema.ts   Whitelist (Tiptap-Erweiterungen) + validateSections() für den Hauptprozess
+src/renderer/src/editor/      SectionEditor, EditorContext (aktiver Editor fürs Menüband),
+                              LinkDialog, save-registry (Strg+S)
+```
+- **Ein Schema für beide Seiten:** Was der Editor nicht kennt, wird beim Einfügen verworfen; was trotzdem ankommt, lehnt `validateSections()` im Hauptprozess ab (inkl. Link-Protokollen und Überschriftenebenen).
+- Neue Formatierung? Erweiterung in `baseExtensions()` aufnehmen, DOCX-Abbildung (ADR 0002) ergänzen, Schema-Test erweitern.
+- Menüband-Befehle für den Editor über `editorItem()` in `ribbon-items.ts`; `onMouseDown.preventDefault()` verhindert, dass ein Klick dem Editor die Markierung nimmt.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

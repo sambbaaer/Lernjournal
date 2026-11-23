@@ -83,7 +83,7 @@ test('Nicht verfügbare Befehle erklären den Grund und tun nichts', async () =>
   await reset();
   const bold = page.getByRole('tabpanel').getByRole('button', { name: 'Fett' });
   assert.equal(await bold.getAttribute('aria-disabled'), 'true');
-  assert.match(await bold.getAttribute('title'), /Strg\+B.*Nur in einem geöffneten Journal/);
+  assert.match(await bold.getAttribute('title'), /Strg\+B.*Zuerst in einen Abschnitt des Journals klicken/);
   await bold.click({ force: true }); // bewusst trotz aria-disabled klicken
   assert.equal(await page.title(), 'Start – Lernjournal');
 });

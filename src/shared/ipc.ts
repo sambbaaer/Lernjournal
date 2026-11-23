@@ -9,7 +9,13 @@
 //   request  – was der Renderer schicken darf (wird im Hauptprozess geprüft)
 //   response – was zurückkommt (Typ für den Renderer)
 import { z } from 'zod';
-import { JournalDetailSchema, JournalId, JournalMetaSchema, JournalSummarySchema } from './journal';
+import {
+  JournalDetailSchema,
+  JournalId,
+  JournalMetaSchema,
+  JournalSummarySchema,
+  SectionsSchema,
+} from './journal';
 
 export const AppInfoSchema = z.object({
   name: z.string(),
@@ -135,6 +141,11 @@ export const ipcContract = {
   'journal:create': { request: z.undefined(), response: JournalDetailSchema },
   'journal:updateMeta': {
     request: z.object({ id: JournalId, meta: JournalMetaSchema }),
+    response: JournalSummarySchema,
+  },
+  // Inhalt (Tiptap-JSON); der Hauptprozess prüft zusätzlich gegen das Editor-Schema
+  'journal:updateSections': {
+    request: z.object({ id: JournalId, sections: SectionsSchema }),
     response: JournalSummarySchema,
   },
   'journal:setStatus': {

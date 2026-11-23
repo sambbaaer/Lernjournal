@@ -7,6 +7,7 @@
 //   3. Passen die Daten exakt zum zod-Schema?
 // Diese Datei importiert absichtlich nichts aus «electron», damit sie ohne
 // Electron getestet werden kann (siehe ipc-handler.test.ts).
+import { InvalidContentError } from '@shared/editor-schema';
 import { ipcContract, type IpcChannel, type IpcRequest, type IpcResponse, type IpcResult } from '@shared/ipc';
 
 // Minimal das, was wir vom Electron-Event brauchen: die URL des aufrufenden Frames.
@@ -44,6 +45,10 @@ export function createIpcDispatcher(handlers: Handlers, isTrustedUrl: (url: stri
       const data = await handlers[c](parsed.data as never);
       return { ok: true, data };
     } catch (err) {
+      // Inhalt verletzt das Editor-Schema: verständliche Meldung, kein interner Fehler
+      if (err instanceof InvalidContentError) {
+        return { ok: false, error: { code: 'INVALID_REQUEST', message: err.message } };
+      }
       // Details nur ins lokale Protokoll, nicht an die Oberfläche
       console.error(`[ipc] Fehler in ${c}:`, err);
       return { ok: false, error: { code: 'INTERNAL', message: 'Interner Fehler' } };

@@ -1,7 +1,9 @@
 // Dokumentansicht eines Journals: «Seite» mit Titel, Metadaten und den drei
-// Abschnitten. Metadaten werden automatisch gespeichert (kurz nach der letzten
-// Änderung und beim Verlassen). Der Texteditor für die Abschnitte folgt mit AJ-06.
+// Abschnitten (je ein Rich-Text-Editor). Alles wird automatisch gespeichert:
+// kurz nach der letzten Änderung, bei Dauertippen spätestens alle 10 Sekunden,
+// beim Verlassen der Ansicht und mit Strg+S sofort (SPEC «Autosave»).
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { JSONContent } from '@tiptap/react';
 import { Archive, CircleCheck, Copy, PencilLine, Trash2 } from 'lucide-react';
 import {
   LEARNING_PLACES,
@@ -10,14 +12,20 @@ import {
   SECTION_TITLES,
   type JournalDetail,
   type JournalMeta,
+  type Sections,
 } from '@shared/journal';
 import { computeSchoolYear } from '@shared/school-year';
 import { useApp } from '../state/AppContext';
+import { SectionEditor } from '../editor/SectionEditor';
+import { registerSaveNow } from '../editor/save-registry';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { deleteJournal, displayTitle, duplicateJournal, setJournalStatus } from './actions';
 import { StatusBadge } from './StatusBadge';
 
-const SAVE_DELAY_MS = 600; // SPEC: speichern nach kurzer Ruhephase
+const SAVE_DELAY_MS = 800; // SPEC: speichern nach kurzer Ruhephase
+const MAX_WAIT_MS = 10_000; // SPEC: bei Dauertippen spätestens alle 10 s
+// Zeitquelle für die Speicherplanung (nur in Event-Handlern verwendet, nie beim Rendern)
+const currentTime = () => Date.now();
 
 const SECTION_HINTS: Record<(typeof SECTION_KEYS)[number], string> = {
   auftrag: 'Was war die Aufgabe, was das Ziel? Für wen (ohne vertrauliche Details)?',
@@ -41,38 +49,88 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
   const { state, dispatch } = useApp();
   const [meta, setMeta] = useState<JournalMeta>(() => metaOf(journal));
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const pending = useRef<JournalMeta | null>(null);
+  // Ausstehende Änderungen, getrennt nach Metadaten und Inhalt
+  const pending = useRef<{ meta?: JournalMeta; sections?: Sections }>({});
+  const sectionsRef = useRef<Sections>(journal.sections);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstPendingAt = useRef<number | null>(null);
+  const saving = useRef<Promise<void> | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  // Speichert ausstehende Änderungen. Status «Gespeichert» erst nach Bestätigung
-  // durch den Hauptprozess (= Transaktion abgeschlossen), sonst Fehlermeldung.
-  const flush = useCallback(async () => {
+  // Speichert ausstehende Änderungen. «Gespeichert» erst nach Bestätigung durch
+  // den Hauptprozess (= Transaktion abgeschlossen), sonst Fehlermeldung.
+  const flush = useCallback(async (): Promise<void> => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    const toSave = pending.current;
-    if (!toSave) return;
-    pending.current = null;
+    // Läuft schon ein Speichervorgang, zuerst diesen abwarten (Reihenfolge wahren)
+    if (saving.current) await saving.current;
+    const todo = pending.current;
+    if (!todo.meta && !todo.sections) return;
+    pending.current = {};
+    firstPendingAt.current = null;
     dispatch({ type: 'setSaveStatus', status: { kind: 'saving' } });
-    const res = await window.lernjournal.journal.updateMeta({ id: journal.id, meta: toSave });
-    if (res.ok) {
-      dispatch({ type: 'journalUpserted', journal: res.data });
-      dispatch({ type: 'setSaveStatus', status: { kind: 'saved', at: Date.now() } });
-    } else {
-      pending.current = pending.current ?? toSave; // nicht verlieren: beim nächsten Versuch mitsenden
-      dispatch({ type: 'setSaveStatus', status: { kind: 'error', message: 'Bitte erneut versuchen.' } });
-    }
+    const run = (async () => {
+      let ok = true;
+      if (todo.meta) {
+        const res = await window.lernjournal.journal.updateMeta({ id: journal.id, meta: todo.meta });
+        if (res.ok) dispatch({ type: 'journalUpserted', journal: res.data });
+        else ok = false;
+      }
+      if (todo.sections) {
+        const res = await window.lernjournal.journal.updateSections({
+          id: journal.id,
+          sections: todo.sections,
+        });
+        if (res.ok) dispatch({ type: 'journalUpserted', journal: res.data });
+        else ok = false;
+      }
+      if (ok) {
+        dispatch({ type: 'setSaveStatus', status: { kind: 'saved', at: Date.now() } });
+      } else {
+        // Nichts verlieren: beim nächsten Versuch erneut senden (neuere Änderungen haben Vorrang)
+        pending.current = {
+          meta: pending.current.meta ?? todo.meta,
+          sections: pending.current.sections ?? todo.sections,
+        };
+        dispatch({
+          type: 'setSaveStatus',
+          status: { kind: 'error', message: 'Bitte erneut versuchen (Strg+S).' },
+        });
+      }
+    })();
+    saving.current = run;
+    await run;
+    saving.current = null;
   }, [dispatch, journal.id]);
+
+  function schedule() {
+    const now = currentTime();
+    firstPendingAt.current ??= now;
+    if (timer.current) clearTimeout(timer.current);
+    const waited = now - firstPendingAt.current;
+    timer.current = setTimeout(() => void flush(), waited >= MAX_WAIT_MS ? 0 : SAVE_DELAY_MS);
+  }
 
   function change(next: JournalMeta) {
     setMeta(next);
-    pending.current = next;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void flush(), SAVE_DELAY_MS);
+    pending.current.meta = next;
+    schedule();
+  }
+
+  function changeSection(key: keyof Sections, doc: JSONContent) {
+    sectionsRef.current = { ...sectionsRef.current, [key]: doc as Sections[typeof key] };
+    pending.current.sections = sectionsRef.current;
+    schedule();
   }
 
   // Beim Verlassen der Ansicht (Navigation, anderes Journal) sofort speichern
   useEffect(() => () => void flush(), [flush]);
+
+  // Strg+S: sofort speichern
+  useEffect(() => {
+    registerSaveNow(flush);
+    return () => registerSaveNow(null);
+  }, [flush]);
 
   // Neues, leeres Journal: Cursor direkt in den Titel
   useEffect(() => {
@@ -207,15 +265,15 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
 
         {SECTION_KEYS.map((k) => (
           <section key={k} aria-labelledby={`sec-${k}`} className="mt-8">
-            <h2 id={`sec-${k}`} className="text-xl font-semibold text-accent-strong">
+            <h2 id={`sec-${k}`} className="mb-2 text-xl font-semibold text-accent-strong">
               {SECTION_TITLES[k]}
             </h2>
-            <p className="mt-2 rounded-sm border border-dashed border-border px-3 py-4 text-sm text-ink-muted">
-              {SECTION_HINTS[k]}
-              <span className="mt-1 block text-xs">
-                Der Texteditor folgt im nächsten Entwicklungsschritt.
-              </span>
-            </p>
+            <SectionEditor
+              label={SECTION_TITLES[k]}
+              hint={SECTION_HINTS[k]}
+              content={journal.sections[k] as JSONContent}
+              onChange={(doc) => changeSection(k, doc)}
+            />
           </section>
         ))}
       </article>
@@ -228,7 +286,7 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => {
             setConfirmDelete(false);
-            pending.current = null; // nichts mehr speichern, wird gelöscht
+            pending.current = {}; // nichts mehr speichern, wird gelöscht
             void deleteJournal(dispatch, journal.id);
           }}
         >

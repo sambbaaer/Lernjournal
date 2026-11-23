@@ -13,6 +13,7 @@ import {
   type JournalSummary,
   type Sections,
 } from '@shared/journal';
+import { validateSections } from '@shared/editor-schema';
 import { effectiveSchoolYear, localIsoDate } from '@shared/school-year';
 import { transaction, type Db } from '../db/connection';
 
@@ -144,6 +145,19 @@ export class JournalService {
           this.now().toISOString(),
           id,
         );
+      this.syncFts(id);
+    });
+    return this.toSummary(this.row(id), this.apprenticeshipStart());
+  }
+
+  // Inhalt der drei Abschnitte speichern – nur nach Prüfung gegen das Editor-Schema
+  updateSections(id: string, sections: Sections): JournalSummary {
+    this.row(id);
+    validateSections(sections); // wirft InvalidContentError
+    transaction(this.db, () => {
+      this.db
+        .prepare('UPDATE journal SET sections_json = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(sections), this.now().toISOString(), id);
       this.syncFts(id);
     });
     return this.toSummary(this.row(id), this.apprenticeshipStart());
