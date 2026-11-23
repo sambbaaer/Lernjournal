@@ -8,6 +8,8 @@ import { createCloseGuard } from './close-guard';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
+import { createLinkHandlers } from './links/link-handlers';
+import { LinkService } from './links/link-service';
 import { MediaService } from './media/media-service';
 import { createProjectHandlers } from './project/project-handlers';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
@@ -55,11 +57,13 @@ const media = new MediaService(
   () => projects.db,
   () => projects.dir,
 );
+const links = new LinkService(() => projects.db);
 const journals = new JournalService(
   () => projects.db,
   () => projects.dir,
   () => new Date(),
   media,
+  links,
 );
 const taxonomy = new TaxonomyService(() => projects.db);
 
@@ -212,6 +216,7 @@ function registerIpc() {
       },
       ...createJournalHandlers(journals),
       ...createTaxonomyHandlers(taxonomy, journals),
+      ...createLinkHandlers(links, journals),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
     trusted,

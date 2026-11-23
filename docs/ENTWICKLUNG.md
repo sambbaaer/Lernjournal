@@ -111,6 +111,21 @@ src/renderer/src/project/TaxonomyManager.tsx Verwaltung in den Einstellungen
 - Zuordnungen speichern sofort; die Kategorien-Auswahl wird bis zur Bestätigung optimistisch angezeigt und springt bei einem Fehler zurück.
 - Schlagwörter im Suchindex (`journal_fts`) folgen mit AJ-11.
 
+## Journal-Verknüpfungen
+```
+src/shared/links.ts                        Link-Ziele (lernjournal://journal/<uuid>), Aufräumen, Suche der Auswahl
+src/main/links/link-service.ts             verknüpfen, lösen, Liste inkl. «Erwähnt in», Text-Links entfernen
+src/main/links/link-handlers.ts            IPC journal:links / journal:link / journal:unlink
+src/renderer/src/journal/LinkFields.tsx    «Verknüpft mit» und «Erwähnt in» im Journal
+src/renderer/src/journal/JournalPicker.tsx Auswahldialog mit Suche (Combobox), auch für Links im Text
+```
+- **Verknüpfung** = Zeile in `journal_link` (Schema v1, keine Migration). Gespeichert in einer Richtung, angezeigt in beiden; die Datenbank verbietet Selbstlinks und die Gegenrichtung (`journal_link_undirected`). Doppeltes Verknüpfen ist kein Fehler, sondern «nichts zu tun».
+- **Link im Text** = Tiptap-Link mit `href` `lernjournal://journal/<uuid>`; `ALLOWED_LINK` lässt nur genau dieses Muster zu. «Erwähnt in» sucht das Ziel per `instr()` im gespeicherten JSON (kein Index nötig bei einigen hundert Journalen).
+- **Löschen** eines Journals entfernt in derselben Transaktion die Text-Links darauf (`stripJournalLinks`, Text bleibt) und führt den Suchindex der betroffenen Journale nach; Verknüpfungen fallen per `ON DELETE CASCADE` weg.
+- Die Auswahl sucht im Renderer über die bereits geladene Journalliste (`filterLinkCandidates`, Umlaute/ae-oe-ue egal). Die Volltextsuche über den Inhalt folgt mit AJ-11.
+- Ein verknüpftes Journal öffnen (`openLinkedJournal`) speichert zuerst das aktuelle – sonst sähe das Ziel einen eben eingefügten Text-Link noch nicht.
+- Der Picker im Editor gibt den Fokus nicht selbst zurück (`restoreFocus={false}`), sonst springt die Einfügemarke an den Textanfang.
+
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.
 - **Anzeige:** «Speichert …» → «Gespeichert» erst nach Bestätigung durch den Hauptprozess (`synchronous=FULL`). Bei Fehlern «Speichern fehlgeschlagen» mit Knopf «Erneut versuchen» und automatischem Wiederholversuch nach 2/5/10/30 s – die Änderungen bleiben im Speicher und gehen nicht verloren.

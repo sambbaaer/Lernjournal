@@ -36,6 +36,7 @@ import {
   Underline,
   Undo2,
 } from 'lucide-react';
+import { journalIdFromHref } from '@shared/links';
 import { insertImages, pickImageFiles } from '../editor/insert-image';
 import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
@@ -45,7 +46,15 @@ export type RibbonCtx = {
   dispatch: (a: Action) => void;
   editor: Editor | null;
   openLinkDialog: () => void;
+  openJournalLinkDialog: () => void;
 };
+
+// Steht die Einfügemarke in einem Link? Interne Journal-Links (AJ-10) und
+// Weblinks werden getrennt angezeigt und bearbeitet.
+export function activeLinkKind(editor: Editor | null): 'journal' | 'web' | null {
+  if (!editor || editor.isDestroyed || !editor.isActive('link')) return null;
+  return journalIdFromHref(editor.getAttributes('link')['href']) ? 'journal' : 'web';
+}
 
 export type RibbonItem = {
   id: string;
@@ -208,16 +217,17 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       label: 'Verknüpfungen',
       items: [
         {
-          id: 'journal-link',
-          label: 'Link zu Journal',
-          icon: Link2,
-          iconOnly: false,
-          disabledReason: LATER('Verknüpfen von Journalen'),
+          // Wort im Text verweist auf ein anderes Journal (AJ-10); Strg+Klick öffnet es
+          ...editorItem('journal-link', 'Link zu Journal', Link2, () => {}, {
+            iconOnly: false,
+            pressed: (e) => activeLinkKind(e) === 'journal',
+          }),
+          run: (c) => c.openJournalLinkDialog(),
         },
         {
           ...editorItem('web-link', 'Weblink', Globe, () => {}, {
             iconOnly: false,
-            pressed: (e) => e.isActive('link'),
+            pressed: (e) => activeLinkKind(e) === 'web',
           }),
           run: (c) => c.openLinkDialog(),
         },
@@ -263,6 +273,15 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           iconOnly: false,
           disabledReason: onlyInJournal,
           run: ({ dispatch }) => dispatch({ type: 'requestFocus', target: 'journal-tags' }),
+        },
+        {
+          // Verwandtes Journal verknüpfen (AJ-10): öffnet die Auswahl mit Suche
+          id: 'links',
+          label: 'Verknüpfen',
+          icon: Link2,
+          iconOnly: false,
+          disabledReason: onlyInJournal,
+          run: ({ dispatch }) => dispatch({ type: 'requestFocus', target: 'journal-links' }),
         },
       ],
     },

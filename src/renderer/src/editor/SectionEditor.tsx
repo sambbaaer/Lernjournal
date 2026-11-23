@@ -5,6 +5,8 @@ import { useEffect, useRef } from 'react';
 import { EditorContent, ReactNodeViewRenderer, useEditor, type JSONContent } from '@tiptap/react';
 import { Placeholder } from '@tiptap/extensions';
 import { baseExtensions, Figure } from '@shared/editor-schema';
+import { journalIdFromHref } from '@shared/links';
+import { openLinkedJournal } from '../journal/actions';
 import { useApp } from '../state/AppContext';
 import { useActiveEditor } from './EditorContext';
 import { FigureView } from './FigureView';
@@ -51,6 +53,18 @@ export function SectionEditor({
         'aria-label': label,
         spellcheck: 'true',
         lang: 'de-CH',
+      },
+      // Strg+Klick auf einen Journal-Link öffnet das Journal (wie in Word).
+      // Ein einfacher Klick setzt nur die Einfügemarke – Weblinks werden nie
+      // automatisch geöffnet (SPEC).
+      handleClick: (_view, _pos, event) => {
+        if (!(event.ctrlKey || event.metaKey)) return false;
+        const a = (event.target as HTMLElement | null)?.closest?.('a');
+        const id = journalIdFromHref(a?.getAttribute('href'));
+        if (!id) return false;
+        event.preventDefault();
+        void openLinkedJournal(dispatch, id);
+        return true;
       },
       // Bilder per Drag & Drop (aus dem Explorer) an der Drop-Position einfügen
       handleDrop: (view, event, _slice, moved) => {

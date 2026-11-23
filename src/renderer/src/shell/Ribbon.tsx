@@ -1,11 +1,14 @@
 // Menüband: «Datei»-Knopf, Register und eine kompakte Befehlszeile.
 import { useId, useState } from 'react';
+import { journalIdFromHref, journalLinkHref } from '@shared/links';
 import { useActiveEditor } from '../editor/EditorContext';
 import { LinkDialog } from '../editor/LinkDialog';
+import { displayTitle, openLinkedJournal } from '../journal/actions';
+import { JournalPicker } from '../journal/JournalPicker';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
-import { inTable, RIBBON, ribbonTabs, type RibbonCtx, type RibbonItem } from './ribbon-items';
+import { activeLinkKind, inTable, RIBBON, ribbonTabs, type RibbonCtx, type RibbonItem } from './ribbon-items';
 import { handleRovingKeys } from './roving';
 
 export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLButtonElement | null> }) {
@@ -14,9 +17,20 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
   useActiveEditor(); // abonniert «tick»: Knopfzustände folgen der Einfügemarke
   const baseId = useId();
   const [linkOpen, setLinkOpen] = useState(false);
+  const [journalLinkOpen, setJournalLinkOpen] = useState(false);
   const fileCmd = commands['file.open'];
 
-  const ctx: RibbonCtx = { state, dispatch, editor, openLinkDialog: () => setLinkOpen(true) };
+  const ctx: RibbonCtx = {
+    state,
+    dispatch,
+    editor,
+    openLinkDialog: () => setLinkOpen(true),
+    openJournalLinkDialog: () => setJournalLinkOpen(true),
+  };
+  const linkKind = activeLinkKind(editor);
+  // Ziel des Journal-Links an der Einfügemarke (zum Öffnen aus dem Dialog)
+  const currentTarget =
+    linkKind === 'journal' && editor ? journalIdFromHref(editor.getAttributes('link')['href']) : null;
   const tabs = ribbonTabs(ctx);
   // Kontextuelles Register verschwindet, wenn die Einfügemarke die Tabelle verlässt
   const activeTab = state.ribbonTab === 'tabelle' && !inTable(ctx) ? 'start' : state.ribbonTab;
@@ -98,13 +112,13 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
       </div>
       {linkOpen && editor && (
         <LinkDialog
-          initial={String(editor.getAttributes('link')['href'] ?? '')}
+          initial={linkKind === 'web' ? String(editor.getAttributes('link')['href'] ?? '') : ''}
           onCancel={() => {
             setLinkOpen(false);
             editor.commands.focus();
           }}
           onRemove={
-            editor.isActive('link')
+            linkKind === 'web'
               ? () => {
                   setLinkOpen(false);
                   editor.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -123,6 +137,63 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
               }).run();
             } else {
               e.extendMarkRange('link').setLink({ href: url }).run();
+            }
+          }}
+        />
+      )}
+      {journalLinkOpen && editor && state.openJournal && (
+        <JournalPicker
+          title="Link zu Journal"
+          confirmLabel={linkKind === 'journal' ? 'Link ändern' : 'Link einfügen'}
+          excludeIds={[state.openJournal.id]}
+          restoreFocus={false}
+          note="Der Link zeigt auf das Journal, es wird nichts kopiert. Strg+Klick auf den Link öffnet das Journal; dort erscheint dieses Journal unter «Erwähnt in»."
+          actions={
+            linkKind === 'journal' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJournalLinkOpen(false);
+                    editor.chain().focus().extendMarkRange('link').unsetLink().run();
+                  }}
+                  className="rounded-sm px-3 py-2 text-sm hover:bg-hover"
+                >
+                  Link entfernen
+                </button>
+                {currentTarget && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJournalLinkOpen(false);
+                      void openLinkedJournal(dispatch, currentTarget);
+                    }}
+                    className="rounded-sm px-3 py-2 text-sm hover:bg-hover"
+                  >
+                    Journal öffnen
+                  </button>
+                )}
+              </>
+            ) : null
+          }
+          onCancel={() => {
+            setJournalLinkOpen(false);
+            editor.commands.focus();
+          }}
+          onPick={(id) => {
+            setJournalLinkOpen(false);
+            const href = journalLinkHref(id);
+            const title = displayTitle(state.journals.find((j) => j.id === id)?.title ?? '');
+            const e = editor.chain().focus();
+            if (editor.state.selection.empty && !editor.isActive('link')) {
+              // Ohne Markierung: Titel des Journals als verlinkten Text einfügen.
+              // Das Leerzeichen danach beendet den Link, damit Weitertippen normaler Text ist.
+              e.insertContent([
+                { type: 'text', text: title, marks: [{ type: 'link', attrs: { href } }] },
+                { type: 'text', text: ' ' },
+              ]).run();
+            } else {
+              e.extendMarkRange('link').setLink({ href }).run();
             }
           }}
         />

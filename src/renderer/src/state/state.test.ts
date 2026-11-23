@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectInfo } from '@shared/ipc';
-import type { JournalSummary } from '@shared/journal';
+import type { JournalDetail, JournalSummary } from '@shared/journal';
 import { initialState, journalCounts, reducer } from './app-state';
 import { commands } from './commands';
 import { nextRegion } from './regions';
@@ -139,5 +139,32 @@ describe('Kategorien und Schlagwörter im Zustand', () => {
   it('Menüband «Kategorien» fordert den Sprung ins Journal an', () => {
     const s = reducer(initialState, { type: 'requestFocus', target: 'journal-categories' });
     expect(s.focusRequest).toBe('journal-categories');
+  });
+});
+
+describe('Verknüpfungen im Zustand (AJ-10)', () => {
+  const journal = (id: string) =>
+    ({ id, title: id, sections: {}, categoryIds: [], tagIds: [] }) as unknown as JournalDetail;
+  const linked = (id: string) => ({ id, title: id, workDate: '2026-03-14', status: 'draft' as const });
+  const links = { linked: [linked('b'), linked('c')], mentionedIn: [linked('c')] };
+
+  it('gehören zum geöffneten Journal; verspätete Antworten für ein anderes werden verworfen', () => {
+    let s = reducer(initialState, { type: 'journalOpened', journal: journal('a') });
+    s = reducer(s, { type: 'linksLoaded', journalId: 'a', links });
+    expect(s.openJournalLinks).toBe(links);
+    // Wechsel zu b: Anzeige leer, bis die Verknüpfungen von b geladen sind
+    s = reducer(s, { type: 'journalOpened', journal: journal('b') });
+    expect(s.openJournalLinks.linked).toEqual([]);
+    s = reducer(s, { type: 'linksLoaded', journalId: 'a', links });
+    expect(s.openJournalLinks.linked).toEqual([]);
+    s = reducer(s, { type: 'journalClosed' });
+    expect(s.openJournalLinks.linked).toEqual([]);
+  });
+
+  it('gelöschtes Journal verschwindet sofort aus «Verknüpft mit» und «Erwähnt in»', () => {
+    let s = reducer(initialState, { type: 'journalOpened', journal: journal('a') });
+    s = reducer(s, { type: 'linksLoaded', journalId: 'a', links });
+    s = reducer(s, { type: 'journalRemoved', id: 'c' });
+    expect(s.openJournalLinks).toEqual({ linked: [linked('b')], mentionedIn: [] });
   });
 });

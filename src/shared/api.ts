@@ -41,6 +41,10 @@ export interface LernjournalApi {
     delete: Call<'journal:delete'>;
     setCategories: Call<'journal:setCategories'>;
     setTags: Call<'journal:setTags'>;
+    // Verknüpfungen (AJ-10)
+    links: Call<'journal:links'>;
+    link: Call<'journal:link'>;
+    unlink: Call<'journal:unlink'>;
   };
   taxonomy: {
     list: Call<'taxonomy:list'>;

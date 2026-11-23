@@ -2,7 +2,9 @@
 // den Zustand. Von Menüband, Tastatur, Listen und Dokumentansicht gemeinsam genutzt.
 import type { JournalSummary } from '@shared/journal';
 import type { IpcResult } from '@shared/ipc';
+import type { JournalLinks } from '@shared/links';
 import type { Taxonomy, TaxonomyKind } from '@shared/taxonomy';
+import { saveIfNeeded } from '../editor/save-registry';
 import type { Action } from '../state/app-state';
 
 type Dispatch = (a: Action) => void;
@@ -93,6 +95,50 @@ export function setJournalTags(d: Dispatch, id: string, names: string[]) {
   return saveAssignment(d, () => window.lernjournal.journal.setTags({ id, names }));
 }
 
+// --- Journal-Verknüpfungen (AJ-10) -------------------------------------------
+
+export async function loadLinks(d: Dispatch, journalId: string): Promise<void> {
+  const res = await window.lernjournal.journal.links({ id: journalId }).catch(() => null);
+  if (res?.ok) d({ type: 'linksLoaded', journalId, links: res.data });
+  else fail(d, 'Verknüpfungen konnten nicht geladen werden.');
+}
+
+// Verknüpfen/Lösen: sofort gespeichert, mit Speicherstatus wie beim Schreiben
+async function saveLink(
+  d: Dispatch,
+  journalId: string,
+  call: () => Promise<IpcResult<{ journal: JournalSummary; links: JournalLinks }>>,
+): Promise<boolean> {
+  d({ type: 'setSaveStatus', status: { kind: 'saving' } });
+  const res = await call().catch(() => null);
+  if (!res?.ok) {
+    d({ type: 'setSaveStatus', status: { kind: 'error', message: 'Verknüpfung nicht gespeichert.' } });
+    // Meldungen aus dem Dienst («… gibt es nicht mehr») sind für Lernende formuliert
+    fail(d, taxonomyErrorText(res, 'Verknüpfung konnte nicht gespeichert werden.'));
+    return false;
+  }
+  d({ type: 'journalUpserted', journal: res.data.journal });
+  d({ type: 'linksLoaded', journalId, links: res.data.links });
+  d({ type: 'setSaveStatus', status: { kind: 'saved', at: Date.now() } });
+  return true;
+}
+
+export function linkJournals(d: Dispatch, id: string, otherId: string) {
+  return saveLink(d, id, () => window.lernjournal.journal.link({ id, otherId }));
+}
+
+export function unlinkJournals(d: Dispatch, id: string, otherId: string) {
+  return saveLink(d, id, () => window.lernjournal.journal.unlink({ id, otherId }));
+}
+
+// Verknüpftes Journal öffnen: zuerst Ausstehendes im aktuellen Journal
+// speichern – sonst sähe das Ziel einen eben eingefügten Text-Link noch nicht
+// als «Erwähnt in».
+export async function openLinkedJournal(d: Dispatch, id: string): Promise<void> {
+  await saveIfNeeded();
+  await openJournal(d, id);
+}
+
 // Verwaltung (Einstellungen). Liefert null bei Erfolg, sonst die Fehlermeldung.
 // Meldungen mit Code INVALID_REQUEST stammen aus dem Dienst und sind für
 // Lernende formuliert («… gibt es schon»), alles andere bleibt allgemein.
@@ -111,10 +157,11 @@ export async function changeTaxonomy(
 
 export function taxonomyErrorText(
   res: { ok: false; error: { code: string; message: string } } | null,
+  fallback = 'Änderung konnte nicht gespeichert werden.',
 ): string {
   return res?.error.code === 'INVALID_REQUEST' && res.error.message !== 'Ungültige Daten'
     ? res.error.message
-    : 'Änderung konnte nicht gespeichert werden.';
+    : fallback;
 }
 
 export const TAXONOMY_LABELS: Record<TaxonomyKind, { one: string; many: string }> = {

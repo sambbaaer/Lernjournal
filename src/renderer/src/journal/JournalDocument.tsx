@@ -21,6 +21,7 @@ import { registerSaveNow } from '../editor/save-registry';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { deleteJournal, displayTitle, duplicateJournal, setJournalStatus } from './actions';
 import { StatusBadge } from './StatusBadge';
+import { LinkFields } from './LinkFields';
 import { TaxonomyFields } from './TaxonomyFields';
 
 const SAVE_DELAY_MS = 800; // SPEC: speichern nach kurzer Ruhephase
@@ -302,6 +303,8 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
             damit Änderungen aus der Verwaltung sofort sichtbar sind */}
         <div className="border-b border-border-subtle pb-4">
           <TaxonomyFields journal={state.openJournal?.id === journal.id ? state.openJournal : journal} />
+          {/* Verknüpfungen und Rückverweise (AJ-10) */}
+          <LinkFields journalId={journal.id} />
         </div>
 
         {SECTION_KEYS.map((k) => (
@@ -336,6 +339,12 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
             «{displayTitle(meta.title)}» wird mit allen Bildern gelöscht. Das lässt sich nicht rückgängig
             machen.
           </p>
+          {(state.openJournalLinks.linked.length > 0 || state.openJournalLinks.mentionedIn.length > 0) && (
+            <p className="mt-2">
+              Verknüpfungen und Links aus anderen Journalen auf dieses Journal werden entfernt. Der Text der
+              anderen Journale bleibt erhalten.
+            </p>
+          )}
         </ConfirmDialog>
       )}
     </div>

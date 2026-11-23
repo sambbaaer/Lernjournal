@@ -28,9 +28,11 @@ export const Figure = Node.create({
   },
 });
 
-// Erlaubte Link-Ziele: Web (https/http) und interne Journal-Links. Alles andere
-// (javascript:, file:, data: …) wird weder eingefügt noch gespeichert.
-export const ALLOWED_LINK = /^(https?:\/\/|lernjournal:\/\/journal\/)/i;
+// Erlaubte Link-Ziele: Web (https/http) und interne Journal-Links (genau
+// «lernjournal://journal/<uuid>», AJ-10). Alles andere (javascript:, file:,
+// data: …) wird weder eingefügt noch gespeichert.
+export const ALLOWED_LINK =
+  /^(https?:\/\/|lernjournal:\/\/journal\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)/i;
 
 export function baseExtensions() {
   return [
