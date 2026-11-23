@@ -1,6 +1,6 @@
-# Lernjournal – MVP-Spezifikation v1.3
+# Lernjournal – MVP-Spezifikation v1.4
 
-Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel; v1.3: Semesterbesprechung nach P2, Katalog nur Bildungsplan 2018). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
+Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel; v1.3: Semesterbesprechung nach P2, Katalog nur Bildungsplan 2018; v1.4: Phase 0 abgeschlossen – Original-Quellen gegengelesen, ADR 0001/0002). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
 
 ## Ziel und Scope
 Einzelplatz-Windows-App für Lerndokumentation über die vier Lehrjahre. Journal = unabhängiges, nach Word exportierbares Dokument und entspricht einer **Lerndokumentation nach BiVo Art. 12** (R-01). Fachbuch = dynamische Sicht auf dieselben Journale mit Kategorien, Tags, Links und Suche. Keine inhaltliche Doppelerfassung. Offline, keine Registrierung oder externe Verarbeitung. Abgeschlossene Journale sind nicht automatisch vom Lehrbetrieb freigegeben; kein offizielles Bewertungssystem (R-02). Lernjournal ist ein **inoffizielles Hilfsmittel** (R-14). **Fachlicher Fokus: Fachrichtung Print**; Printmediatechnik und Siebdruck werden unterstützt, aber nicht priorisiert.
@@ -10,7 +10,7 @@ Die App soll Lernenden das Führen des Journals **erleichtern**, nicht zusätzli
 
 ### Warum die App (offizieller Nutzen)
 1. **Pflicht erfüllen:** Lerndokumentation laufend führen, mind. einmal pro Semester mit der Berufsbildnerin/dem Berufsbildner besprechen und unterzeichnen lassen.
-2. **QV vorbereiten:** Bei der IPA (Print/Printmediatechnik) werden **mindestens 12 Lerndokumentationen** als **PDF in PkOrg** eingereicht; sie sind Grundlage für das Fachgespräch und Hilfsmittel während der IPA (QUELLEN 2.3, 4).
+2. **QV vorbereiten:** Für die IPA werden **mindestens 12 Lernberichte** zusammen mit der Aufgabenstellung, also **vor** der IPA, als **PDF in PkOrg** eingereicht. Sie sollen einen Bezug zur IPA haben und sind Grundlage für das Fachgespräch. Während der IPA darf die Lerndokumentation als Hilfsmittel verwendet werden (BiVo Art. 18; QUELLEN 2.3).
 3. **Fachbuch:** Über vier Jahre entsteht ein persönliches, durchsuchbares Nachschlagewerk.
 
 ### Zielgruppen
@@ -29,7 +29,8 @@ Bildungsbericht (R-12), Notenberechnung, Prüfungsbewertung, Klassen- und Benutz
 ## Begriffe
 | App-Begriff | Bedeutung | Offizieller Bezug |
 |---|---|---|
-| Journal | ein Eintrag mit Auftrag/Durchführung/Reflexion | «Lerndokumentation» (BiVo Art. 12) bzw. «Lernbericht» (SDBB) |
+| Journal | ein Eintrag mit Auftrag/Durchführung/Reflexion | «Lernbericht» als Teil der «Lerndokumentation» (BiVo Art. 12, Leitfaden dpsuisse) |
+| – | nicht Teil der App | «Arbeitsjournal» der IPA (tägliches Vorgehen während der Prüfung) |
 | Fachbuch | Sicht über alle Journale | Nachschlagewerk (SDBB) |
 | Kategorie | Ordnungsbegriff, Vorschlag = Handlungskompetenzbereich a–g | Bildungsplan |
 | QV-Mappe | Auswahl für die IPA-Einreichung | Ausführungsbestimmungen QV |
@@ -67,7 +68,7 @@ Tastatur: Ctrl+S (sofort speichern), Ctrl+N, Ctrl+F (im Journal), Ctrl+Shift+F (
 - **Preload:** minimale, typisierte und validierte IPC-Schnittstelle (Schema-Validierung je Kanal, z. B. mit zod).
 - **Renderer:** React, TypeScript, Tailwind, Tiptap; kein direkter Zugriff auf Node/DB/Dateisystem.
 - **Shared:** Typen, IPC-Verträge und Validierungsschemas in einem gemeinsamen Paket.
-- **Persistenz:** SQLite (WAL) mit Migrationen, Foreign Keys und Transaktionen; Rich-Text-Abschnitte als Tiptap-JSON, Bilder separat im Projektordner über UUID/relative Pfade referenziert.
+- **Persistenz:** SQLite über das eingebaute `node:sqlite` ([ADR 0001](adr/0001-sqlite-adapter-node-sqlite.md)), gekapselt in einer schmalen Repository-Schicht; WAL, `synchronous=FULL`, Migrationen, Foreign Keys und Transaktionen; Rich-Text-Abschnitte als Tiptap-JSON, Bilder separat im Projektordner über UUID/relative Pfade referenziert.
 - **Suche:** SQLite FTS5 mit extrahierter Klartextprojektion (Titel + Textabschnitte + Bildlegenden + Tags); Tokenizer `unicode61 remove_diacritics 2`, damit «Farbmessung» und «farbmessung» sowie Umlaut-Varianten treffen. Index rekonstruierbar (Befehl «Suchindex neu aufbauen»).
 - **Zeit:** Arbeitsdatum als lokales ISO-Datum; Zeitstempel UTC.
 - **Protokoll:** lokale Logdatei mit Rotation (ohne Inhalte der Journale), exportierbar für Support.
@@ -115,13 +116,13 @@ Autosave nach kurzer Ruhephase (z. B. 800 ms) und spätestens alle 10 s bei Daue
 Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, strenge CSP, kein Remote-Content, Navigation und `window.open` blockiert, `webSecurity` an, minimale `contextBridge`, validierte IPC-Nachrichten/Dateipfade (nur innerhalb Projektordner), keine beliebigen Shell-Aufrufe (`shell.openExternal` nur nach Bestätigung und nur `https:`). Electron-Fuses: `RunAsNode` aus, `EnableNodeCliInspectArguments` aus, ASAR-Integrität an. Bildformate JPEG/PNG/WebP, Grössenlimiten, Bilder beim Import optional auf max. 2400 px verkleinern, EXIF-Ortsdaten entfernen, sichere Dateinamen. Keine Telemetrie oder Uploads (R-11). Exporthinweis zu Geschäftsgeheimnissen, Kundendaten und Personen auf Bildern (R-10).
 
 ## Word-Export
-`docx` erzeugt echte Word-Absätze, Überschriften, Listen, Tabellen, Bilder und Bildlegenden statt HTML-Pseudoexport. Abbildung: Abschnittstitel → Formatvorlage «Überschrift 1/2», Absatz → «Standard», Listen → Word-Nummerierung, Bild + Legende → Bild + Formatvorlage «Beschriftung» (mit `SEQ Abbildung`-Feld), Tabelle → Word-Tabelle mit Kopfzeile, interner Link → Text mit Journal-Titel (bzw. Textmarke im Sammel-DOCX). Metadaten-Kopfblock (Titel, Name, Datum, Lehrjahr, Lernort, Kategorien), optional Kopf-/Fusszeilen mit Seitenzahlen. Sammel-DOCX mit ausgewählter Reihenfolge, Titelseite, klaren Journal-Grenzen (Seitenumbruch) und aktualisierbarem Inhaltsverzeichnis-Feld (Hinweis: in Word «Felder aktualisieren»). Einfache konfigurierbare Standardgestaltung (Schrift, Grösse, Rand); beliebiger Word-Template-Import nicht P0. Export mit sicherem Dateidialog, ohne stilles Überschreiben. Änderungen in Word gehen **nicht** zurück in die App. Kein Word als Laufzeitvoraussetzung; Ergebnis zusätzlich mit LibreOffice prüfen.
+`docx` erzeugt echte Word-Absätze, Überschriften, Listen, Tabellen, Bilder und Bildlegenden statt HTML-Pseudoexport. Abbildung: Abschnittstitel → Formatvorlage «Überschrift 1/2», Absatz → «Standard», Listen → Word-Nummerierung, Bild + Legende → Bild + Formatvorlage «Beschriftung» (mit `SEQ Abbildung`-Feld inkl. vorberechneter Nummer), Überschriften und Bilder «mit nächstem Absatz zusammenhalten», Tabelle → Word-Tabelle mit Kopfzeile, interner Link → Text mit Journal-Titel (bzw. Textmarke im Sammel-DOCX). Metadaten-Kopfblock (Titel, Name, Datum, Lehrjahr, Lernort, Kategorien), optional Kopf-/Fusszeilen mit Seitenzahlen. Sammel-DOCX mit ausgewählter Reihenfolge, Titelseite, klaren Journal-Grenzen (Seitenumbruch) und aktualisierbarem Inhaltsverzeichnis-Feld (Hinweis: in Word «Felder aktualisieren»). Einfache konfigurierbare Standardgestaltung (Schrift, Grösse, Rand); beliebiger Word-Template-Import nicht P0. Export mit sicherem Dateidialog, ohne stilles Überschreiben. Änderungen in Word gehen **nicht** zurück in die App. Kein Word als Laufzeitvoraussetzung; Ergebnis zusätzlich mit LibreOffice prüfen. Details und Knoten-Abbildung: [ADR 0002](adr/0002-docx-export.md), Referenzcode `spikes/aj-00b-docx/`.
 
 **PDF (P1, erstes P1-Ticket):** Hauptformat für die QV-Einreichung in PkOrg (keine Maximalgrösse bekannt). Aus derselben Dokumentstruktur über ein HTML-Druckbild und Electron `printToPDF` (offline, ohne Word). Schriften einbetten, Bilder für Druck/Bildschirm moderat komprimieren (Ziel ca. 150–200 ppi), Dateigrösse nach Export anzeigen, durchsuchbarer Text, Lesezeichen je Journal wenn technisch möglich. PDF ist Ausgabe, nicht Datenformat.
 
 **Besprechung mit Berufsbildner/in:** im MVP über den normalen Sammel-Export (Filter nach Zeitraum); eigenes Besprechungs-Feature erst P2.
 
-**QV-Mappe (P1, R-08):** Auswahl mit Reihenfolge, Zähler «x von mindestens 12» (Standard für Print/Printmediatechnik, in den Einstellungen änderbar, keine harte Sperre), Titelseite, Inhaltsverzeichnis; **PDF als Hauptausgabe**, DOCX optional.
+**QV-Mappe (P1, R-08, R-15):** Auswahl mit Reihenfolge, Filter nach Stichwort/Kategorie/Tag, um Lernberichte mit Bezug zur geplanten IPA zu finden; Zähler «x von mindestens 12» (Standard für alle Fachrichtungen, in den Einstellungen änderbar, keine harte Sperre); Hinweis «wird zusammen mit der Aufgabenstellung eingereicht»; Titelseite, Inhaltsverzeichnis; **PDF als Hauptausgabe**, DOCX optional.
 
 ## Betrieb unter Windows
 - Installer per Benutzer **ohne Adminrechte** (NSIS, `perMachine: false`) plus portable EXE.
@@ -153,7 +154,8 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 ## Risiken
 | Risiko | Wirkung | Massnahme |
 |---|---|---|
-| Native SQLite-Module vs. Electron-ABI | Build bricht | Spike AJ-00a vor allem anderen |
+| Native SQLite-Module vs. Electron-ABI | Build bricht | **erledigt:** `node:sqlite` ohne natives Modul, Windows-CI grün (ADR 0001) |
+| `node:sqlite` noch experimentell | API-Änderung bei Electron-Update | Repository-Schicht kapseln, Spike-Checks als Regressionstest, Rückfall better-sqlite3 |
 | Schul-/Firmengeräte blockieren EXE | App nicht nutzbar | Code-Signing, Installer ohne Admin, IT-Merkblatt |
 | Projekt im OneDrive-Ordner | DB-Korruption, Konflikte | Warnung, Lock, Backups, Empfehlung lokaler Ordner |
 | Lernende verlieren Gerät/wechseln Betrieb | Datenverlust über 4 Jahre | Export-Erinnerung, `.ajournal` auf USB/NAS |
@@ -164,4 +166,4 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 | Nur Windows | Lernende mit Mac ausgeschlossen | Electron erlaubt später macOS-Build (P2) |
 
 ## Implementierungshinweise
-Versionen und Lizenzbedingungen aktueller Bibliotheken bei Start prüfen. SQLite-Adapter zuerst mit Electron-Packaging/Native-ABI, WAL und konsistentem Backup testen. DOCX-Export früh mit Tiptap-JSON, Bildern und Inhaltsverzeichnis prototypisieren. Keine Features aus P1/P2 in den MVP ziehen; das Datenmodell der P1-Tabellen wird erst mit dem jeweiligen Ticket migriert. Architekturentscheide als kurze ADR unter `docs/adr/` festhalten.
+Versionen und Lizenzbedingungen aktueller Bibliotheken bei Start prüfen. Phase 0 ist abgeschlossen: SQLite (ADR 0001) und DOCX (ADR 0002) sind geklärt, Referenzcode liegt unter `spikes/`. Spike-Code darf übernommen, muss aber in die App-Struktur (TypeScript, Tests, Lint) überführt werden. Keine Features aus P1/P2 in den MVP ziehen; das Datenmodell der P1-Tabellen wird erst mit dem jeweiligen Ticket migriert. Architekturentscheide als kurze ADR unter `docs/adr/` festhalten.

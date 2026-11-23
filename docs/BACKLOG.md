@@ -4,19 +4,19 @@ Stand: 2026-11-23. **P0:** AJ-00–AJ-17. **P1:** AJ-18, AJ-20–AJ-23 (AJ-19 Se
 
 Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung für eine Person mit KI-Unterstützung).
 
-## Phase 0 – Spikes (Risiken zuerst klären)
+## Phase 0 – Spikes ✔ abgeschlossen (2026-11-23)
 
-| ID | Umsetzung | Abnahme | Grösse |
+| ID | Umsetzung | Ergebnis | Status |
 |---|---|---|---|
-| AJ-00a | Spike SQLite in Electron | Adapter gewählt (z. B. better-sqlite3 oder node:sqlite), WAL, FTS5, Backup-API funktionieren im **gepackten** Build auf Windows; ADR geschrieben | M |
-| AJ-00b | Spike DOCX | Tiptap-JSON mit Liste, Tabelle, Bild + Legende und TOC-Feld → DOCX öffnet fehlerfrei in Word und LibreOffice; ADR | M |
-| AJ-00c | Quellen gegenlesen | BiVo Art. 12 und QV-Ausführungsbestimmungen im Original geprüft, QUELLEN.md-Status auf ✔ bzw. offene Fragen aktualisiert | S |
+| AJ-00a | Spike SQLite in Electron | `node:sqlite` (Electron 45.4.1 / Node 24.22 / SQLite 3.54.1): WAL, FTS5, Online-Backup, Absturztest bestanden – auch als gepackte Windows-EXE mit Fuses in CI → [ADR 0001](adr/0001-sqlite-adapter-node-sqlite.md) | ✔ |
+| AJ-00b | Spike DOCX | Tiptap-JSON → DOCX mit Listen, Tabelle, Bild + nummerierter Legende, TOC, internen Links, Seitenzahlen; 9 Tests, LibreOffice-Gegenprobe → [ADR 0002](adr/0002-docx-export.md) | ✔ (Sichtprüfung in Word 365 offen) |
+| AJ-00c | Quellen gegenlesen | BiVo (Stand 1.1.2026), Ausführungsbestimmungen 2021, Leitfäden dpsuisse 2025 im Original gelesen → QUELLEN.md, neue Anforderungen R-15/R-16 | ✔ |
 
 ## Phase 1 – Fundament
 
 | ID | Umsetzung | Abnahme | Abhängig | Grösse |
 |---|---|---|---|---|
-| AJ-01 | Electron/Vite/React/TS/Tailwind Setup, Lint, Vitest, CI auf `windows-latest` | Devstart auf Windows; sichere Preload-Bridge; Fuses gesetzt; CI grün | 00a | M |
+| AJ-01 | Electron/Vite/React/TS/Tailwind Setup, Lint, Vitest, CI auf `windows-latest` | Devstart auf Windows; sichere Preload-Bridge; Fuses gesetzt (Konfiguration aus `spikes/aj-00a-sqlite`); CI grün | 00a | M |
 | AJ-02 | Office-nahe App-Shell | Datei-Menü, Ribbon-Tabs, Navigation, Dokumentfläche, Statusleiste, Tastatur inkl. F6; Kontrast AA | 01 | M |
 | AJ-03 | Projektanlage/Öffnen/Profil, Onboarding | Frei wählbarer lokaler Ordner; Profil mit Name, Fachrichtung (R-04, Standard Print), Lehrbeginn; Hinweis inoffizielles Hilfsmittel (R-14); OneDrive-Warnung | 02, 04 | M |
 | AJ-04 | SQLite-Schema/Migrationen/Lock | DB und P0-Tabellen aus SPEC; Integritätstests; verwaister Lock erkannt | 00a | M |
@@ -59,7 +59,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 | ID | Umsetzung | Abnahme | Grundlage |
 |---|---|---|---|
 | AJ-18 | PDF-Export (zuerst) | Einzel- und Sammel-PDF offline via `printToPDF`; Schriften eingebettet, Text durchsuchbar, Bilder moderat komprimiert, Dateigrösse angezeigt; Layout entspricht DOCX sinngemäss | R-08 |
-| AJ-20 | QV-Mappe | Auswahl + Reihenfolge, Zähler «x von mindestens 12» (Print/Printmediatechnik, konfigurierbar), Titelseite, TOC; **PDF für PkOrg**, DOCX optional | R-08 |
+| AJ-20 | QV-Mappe | Auswahl + Reihenfolge, Filter für IPA-Bezug, Zähler «x von mindestens 12» (alle Fachrichtungen, konfigurierbar), Hinweis «mit der Aufgabenstellung einreichen», Titelseite, TOC; **PDF für PkOrg**, DOCX optional | R-08, R-15 |
 | AJ-21 | Kompetenzkatalog | versionierter Katalog 34200 offline inkl. Wortlaut, freiwillige Zuordnung Journal ↔ Handlungskompetenz/Leistungsziel, Standardfilter Print + Betrieb | R-09 |
 | AJ-22 | Abdeckungsübersicht | Matrix Bereiche a–g × Lehrjahr, Hinweis «Orientierung, keine amtliche Zuordnung» | R-09 |
 | AJ-23 | Qualitätshinweise und Vorlagen | nicht blockierende Hinweise (leere Reflexion, Bild ohne Legende); 2–3 Vorlagen (z. B. Maschine einrichten, Kundenauftrag, Störung beheben) | Bildungsplan |
