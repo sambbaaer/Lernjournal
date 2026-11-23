@@ -10,6 +10,8 @@ import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
 import { MediaService } from './media/media-service';
 import { createProjectHandlers } from './project/project-handlers';
+import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
+import { TaxonomyService } from './taxonomy/taxonomy-service';
 import { ProjectService } from './project/project-service';
 import {
   APP_ORIGIN,
@@ -59,6 +61,7 @@ const journals = new JournalService(
   () => new Date(),
   media,
 );
+const taxonomy = new TaxonomyService(() => projects.db);
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
 // weitere Fenster und <webview> sind blockiert (hardenWebContents). Auf das
@@ -208,6 +211,7 @@ function registerIpc() {
         return { ok: true };
       },
       ...createJournalHandlers(journals),
+      ...createTaxonomyHandlers(taxonomy, journals),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
     trusted,

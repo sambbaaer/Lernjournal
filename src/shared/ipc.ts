@@ -16,6 +16,9 @@ import {
   JournalSummarySchema,
   SectionsSchema,
 } from './journal';
+import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
+
+const TaxonomyId = z.uuid();
 
 export const AppInfoSchema = z.object({
   name: z.string(),
@@ -169,6 +172,39 @@ export const ipcContract = {
   },
   'journal:duplicate': { request: z.object({ id: JournalId }), response: JournalDetailSchema },
   'journal:delete': { request: z.object({ id: JournalId }), response: z.object({ deleted: z.boolean() }) },
+
+  // --- Kategorien und Schlagwörter (AJ-09) ---
+  // Jede Änderung liefert die vollständige, aktuelle Liste zurück (klein, und
+  // die Oberfläche muss nichts selbst nachrechnen).
+  'taxonomy:list': { request: z.undefined(), response: TaxonomySchema },
+  'category:create': { request: z.object({ name: CategoryName }), response: TaxonomySchema },
+  // Fehlende Vorschlag-Kategorien a–g ergänzen (R-05)
+  'category:addSuggestions': { request: z.undefined(), response: TaxonomySchema },
+  // Namen je nach Art unterschiedlich geprüft (Schlagwort: kürzer, ohne Komma)
+  'taxonomy:rename': {
+    request: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('category'), id: TaxonomyId, name: CategoryName }),
+      z.object({ kind: z.literal('tag'), id: TaxonomyId, name: TagName }),
+    ]),
+    response: TaxonomySchema,
+  },
+  'taxonomy:merge': {
+    request: z.object({ kind: z.enum(TAXONOMY_KINDS), sourceId: TaxonomyId, targetId: TaxonomyId }),
+    response: TaxonomySchema,
+  },
+  'taxonomy:delete': {
+    request: z.object({ kind: z.enum(TAXONOMY_KINDS), id: TaxonomyId }),
+    response: TaxonomySchema,
+  },
+  'journal:setCategories': {
+    request: z.object({ id: JournalId, categoryIds: z.array(TaxonomyId).max(200) }),
+    response: z.object({ journal: JournalSummarySchema, taxonomy: TaxonomySchema }),
+  },
+  // Schlagwörter als Namen: bestehende werden wiederverwendet, neue angelegt
+  'journal:setTags': {
+    request: z.object({ id: JournalId, names: z.array(TagName).max(100) }),
+    response: z.object({ journal: JournalSummarySchema, taxonomy: TaxonomySchema }),
+  },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;

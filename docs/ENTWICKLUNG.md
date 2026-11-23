@@ -96,6 +96,21 @@ src/main/media/media-service.ts               speichern (atomar, SHA-256), aufl�
 - Ein Journal darf nur eigene Bilder referenzieren (`checkAndSyncCaptions` beim Speichern).
 - Aus dem Inhalt entfernte Bilder bleiben bis zum nächsten Öffnen des Projekts (Rückgängig bleibt möglich) und werden dann aufgeräumt, wenn sie älter als 1 Stunde sind.
 
+## Kategorien und Schlagwörter
+```
+src/shared/taxonomy.ts                       Typen, Namensregeln (normalizeName, nameKey), zod-Schemas
+src/main/taxonomy/taxonomy-service.ts        anlegen, umbenennen, zusammenführen, löschen, zuordnen
+src/main/taxonomy/taxonomy-handlers.ts       IPC; jede Änderung liefert die vollständige Liste zurück
+src/renderer/src/journal/TaxonomyFields.tsx  Auswahl im Journal (Kategorien-Liste, Schlagwort-Eingabe)
+src/renderer/src/journal/journal-filter.ts   Filter der Journalliste (reine Logik, getestet)
+src/renderer/src/project/TaxonomyManager.tsx Verwaltung in den Einstellungen
+```
+- **Kategorie** = fester Ordnungsbegriff (Vorschlag a–g, R-05), bleibt auch ohne Journal bestehen. **Schlagwort** = freies Stichwort; wird beim Zuordnen per Name angelegt bzw. wiederverwendet und automatisch entfernt, sobald kein Journal es mehr nutzt (auch beim Löschen eines Journals).
+- **Eindeutige Namen:** Die Datenbank prüft mit `COLLATE NOCASE` (nur A–Z), der Dienst zusätzlich mit `nameKey()` (Umlaute, Unicode-NFC). Konflikte beim Umbenennen melden «… gibt es schon» und verweisen auf «Zusammenführen».
+- **Zuordnungen** stehen in `JournalSummary.categoryIds/tagIds` (eine Abfrage pro Tabelle für die ganze Liste). Zusammenführen/Löschen lädt die Journalliste neu.
+- Zuordnungen speichern sofort; die Kategorien-Auswahl wird bis zur Bestätigung optimistisch angezeigt und springt bei einem Fehler zurück.
+- Schlagwörter im Suchindex (`journal_fts`) folgen mit AJ-11.
+
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.
 - **Anzeige:** «Speichert …» → «Gespeichert» erst nach Bestätigung durch den Hauptprozess (`synchronous=FULL`). Bei Fehlern «Speichern fehlgeschlagen» mit Knopf «Erneut versuchen» und automatischem Wiederholversuch nach 2/5/10/30 s – die Änderungen bleiben im Speicher und gehen nicht verloren.

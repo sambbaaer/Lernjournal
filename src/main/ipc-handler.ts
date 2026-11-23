@@ -46,7 +46,10 @@ export function createIpcDispatcher(handlers: Handlers, isTrustedUrl: (url: stri
       return { ok: true, data };
     } catch (err) {
       // Inhalt verletzt das Editor-Schema: verständliche Meldung, kein interner Fehler
-      if (err instanceof InvalidContentError || (err instanceof Error && err.name === 'MediaError')) {
+      if (
+        err instanceof InvalidContentError ||
+        (err instanceof Error && (err.name === 'MediaError' || err.name === 'TaxonomyError'))
+      ) {
         return { ok: false, error: { code: 'INVALID_REQUEST', message: err.message } };
       }
       // Details nur ins lokale Protokoll, nicht an die Oberfläche

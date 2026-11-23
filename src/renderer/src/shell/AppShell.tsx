@@ -12,7 +12,7 @@ import { matchesShortcut } from '../state/shortcuts';
 import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
 import { saveIfNeeded } from '../editor/save-registry';
-import { loadJournals } from '../journal/actions';
+import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
@@ -107,7 +107,9 @@ export function AppShell({ version }: { version: string | null }) {
   // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu)
   const projectId = state.project?.id;
   useEffect(() => {
-    if (projectId) void loadJournals(dispatch);
+    if (!projectId) return;
+    void loadJournals(dispatch);
+    void loadTaxonomy(dispatch);
   }, [projectId, dispatch]);
 
   // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»
@@ -170,10 +172,14 @@ export function AppShell({ version }: { version: string | null }) {
               <NavigationPane />
               <main
                 id="document"
+                // relative: Bezugsrahmen für absolut positionierte Elemente (z. B.
+                // unsichtbare Screenreader-Labels «sr-only»). Ohne ihn zählen sie zur
+                // Fensterhöhe, das ganze Fenster wird scrollbar und Menüband/Statusleiste
+                // können beim Springen aus dem Bild rutschen.
                 data-region="document"
                 tabIndex={-1}
                 aria-label={VIEW_LABELS[state.view]}
-                className="min-w-0 flex-1 overflow-auto bg-canvas"
+                className="min-w-0 flex-1 relative overflow-auto bg-canvas"
               >
                 {views[state.view]}
               </main>

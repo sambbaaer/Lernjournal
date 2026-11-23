@@ -44,6 +44,9 @@ export const JournalSummarySchema = z.object({
   schoolYearOverride: z.number().int().nullable(),
   updatedAt: z.string(),
   completedAt: z.string().nullable(),
+  // Zuordnungen (AJ-09): IDs in der Reihenfolge der Kategorienliste bzw. alphabetisch
+  categoryIds: z.array(z.string()),
+  tagIds: z.array(z.string()),
 });
 export type JournalSummary = z.infer<typeof JournalSummarySchema>;
 

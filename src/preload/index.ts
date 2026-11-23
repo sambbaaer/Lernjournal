@@ -40,6 +40,16 @@ const api: LernjournalApi = {
     setStatus: (req) => ipcRenderer.invoke('journal:setStatus', req),
     duplicate: (req) => ipcRenderer.invoke('journal:duplicate', req),
     delete: (req) => ipcRenderer.invoke('journal:delete', req),
+    setCategories: (req) => ipcRenderer.invoke('journal:setCategories', req),
+    setTags: (req) => ipcRenderer.invoke('journal:setTags', req),
+  },
+  taxonomy: {
+    list: () => ipcRenderer.invoke('taxonomy:list'),
+    createCategory: (req) => ipcRenderer.invoke('category:create', req),
+    addSuggestions: () => ipcRenderer.invoke('category:addSuggestions'),
+    rename: (req) => ipcRenderer.invoke('taxonomy:rename', req),
+    merge: (req) => ipcRenderer.invoke('taxonomy:merge', req),
+    delete: (req) => ipcRenderer.invoke('taxonomy:delete', req),
   },
 };
 

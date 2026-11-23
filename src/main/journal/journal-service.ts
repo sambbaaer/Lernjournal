@@ -31,6 +31,8 @@ type Row = {
   completed_at: string | null;
 };
 
+type Assigned = { categoryIds: string[]; tagIds: string[] };
+
 const COLUMNS =
   'id, title, work_date, status, learning_place, school_year_override, sections_json, created_at, updated_at, completed_at';
 
@@ -58,7 +60,36 @@ export class JournalService {
     return r?.apprenticeship_start ?? null;
   }
 
-  private toSummary(r: Row, start: string | null): JournalSummary {
+  // Kategorien und Schlagwörter je Journal. Ohne id: alle Journale auf einmal
+  // (eine Abfrage pro Tabelle statt einer pro Journal).
+  private assignments(id?: string): Map<string, Assigned> {
+    const map = new Map<string, Assigned>();
+    const entry = (j: string) => {
+      let e = map.get(j);
+      if (!e) map.set(j, (e = { categoryIds: [], tagIds: [] }));
+      return e;
+    };
+    const where = id ? 'WHERE x.journal_id = ?' : '';
+    const args = id ? [id] : [];
+    const cats = this.db
+      .prepare(
+        `SELECT x.journal_id AS j, x.category_id AS id FROM journal_category x
+         JOIN category c ON c.id = x.category_id ${where} ORDER BY c.sort_order, c.name COLLATE NOCASE`,
+      )
+      .all(...args) as { j: string; id: string }[];
+    for (const r of cats) entry(r.j).categoryIds.push(r.id);
+    const tags = this.db
+      .prepare(
+        `SELECT x.journal_id AS j, x.tag_id AS id FROM journal_tag x
+         JOIN tag t ON t.id = x.tag_id ${where} ORDER BY t.name COLLATE NOCASE`,
+      )
+      .all(...args) as { j: string; id: string }[];
+    for (const r of tags) entry(r.j).tagIds.push(r.id);
+    return map;
+  }
+
+  private toSummary(r: Row, start: string | null, assigned?: Assigned): JournalSummary {
+    const a = assigned ?? this.assignments(r.id).get(r.id);
     return {
       id: r.id,
       title: r.title,
@@ -69,7 +100,14 @@ export class JournalService {
       schoolYearOverride: r.school_year_override,
       updatedAt: r.updated_at,
       completedAt: r.completed_at,
+      categoryIds: a?.categoryIds ?? [],
+      tagIds: a?.tagIds ?? [],
     };
+  }
+
+  // Zusammenfassung eines Journals (z. B. nach dem Zuordnen von Kategorien)
+  summary(id: string): JournalSummary {
+    return this.toSummary(this.row(id), this.apprenticeshipStart());
   }
 
   private row(id: string): Row {
@@ -97,7 +135,9 @@ export class JournalService {
       .prepare(`SELECT ${COLUMNS} FROM journal ${where} ORDER BY work_date DESC, updated_at DESC`)
       .all() as Row[];
     const start = this.apprenticeshipStart();
-    return rows.map((r) => this.toSummary(r, start));
+    const assigned = this.assignments();
+    const none: Assigned = { categoryIds: [], tagIds: [] };
+    return rows.map((r) => this.toSummary(r, start, assigned.get(r.id) ?? none));
   }
 
   get(id: string): JournalDetail {
@@ -244,6 +284,9 @@ export class JournalService {
     transaction(this.db, () => {
       this.db.prepare('DELETE FROM journal_fts WHERE journal_id = ?').run(id);
       this.db.prepare('DELETE FROM journal WHERE id = ?').run(id);
+      // Schlagwörter, die nur dieses Journal hatte, verschwinden mit (AJ-09:
+      // Schlagwörter ohne Journal gibt es nicht). Kategorien bleiben bestehen.
+      this.db.prepare('DELETE FROM tag WHERE id NOT IN (SELECT tag_id FROM journal_tag)').run();
     });
     // Dateien erst NACH erfolgreichem Commit löschen – nie Daten ohne Datei
     // hinterlassen. Pfade stammen aus der DB und sind per CHECK auf media/ beschränkt.

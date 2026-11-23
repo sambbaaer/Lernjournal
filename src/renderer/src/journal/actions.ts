@@ -1,6 +1,8 @@
 // Journal-Aktionen der Oberfläche: rufen den Hauptprozess auf und aktualisieren
 // den Zustand. Von Menüband, Tastatur, Listen und Dokumentansicht gemeinsam genutzt.
 import type { JournalSummary } from '@shared/journal';
+import type { IpcResult } from '@shared/ipc';
+import type { Taxonomy, TaxonomyKind } from '@shared/taxonomy';
 import type { Action } from '../state/app-state';
 
 type Dispatch = (a: Action) => void;
@@ -47,6 +49,7 @@ export async function duplicateJournal(d: Dispatch, id: string): Promise<void> {
   d({ type: 'journalUpserted', journal: res.data });
   d({ type: 'journalOpened', journal: res.data });
   d({ type: 'notice', text: 'Kopie angelegt.' });
+  void loadTaxonomy(d); // Anzahl Journale je Kategorie/Schlagwort hat sich geändert
 }
 
 export async function deleteJournal(d: Dispatch, id: string): Promise<void> {
@@ -54,7 +57,70 @@ export async function deleteJournal(d: Dispatch, id: string): Promise<void> {
   if (!res.ok) return fail(d, 'Journal konnte nicht gelöscht werden.');
   d({ type: 'journalRemoved', id });
   d({ type: 'notice', text: 'Journal gelöscht.' });
+  void loadTaxonomy(d); // Schlagwörter nur dieses Journals sind mit entfernt
 }
+
+// --- Kategorien und Schlagwörter (AJ-09) -------------------------------------
+
+export async function loadTaxonomy(d: Dispatch): Promise<void> {
+  const res = await window.lernjournal.taxonomy.list();
+  if (res.ok) d({ type: 'taxonomyLoaded', taxonomy: res.data });
+  else fail(d, 'Kategorien und Schlagwörter konnten nicht geladen werden.');
+}
+
+// Zuordnung im geöffneten Journal: sofort speichern, mit Speicherstatus wie beim Schreiben
+async function saveAssignment(
+  d: Dispatch,
+  call: () => Promise<IpcResult<{ journal: JournalSummary; taxonomy: Taxonomy }>>,
+): Promise<boolean> {
+  d({ type: 'setSaveStatus', status: { kind: 'saving' } });
+  const res = await call().catch(() => null);
+  if (!res?.ok) {
+    d({ type: 'setSaveStatus', status: { kind: 'error', message: 'Zuordnung nicht gespeichert.' } });
+    return false;
+  }
+  d({ type: 'journalUpserted', journal: res.data.journal });
+  d({ type: 'taxonomyLoaded', taxonomy: res.data.taxonomy });
+  d({ type: 'setSaveStatus', status: { kind: 'saved', at: Date.now() } });
+  return true;
+}
+
+export function setJournalCategories(d: Dispatch, id: string, categoryIds: string[]) {
+  return saveAssignment(d, () => window.lernjournal.journal.setCategories({ id, categoryIds }));
+}
+
+export function setJournalTags(d: Dispatch, id: string, names: string[]) {
+  return saveAssignment(d, () => window.lernjournal.journal.setTags({ id, names }));
+}
+
+// Verwaltung (Einstellungen). Liefert null bei Erfolg, sonst die Fehlermeldung.
+// Meldungen mit Code INVALID_REQUEST stammen aus dem Dienst und sind für
+// Lernende formuliert («… gibt es schon»), alles andere bleibt allgemein.
+export async function changeTaxonomy(
+  d: Dispatch,
+  call: () => Promise<IpcResult<Taxonomy>>,
+  { reloadJournals = false } = {},
+): Promise<string | null> {
+  const res = await call().catch(() => null);
+  if (!res?.ok) return taxonomyErrorText(res);
+  d({ type: 'taxonomyLoaded', taxonomy: res.data });
+  // Zusammenführen/Löschen ändert die Zuordnungen der Journale
+  if (reloadJournals) await loadJournals(d);
+  return null;
+}
+
+export function taxonomyErrorText(
+  res: { ok: false; error: { code: string; message: string } } | null,
+): string {
+  return res?.error.code === 'INVALID_REQUEST' && res.error.message !== 'Ungültige Daten'
+    ? res.error.message
+    : 'Änderung konnte nicht gespeichert werden.';
+}
+
+export const TAXONOMY_LABELS: Record<TaxonomyKind, { one: string; many: string }> = {
+  category: { one: 'Kategorie', many: 'Kategorien' },
+  tag: { one: 'Schlagwort', many: 'Schlagwörter' },
+};
 
 export function displayTitle(title: string): string {
   return title.trim() || 'Ohne Titel';

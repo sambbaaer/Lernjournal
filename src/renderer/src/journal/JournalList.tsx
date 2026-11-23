@@ -14,34 +14,44 @@ import {
   setJournalStatus,
 } from './actions';
 import { StatusBadge } from './StatusBadge';
+import {
+  DEFAULT_FILTER,
+  matchesFilter,
+  sanitizeFilter,
+  type JournalFilter,
+  type StatusFilter,
+} from './journal-filter';
 
-type Filter = 'active' | 'draft' | 'completed' | 'archived';
-const FILTERS: { id: Filter; label: string }[] = [
+const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'active', label: 'Alle (ohne Archiv)' },
   { id: 'draft', label: 'Entwürfe' },
   { id: 'completed', label: 'Abgeschlossen' },
   { id: 'archived', label: 'Archiviert' },
 ];
 
-function matches(j: JournalSummary, filter: Filter, q: string): boolean {
-  const statusOk = filter === 'active' ? j.status !== 'archived' : j.status === filter;
-  return statusOk && (!q || j.title.toLowerCase().includes(q.toLowerCase()));
-}
-
 const toolButton = 'flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover';
 
 export function JournalList() {
   const { state, dispatch } = useApp();
-  const [filter, setFilter] = useState<Filter>('active');
-  const [query, setQuery] = useState('');
+  const [rawFilter, setFilter] = useState<JournalFilter>(DEFAULT_FILTER);
+  const { categories, tags } = state.taxonomy;
+  // Gelöschte/zusammengeführte Kategorie im Filter → wieder «Alle»
+  const filter = sanitizeFilter(
+    rawFilter,
+    categories.map((c) => c.id),
+    tags.map((t) => t.id),
+  );
+  const categoryName = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+  const tagName = useMemo(() => new Map(tags.map((t) => [t.id, t.name])), [tags]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<JournalSummary | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
 
   const rows = useMemo(
-    () => state.journals.filter((j) => matches(j, filter, query)),
-    [state.journals, filter, query],
+    () => state.journals.filter((j) => matchesFilter(j, filter)),
+    [state.journals, filter],
   );
+  const filtered = filter.category !== 'all' || filter.tag !== 'all';
   const selected = rows.find((j) => j.id === selectedId) ?? null;
 
   function focusRow(id: string) {
@@ -80,8 +90,8 @@ export function JournalList() {
           <input
             id="journal-filter-text"
             type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={filter.text}
+            onChange={(e) => setFilter({ ...filter, text: e.target.value })}
             placeholder="Titel filtern"
             className="w-56 rounded-sm border border-border-strong bg-surface py-1.5 pl-8 pr-2 text-sm placeholder:text-ink-muted"
           />
@@ -89,8 +99,8 @@ export function JournalList() {
         <label className="flex items-center gap-2 text-sm">
           Anzeigen
           <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as Filter)}
+            value={filter.status}
+            onChange={(e) => setFilter({ ...filter, status: e.target.value as StatusFilter })}
             className="rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
           >
             {FILTERS.map((f) => (
@@ -100,6 +110,50 @@ export function JournalList() {
             ))}
           </select>
         </label>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="journal-filter-category">Kategorie</label>
+          <select
+            id="journal-filter-category"
+            value={filter.category}
+            onChange={(e) => setFilter({ ...filter, category: e.target.value })}
+            className="max-w-48 rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
+          >
+            <option value="all">Alle</option>
+            <option value="none">Ohne Kategorie</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {tags.length > 0 && (
+          <div className="flex items-center gap-2 text-sm">
+            <label htmlFor="journal-filter-tag">Schlagwort</label>
+            <select
+              id="journal-filter-tag"
+              value={filter.tag}
+              onChange={(e) => setFilter({ ...filter, tag: e.target.value })}
+              className="max-w-40 rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
+            >
+              <option value="all">Alle</option>
+              {tags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {filtered && (
+          <button
+            type="button"
+            className="rounded-sm px-2 py-1.5 text-sm text-accent underline hover:bg-hover"
+            onClick={() => setFilter({ ...filter, category: 'all', tag: 'all' })}
+          >
+            Filter zurücksetzen
+          </button>
+        )}
         <div
           role="toolbar"
           aria-label="Aktionen für ausgewähltes Journal"
@@ -176,6 +230,9 @@ export function JournalList() {
                 Lernort
               </th>
               <th scope="col" className="px-3 py-2 font-semibold">
+                Kategorien
+              </th>
+              <th scope="col" className="px-3 py-2 font-semibold">
                 Status
               </th>
             </tr>
@@ -195,12 +252,28 @@ export function JournalList() {
                   onKeyDown={(e) => onRowKey(e, j, i)}
                   className={`cursor-default border-t border-border-subtle ${isSel ? 'bg-selected' : 'hover:bg-hover'}`}
                 >
-                  <td className={`px-3 py-2 ${j.title.trim() ? 'font-semibold' : 'italic text-ink-muted'}`}>
-                    {displayTitle(j.title)}
+                  <td className="px-3 py-2">
+                    <span className={j.title.trim() ? 'font-semibold' : 'italic text-ink-muted'}>
+                      {displayTitle(j.title)}
+                    </span>
+                    {j.tagIds.length > 0 && (
+                      <span className="mt-0.5 block text-xs text-ink-muted">
+                        <span className="sr-only">Schlagwörter: </span>
+                        {j.tagIds.map((id) => tagName.get(id)).join(' · ')}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{formatDate(j.workDate)}</td>
                   <td className="px-3 py-2">{j.schoolYear ? `${j.schoolYear}.` : '–'}</td>
                   <td className="px-3 py-2">{LEARNING_PLACE_LABELS[j.learningPlace]}</td>
+                  <td className="max-w-56 px-3 py-2">
+                    {/* Lange Namen (Bereiche a–g) gekürzt; vollständig im Tooltip */}
+                    {j.categoryIds.map((id) => (
+                      <span key={id} className="block truncate" title={categoryName.get(id)}>
+                        {categoryName.get(id)}
+                      </span>
+                    ))}
+                  </td>
                   <td className="px-3 py-2">
                     <StatusBadge status={j.status} />
                   </td>

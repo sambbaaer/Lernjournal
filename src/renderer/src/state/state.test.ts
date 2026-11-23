@@ -91,6 +91,8 @@ describe('Anzahl Journale (Einstellungen)', () => {
     schoolYearOverride: null,
     updatedAt: '2026-11-23T10:00:00.000Z',
     completedAt: null,
+    categoryIds: [],
+    tagIds: [],
   });
   // Projekt wurde mit 0 Journalen geöffnet
   const opened = reducer(initialState, {
@@ -116,5 +118,26 @@ describe('Anzahl Journale (Einstellungen)', () => {
   it('nutzt vor dem Laden der Liste den Wert aus dem Projekt', () => {
     const s = reducer(initialState, { type: 'projectOpened', project: { journalCount: 5 } as ProjectInfo });
     expect(journalCounts(s).total).toBe(5);
+  });
+});
+
+describe('Kategorien und Schlagwörter im Zustand', () => {
+  const taxonomy = {
+    categories: [{ id: 'c', name: 'a – X', source: 'bipla' as const, sortOrder: 0, journalCount: 1 }],
+    tags: [{ id: 't', name: 'Falz', journalCount: 1 }],
+    missingSuggestions: 6,
+  };
+  it('werden beim Projektwechsel zurückgesetzt (keine Kategorien eines anderen Projekts)', () => {
+    let s = reducer(initialState, { type: 'taxonomyLoaded', taxonomy });
+    expect(s.taxonomy).toBe(taxonomy);
+    s = reducer(s, { type: 'projectOpened', project: { journalCount: 0 } as ProjectInfo });
+    expect(s.taxonomy.categories).toEqual([]);
+    s = reducer(s, { type: 'taxonomyLoaded', taxonomy });
+    s = reducer(s, { type: 'projectClosed' });
+    expect(s.taxonomy.tags).toEqual([]);
+  });
+  it('Menüband «Kategorien» fordert den Sprung ins Journal an', () => {
+    const s = reducer(initialState, { type: 'requestFocus', target: 'journal-categories' });
+    expect(s.focusRequest).toBe('journal-categories');
   });
 });
