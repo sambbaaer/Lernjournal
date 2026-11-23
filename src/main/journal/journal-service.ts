@@ -16,6 +16,7 @@ import {
 import { validateSections } from '@shared/editor-schema';
 import { effectiveSchoolYear, localIsoDate } from '@shared/school-year';
 import { transaction, type Db } from '../db/connection';
+import type { LinkService } from '../links/link-service';
 import type { MediaService } from '../media/media-service';
 
 type Row = {
@@ -48,6 +49,8 @@ export class JournalService {
     private readonly projectDir: () => string,
     private readonly now: () => Date = () => new Date(),
     private readonly media?: MediaService,
+    // AJ-10: beim Löschen Links im Text anderer Journale entfernen
+    private readonly links?: LinkService,
   ) {}
 
   private get db() {
@@ -275,13 +278,17 @@ export class JournalService {
     return this.get(newId);
   }
 
-  // Endgültig löschen inkl. Zuordnungen (Cascade) und Bilddateien.
+  // Endgültig löschen inkl. Zuordnungen und Verknüpfungen (Cascade), Links im
+  // Text anderer Journale (AJ-10, der Text bleibt) und Bilddateien.
   delete(id: string): boolean {
     this.row(id);
     const media = this.db.prepare('SELECT relative_path FROM media WHERE journal_id = ?').all(id) as {
       relative_path: string;
     }[];
     transaction(this.db, () => {
+      // Kein Link ins Leere: Verweise im Text anderer Journale entfernen und
+      // deren Suchindex nachführen – alles oder nichts, in derselben Transaktion
+      for (const changed of this.links?.removeTextLinksTo(id) ?? []) this.syncFts(changed);
       this.db.prepare('DELETE FROM journal_fts WHERE journal_id = ?').run(id);
       this.db.prepare('DELETE FROM journal WHERE id = ?').run(id);
       // Schlagwörter, die nur dieses Journal hatte, verschwinden mit (AJ-09:

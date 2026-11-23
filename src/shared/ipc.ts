@@ -16,6 +16,7 @@ import {
   JournalSummarySchema,
   SectionsSchema,
 } from './journal';
+import { JournalLinksSchema } from './links';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
 
 const TaxonomyId = z.uuid();
@@ -204,6 +205,20 @@ export const ipcContract = {
   'journal:setTags': {
     request: z.object({ id: JournalId, names: z.array(TagName).max(100) }),
     response: z.object({ journal: JournalSummarySchema, taxonomy: TaxonomySchema }),
+  },
+
+  // --- Journal-Verknüpfungen (AJ-10) ---
+  // Verknüpfungen in beiden Richtungen + Rückverweise aus dem Text
+  'journal:links': { request: z.object({ id: JournalId }), response: JournalLinksSchema },
+  // Verknüpfen/Lösen liefern die neue Liste und die Zusammenfassung des
+  // Journals (Zeitpunkt «zuletzt geändert» für Start und Liste)
+  'journal:link': {
+    request: z.object({ id: JournalId, otherId: JournalId }),
+    response: z.object({ journal: JournalSummarySchema, links: JournalLinksSchema }),
+  },
+  'journal:unlink': {
+    request: z.object({ id: JournalId, otherId: JournalId }),
+    response: z.object({ journal: JournalSummarySchema, links: JournalLinksSchema }),
   },
 } as const;
 

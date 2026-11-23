@@ -105,6 +105,11 @@ body {
   text-decoration: underline;
   cursor: text;
 }
+/* Link auf ein anderes Journal (AJ-10): gestrichelt unterstrichen, damit er
+   sich auch ohne Farbe von Weblinks unterscheidet (WCAG 1.4.1) */
+.lj-editor a[href^='lernjournal:'] {
+  text-decoration-style: dashed;
+}
 .lj-editor table {
   border-collapse: collapse;
   width: 100%;

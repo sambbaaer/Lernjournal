@@ -9,6 +9,7 @@ export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' 
 
 import type { ProjectInfo } from '@shared/ipc';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
+import { EMPTY_LINKS, type JournalLinks } from '@shared/links';
 import { EMPTY_TAXONOMY, type Taxonomy } from '@shared/taxonomy';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
@@ -27,8 +28,8 @@ export type AppState = {
   notice: string | null;
   // Fokuswunsch, den eine Ansicht nach dem Rendern erfüllt (z. B. Suchfeld)
   // 'journal-categories'/'journal-tags': Menüband «Journal → Ordnen» springt
-  // zu den Feldern im geöffneten Journal
-  focusRequest: 'fachbuch-search' | 'journal-categories' | 'journal-tags' | null;
+  // zu den Feldern im geöffneten Journal; 'journal-links' öffnet «Journal verknüpfen» (AJ-10)
+  focusRequest: 'fachbuch-search' | 'journal-categories' | 'journal-tags' | 'journal-links' | null;
   // Projekt: null = keines geöffnet → Startbildschirm/Assistent
   project: ProjectInfo | null;
   projectLoaded: boolean; // erster Abruf beim Start erledigt?
@@ -42,6 +43,8 @@ export type AppState = {
   journals: JournalSummary[];
   journalsLoaded: boolean;
   openJournal: JournalDetail | null;
+  // Verknüpfungen und Rückverweise des geöffneten Journals (AJ-10)
+  openJournalLinks: JournalLinks;
   // Kategorien und Schlagwörter des Projekts (AJ-09)
   taxonomy: Taxonomy;
 };
@@ -62,6 +65,7 @@ export const initialState: AppState = {
   journals: [],
   journalsLoaded: false,
   openJournal: null,
+  openJournalLinks: EMPTY_LINKS,
   taxonomy: EMPTY_TAXONOMY,
 };
 
@@ -85,7 +89,8 @@ export type Action =
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
   | { type: 'journalClosed' }
-  | { type: 'taxonomyLoaded'; taxonomy: Taxonomy };
+  | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
+  | { type: 'linksLoaded'; journalId: string; links: JournalLinks };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -129,6 +134,7 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
@@ -145,6 +151,7 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
       };
     case 'profileUpdated':
@@ -165,25 +172,40 @@ export function reducer(state: AppState, action: Action): AppState {
       const openJournal = state.openJournal?.id === j.id ? { ...state.openJournal, ...j } : state.openJournal;
       return { ...state, journals: sortJournals(journals), openJournal };
     }
-    case 'journalRemoved':
+    case 'journalRemoved': {
+      // Rückverweise auf das gelöschte Journal aus der Anzeige entfernen
+      // (der Hauptprozess hat Verknüpfungen und Text-Links bereits gelöscht)
+      const drop = (l: JournalLinks['linked']) => l.filter((x) => x.id !== action.id);
       return {
         ...state,
+        openJournalLinks: {
+          linked: drop(state.openJournalLinks.linked),
+          mentionedIn: drop(state.openJournalLinks.mentionedIn),
+        },
         journals: state.journals.filter((x) => x.id !== action.id),
         openJournal: state.openJournal?.id === action.id ? null : state.openJournal,
         view: state.openJournal?.id === action.id ? 'journale' : state.view,
       };
+    }
     case 'journalOpened':
       return {
         ...state,
         openJournal: action.journal,
+        // Gleiches Journal erneut geöffnet: bisherige Anzeige behalten, bis neu geladen
+        openJournalLinks: state.openJournal?.id === action.journal.id ? state.openJournalLinks : EMPTY_LINKS,
         view: 'journal',
         backstage: null,
         saveStatus: { kind: 'idle' },
       };
     case 'journalClosed':
-      return { ...state, openJournal: null, saveStatus: { kind: 'idle' } };
+      return { ...state, openJournal: null, openJournalLinks: EMPTY_LINKS, saveStatus: { kind: 'idle' } };
     case 'taxonomyLoaded':
       return { ...state, taxonomy: action.taxonomy };
+    case 'linksLoaded':
+      // Antwort für ein inzwischen geschlossenes Journal verwerfen (Wettlauf beim schnellen Wechseln)
+      return state.openJournal?.id === action.journalId
+        ? { ...state, openJournalLinks: action.links }
+        : state;
   }
 }
 
