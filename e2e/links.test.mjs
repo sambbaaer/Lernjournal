@@ -22,7 +22,6 @@ after(async () => {
 });
 
 const related = () => page.getByRole('list', { name: 'Verknüpfte Journale' });
-const title = () => page.getByLabel('Titel des Journals');
 
 test('Journal per Suche verknüpfen (Pfeiltasten + Enter)', async () => {
   // Offen ist «Plattenwechsel …»
