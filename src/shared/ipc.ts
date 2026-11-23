@@ -9,6 +9,7 @@
 //   request  – was der Renderer schicken darf (wird im Hauptprozess geprüft)
 //   response – was zurückkommt (Typ für den Renderer)
 import { z } from 'zod';
+import { JournalDetailSchema, JournalId, JournalMetaSchema, JournalSummarySchema } from './journal';
 
 export const AppInfoSchema = z.object({
   name: z.string(),
@@ -124,6 +125,24 @@ export const ipcContract = {
   },
   'project:close': { request: z.undefined(), response: z.object({ closed: z.boolean() }) },
   'profile:update': { request: ProfileSchema, response: ProfileSchema },
+
+  // --- Journale (AJ-05) ---
+  'journal:list': {
+    request: z.object({ includeArchived: z.boolean() }),
+    response: z.array(JournalSummarySchema),
+  },
+  'journal:get': { request: z.object({ id: JournalId }), response: JournalDetailSchema },
+  'journal:create': { request: z.undefined(), response: JournalDetailSchema },
+  'journal:updateMeta': {
+    request: z.object({ id: JournalId, meta: JournalMetaSchema }),
+    response: JournalSummarySchema,
+  },
+  'journal:setStatus': {
+    request: z.object({ id: JournalId, status: z.enum(['draft', 'completed', 'archived']) }),
+    response: JournalSummarySchema,
+  },
+  'journal:duplicate': { request: z.object({ id: JournalId }), response: JournalDetailSchema },
+  'journal:delete': { request: z.object({ id: JournalId }), response: z.object({ deleted: z.boolean() }) },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;

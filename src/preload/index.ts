@@ -21,6 +21,15 @@ const api: LernjournalApi = {
   profile: {
     update: (req) => ipcRenderer.invoke('profile:update', req),
   },
+  journal: {
+    list: (req) => ipcRenderer.invoke('journal:list', req),
+    get: (req) => ipcRenderer.invoke('journal:get', req),
+    create: () => ipcRenderer.invoke('journal:create'),
+    updateMeta: (req) => ipcRenderer.invoke('journal:updateMeta', req),
+    setStatus: (req) => ipcRenderer.invoke('journal:setStatus', req),
+    duplicate: (req) => ipcRenderer.invoke('journal:duplicate', req),
+    delete: (req) => ipcRenderer.invoke('journal:delete', req),
+  },
 };
 
 contextBridge.exposeInMainWorld('lernjournal', api);

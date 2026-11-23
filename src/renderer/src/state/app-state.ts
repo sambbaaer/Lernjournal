@@ -2,11 +2,13 @@
 // Ein Reducer statt vieler einzelner useState: alle Zustandswechsel stehen
 // an einer Stelle und lassen sich ohne Oberfläche testen.
 
-export type View = 'start' | 'journale' | 'fachbuch' | 'export' | 'einstellungen';
+// 'journal' = ein einzelnes Journal ist geöffnet (Dokumentansicht)
+export type View = 'start' | 'journale' | 'journal' | 'fachbuch' | 'export' | 'einstellungen';
 export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren';
 export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' | 'info';
 
 import type { ProjectInfo } from '@shared/ipc';
+import type { JournalDetail, JournalSummary } from '@shared/journal';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
 
@@ -33,6 +35,10 @@ export type AppState = {
   wizardOpen: boolean;
   // Cloud-Warnung für diese Sitzung ausgeblendet
   syncWarningDismissed: boolean;
+  // Journale des Projekts (Übersicht, ohne Inhalt) und das geöffnete Journal
+  journals: JournalSummary[];
+  journalsLoaded: boolean;
+  openJournal: JournalDetail | null;
 };
 
 export const initialState: AppState = {
@@ -48,6 +54,9 @@ export const initialState: AppState = {
   suggestedLocation: '',
   wizardOpen: false,
   syncWarningDismissed: false,
+  journals: [],
+  journalsLoaded: false,
+  openJournal: null,
 };
 
 export type Action =
@@ -64,7 +73,12 @@ export type Action =
   | { type: 'profileUpdated'; profile: ProjectInfo['profile'] }
   | { type: 'openWizard' }
   | { type: 'closeWizard' }
-  | { type: 'dismissSyncWarning' };
+  | { type: 'dismissSyncWarning' }
+  | { type: 'journalsLoaded'; journals: JournalSummary[] }
+  | { type: 'journalUpserted'; journal: JournalSummary }
+  | { type: 'journalRemoved'; id: string }
+  | { type: 'journalOpened'; journal: JournalDetail }
+  | { type: 'journalClosed' };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -105,13 +119,25 @@ export function reducer(state: AppState, action: Action): AppState {
         backstage: null,
         view: 'start',
         syncWarningDismissed: false,
+        journals: [],
+        journalsLoaded: false,
+        openJournal: null,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
           : null,
       };
     }
     case 'projectClosed':
-      return { ...state, project: null, backstage: null, view: 'start', notice: null };
+      return {
+        ...state,
+        project: null,
+        backstage: null,
+        view: 'start',
+        notice: null,
+        journals: [],
+        journalsLoaded: false,
+        openJournal: null,
+      };
     case 'profileUpdated':
       return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
     case 'openWizard':
@@ -120,12 +146,47 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, wizardOpen: false };
     case 'dismissSyncWarning':
       return { ...state, syncWarningDismissed: true };
+    case 'journalsLoaded':
+      return { ...state, journals: action.journals, journalsLoaded: true };
+    case 'journalUpserted': {
+      const j = action.journal;
+      const exists = state.journals.some((x) => x.id === j.id);
+      const journals = exists ? state.journals.map((x) => (x.id === j.id ? j : x)) : [j, ...state.journals];
+      // Geöffnetes Journal mit neuen Metadaten aktualisieren (Inhalt bleibt)
+      const openJournal = state.openJournal?.id === j.id ? { ...state.openJournal, ...j } : state.openJournal;
+      return { ...state, journals: sortJournals(journals), openJournal };
+    }
+    case 'journalRemoved':
+      return {
+        ...state,
+        journals: state.journals.filter((x) => x.id !== action.id),
+        openJournal: state.openJournal?.id === action.id ? null : state.openJournal,
+        view: state.openJournal?.id === action.id ? 'journale' : state.view,
+      };
+    case 'journalOpened':
+      return {
+        ...state,
+        openJournal: action.journal,
+        view: 'journal',
+        backstage: null,
+        saveStatus: { kind: 'idle' },
+      };
+    case 'journalClosed':
+      return { ...state, openJournal: null, saveStatus: { kind: 'idle' } };
   }
+}
+
+// Neuestes Arbeitsdatum zuerst, bei Gleichstand zuletzt geändert zuerst
+export function sortJournals(list: JournalSummary[]): JournalSummary[] {
+  return [...list].sort(
+    (a, b) => b.workDate.localeCompare(a.workDate) || b.updatedAt.localeCompare(a.updatedAt),
+  );
 }
 
 export const VIEW_LABELS: Record<View, string> = {
   start: 'Start',
   journale: 'Journale',
+  journal: 'Journal',
   fachbuch: 'Fachbuch',
   export: 'Export',
   einstellungen: 'Einstellungen',

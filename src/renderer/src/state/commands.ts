@@ -1,6 +1,7 @@
 // Befehlsliste: Jeder Befehl hat genau EINE Definition mit Text, Tastenkürzel
 // und Verfügbarkeit. Menüband, Datei-Menü und Tastatur benutzen dieselben
 // Befehle – dadurch stimmen Tooltips, Kürzel und Verhalten immer überein.
+import { createJournal } from '../journal/actions';
 import type { Action, AppState } from './app-state';
 
 export type CommandId =
@@ -35,10 +36,8 @@ export const commands: Record<CommandId, Command> = {
     id: 'journal.new',
     label: 'Neues Journal',
     shortcut: 'Ctrl+N',
-    disabledReason: () => null,
-    // Journale gibt es ab AJ-05; bis dahin ehrlicher Hinweis statt Scheinfunktion
-    run: (_s, d) =>
-      d({ type: 'notice', text: 'Neues Journal: folgt, sobald ein Projekt geöffnet werden kann.' }),
+    disabledReason: (s) => (s.project ? null : 'Zuerst ein Lernjournal-Projekt öffnen'),
+    run: (_s, d) => void createJournal(d),
   },
   'journal.save': {
     id: 'journal.save',

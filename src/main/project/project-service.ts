@@ -52,6 +52,12 @@ export class ProjectService {
     return this.current.db;
   }
 
+  // Ordner des geöffneten Projekts
+  get dir(): string {
+    if (!this.current) throw new Error('Kein Projekt geöffnet');
+    return this.current.dir;
+  }
+
   inspectFolder(dir: string): { kind: FolderKind; syncProvider: string | null } {
     const syncProvider = detectSyncProvider(dir, this.deps.env);
     if (!existsSync(dir)) return { kind: 'new', syncProvider };

@@ -63,6 +63,17 @@ src/shared/bipla.ts    Vorschlag-Kategorien a–g aus dem Bildungsplan
 - Der Projektdienst kennt kein Electron (testbar mit Vitest); Dialoge und App-Pfade werden in `src/main/index.ts` hineingereicht.
 - E2E-Tests setzen `LERNJOURNAL_E2E_DIR`: eigene Benutzerdaten und «Dokumente» in einem Temp-Ordner (wirkt nur in der ungepackten App). `launchApp()` legt das Projekt über den echten Assistenten an.
 
+## Journale
+```
+src/shared/journal.ts       Typen, Labels, leere Abschnitte, plainTextOf (Suchtext)
+src/shared/school-year.ts   Lehrjahr/Semester aus Lehrbeginn (reine Kalenderrechnung)
+src/main/journal/           JournalService (Transaktionen + Suchindex) und IPC-Handler
+src/renderer/src/journal/   actions.ts, JournalList, JournalDocument, StatusBadge
+```
+- Jede Änderung an einem Journal aktualisiert im selben Durchgang `journal_fts` (Suchindex).
+- Bilddateien werden beim Löschen **nach** dem erfolgreichen Commit entfernt.
+- Metadaten speichern nach 600 ms Ruhe und beim Verlassen der Ansicht; «Gespeichert» erscheint erst nach Bestätigung durch den Hauptprozess.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

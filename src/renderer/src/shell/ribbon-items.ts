@@ -31,6 +31,7 @@ import {
   Underline,
   Undo2,
 } from 'lucide-react';
+import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
 
 export type RibbonItem = {
@@ -131,7 +132,17 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       id: 'eigenschaften',
       label: 'Eigenschaften',
       items: [
-        editor('status', 'Status', CircleCheck, undefined, false),
+        {
+          id: 'status',
+          label: 'Abgeschlossen',
+          icon: CircleCheck,
+          disabledReason: (s) =>
+            s.openJournal && s.view === 'journal' ? null : 'Nur in einem geöffneten Journal verfügbar',
+          run: (s, d) => {
+            const j = s.openJournal;
+            if (j) void setJournalStatus(d, j.id, j.status === 'completed' ? 'draft' : 'completed');
+          },
+        },
         editor('lernort', 'Lernort', MapPin, undefined, false),
       ],
     },

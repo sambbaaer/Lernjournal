@@ -14,7 +14,8 @@ const ITEMS: { view: View; icon: LucideIcon }[] = [
 export function NavigationPane() {
   const { state, dispatch } = useApp();
   const button = (view: View, Icon: LucideIcon) => {
-    const current = state.view === view;
+    // Ein geöffnetes Journal gehört zur Ansicht «Journale»
+    const current = state.view === view || (view === 'journale' && state.view === 'journal');
     return (
       <li key={view}>
         <button

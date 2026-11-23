@@ -5,6 +5,8 @@ import path from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, session, type WebContents } from 'electron';
 import { ipcContract } from '@shared/ipc';
 import { createIpcDispatcher } from './ipc-handler';
+import { createJournalHandlers } from './journal/journal-handlers';
+import { JournalService } from './journal/journal-service';
 import { createProjectHandlers } from './project/project-handlers';
 import { ProjectService } from './project/project-service';
 import {
@@ -35,6 +37,10 @@ if (e2eDir) {
 
 // Höchstens ein geöffnetes Projekt pro App-Instanz
 const projects = new ProjectService({ appVersion: app.getVersion() });
+const journals = new JournalService(
+  () => projects.db,
+  () => projects.dir,
+);
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
 // weitere Fenster und <webview> sind blockiert (hardenWebContents). Auf das
@@ -160,6 +166,7 @@ function registerIpc() {
           return r.canceled ? null : (r.filePaths[0] ?? null);
         },
       }),
+      ...createJournalHandlers(journals),
     },
     trusted,
   );

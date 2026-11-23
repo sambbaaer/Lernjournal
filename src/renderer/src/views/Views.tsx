@@ -6,6 +6,10 @@ import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
 import { SettingsPanel } from '../project/SettingsPanel';
+import { displayTitle, formatDate, openJournal } from '../journal/actions';
+import { JournalList } from '../journal/JournalList';
+import { StatusBadge } from '../journal/StatusBadge';
+import type { JournalSummary } from '@shared/journal';
 import { EmptyState } from './EmptyState';
 
 function ViewFrame({
@@ -44,9 +48,39 @@ function NewJournalButton() {
   );
 }
 
+function JournalLinks({ items, empty }: { items: JournalSummary[]; empty: string }) {
+  const { dispatch } = useApp();
+  if (items.length === 0) return <p className="text-sm text-ink-muted">{empty}</p>;
+  return (
+    <ul className="divide-y divide-border-subtle rounded-md border border-border bg-surface">
+      {items.map((j) => (
+        <li key={j.id}>
+          <button
+            type="button"
+            onClick={() => void openJournal(dispatch, j.id)}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-hover"
+          >
+            <span
+              className={`min-w-0 flex-1 truncate ${j.title.trim() ? 'font-semibold' : 'italic text-ink-muted'}`}
+            >
+              {displayTitle(j.title)}
+            </span>
+            <span className="shrink-0 tabular-nums text-ink-muted">{formatDate(j.workDate)}</span>
+            <StatusBadge status={j.status} />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function StartView() {
   const { state } = useApp();
   const name = state.project?.profile.displayName.trim();
+  const active = state.journals.filter((j) => j.status !== 'archived');
+  const recent = [...active].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+  const drafts = active.filter((j) => j.status === 'draft').slice(0, 5);
+  const done = active.filter((j) => j.status === 'completed').slice(0, 5);
   return (
     <ViewFrame
       title={name ? `Willkommen, ${name.split(' ')[0]}` : 'Willkommen'}
@@ -56,23 +90,27 @@ export function StartView() {
         <h2 id="start-recent" className="mb-2 text-base font-semibold">
           Zuletzt bearbeitet
         </h2>
-        <EmptyState icon={NotebookPen} title="Noch keine Journale">
-          Halte nach einem Auftrag fest, was du gemacht hast, wie du vorgegangen bist und was du gelernt hast.
-          Ein Klick auf «Neues Journal» genügt.
-        </EmptyState>
+        {recent.length === 0 ? (
+          <EmptyState icon={NotebookPen} title="Noch keine Journale">
+            Halte nach einem Auftrag fest, was du gemacht hast, wie du vorgegangen bist und was du gelernt
+            hast. Ein Klick auf «Neues Journal» genügt.
+          </EmptyState>
+        ) : (
+          <JournalLinks items={recent} empty="" />
+        )}
       </section>
       <div className="grid gap-6 md:grid-cols-2">
         <section aria-labelledby="start-drafts">
           <h2 id="start-drafts" className="mb-2 text-base font-semibold">
             Entwürfe
           </h2>
-          <p className="text-sm text-ink-muted">Keine Entwürfe.</p>
+          <JournalLinks items={drafts} empty="Keine Entwürfe." />
         </section>
         <section aria-labelledby="start-done">
           <h2 id="start-done" className="mb-2 text-base font-semibold">
             Abgeschlossen
           </h2>
-          <p className="text-sm text-ink-muted">Noch keine abgeschlossenen Journale.</p>
+          <JournalLinks items={done} empty="Noch keine abgeschlossenen Journale." />
         </section>
       </div>
     </ViewFrame>
@@ -82,9 +120,7 @@ export function StartView() {
 export function JournaleView() {
   return (
     <ViewFrame title="Journale" actions={<NewJournalButton />}>
-      <EmptyState icon={NotebookPen} title="Hier erscheinen deine Journale">
-        Sortieren und filtern nach Datum, Lehrjahr, Status, Lernort, Kategorie und Schlagwort.
-      </EmptyState>
+      <JournalList />
     </ViewFrame>
   );
 }

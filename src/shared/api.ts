@@ -23,4 +23,13 @@ export interface LernjournalApi {
   profile: {
     update: Call<'profile:update'>;
   };
+  journal: {
+    list: Call<'journal:list'>;
+    get: Call<'journal:get'>;
+    create: Call<'journal:create'>;
+    updateMeta: Call<'journal:updateMeta'>;
+    setStatus: Call<'journal:setStatus'>;
+    duplicate: Call<'journal:duplicate'>;
+    delete: Call<'journal:delete'>;
+  };
 }

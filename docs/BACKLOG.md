@@ -25,7 +25,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 
 | ID | Umsetzung | Abnahme | Abhängig | Grösse |
 |---|---|---|---|---|
-| AJ-05 | Journal-CRUD, Status, Lernort | erstellen, öffnen, duplizieren, archivieren, löschen; Lernort (R-03); Lehrjahr/Semester abgeleitet + überschreibbar (Unit-Tests mit Grenzfällen) | 04 | M |
+| AJ-05 ✔ | Journal-CRUD, Status, Lernort | Anlegen (Strg+N), öffnen, Metadaten mit automatischem Speichern, Status Entwurf/Abgeschlossen/Archiviert, duplizieren (mit Kategorien/Schlagwörtern, ohne Links), löschen mit Bestätigung inkl. Bilddateien; Lehrjahr/Semester aus Lehrbeginn (13 Grenzfall-Tests), manuell überschreibbar; Journalliste mit Filter und Tastatur | 04 | M |
 | AJ-06 | Geführter Tiptap-Editor | Auftrag/Durchführung/Reflexion mit Hilfetext-Platzhaltern; Knoten-Whitelist; Paste-Bereinigung aus Word | 05 | L |
 | AJ-07 | Medien/Legenden | Bilder einfügen (Drag & Drop, Zwischenablage, Dialog), verkleinern, EXIF-Ort entfernen, lokal speichern und erneut laden; keine verwaisten Dateien | 06 | M |
 | AJ-08 | Autosave und Fehlerzustände | korrekter Speicherstatus, Flush, Absturztest mit `integrity_check` | 06 | M |

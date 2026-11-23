@@ -10,6 +10,8 @@ import { commands } from '../state/commands';
 import { nextRegion, REGIONS, type Region } from '../state/regions';
 import { matchesShortcut } from '../state/shortcuts';
 import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
+import { loadJournals } from '../journal/actions';
+import { JournalDocument } from '../journal/JournalDocument';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
 import { Welcome } from '../project/Welcome';
@@ -53,8 +55,10 @@ export function AppShell({ version }: { version: string | null }) {
         : 'Lernjournal'
       : state.backstage
         ? 'Datei – Lernjournal'
-        : `${VIEW_LABELS[state.view]} – Lernjournal`;
-  }, [state.view, state.backstage, state.project, state.wizardOpen]);
+        : state.view === 'journal' && state.openJournal
+          ? `${state.openJournal.title.trim() || 'Ohne Titel'} – Lernjournal`
+          : `${VIEW_LABELS[state.view]} – Lernjournal`;
+  }, [state.view, state.backstage, state.project, state.wizardOpen, state.openJournal]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -87,6 +91,12 @@ export function AppShell({ version }: { version: string | null }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [dispatch]);
 
+  // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu)
+  const projectId = state.project?.id;
+  useEffect(() => {
+    if (projectId) void loadJournals(dispatch);
+  }, [projectId, dispatch]);
+
   // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»
   const wasOpen = useRef(false);
   useEffect(() => {
@@ -97,6 +107,11 @@ export function AppShell({ version }: { version: string | null }) {
   const views = {
     start: <StartView />,
     journale: <JournaleView />,
+    journal: state.openJournal ? (
+      <JournalDocument key={state.openJournal.id} journal={state.openJournal} />
+    ) : (
+      <JournaleView />
+    ),
     fachbuch: <FachbuchView />,
     export: <ExportView />,
     einstellungen: <EinstellungenView />,
