@@ -73,8 +73,8 @@ Die App verarbeitet Personendaten (Name der lernenden Person, evtl. Fotos von Mi
 | R-03 | Einträge sind einem Lernort zuordenbar (Betrieb, üK, Berufsfachschule); Standard «Betrieb». | 2.1, 2.4 | P0 |
 | R-04 | Profil enthält Fachrichtung (Print, Printmediatechnik, Siebdruck), **Standard Print**; Hilfetexte zum QV richten sich danach. Fokus und Tests auf Print. | 2.3, 2.4 | P0 |
 | R-05 | Die 7 Handlungskompetenzbereiche a–g werden bei Projektanlage als **Vorschlag-Kategorien** angeboten (abwählbar, umbenennbar). | 2.4 | P0 |
-| R-06 | **Semesterbesprechung:** Journale eines Zeitraums als Übersicht/DOCX mit Feldern für Datum, Name und Unterschrift der Berufsbildnerin/des Berufsbildners ausgeben. In der App lässt sich «besprochen am …» festhalten (Selbstauskunft, keine digitale Signatur). | 2.1 | P1 |
-| R-07 | Nach einer Besprechung ist der besprochene Stand nachvollziehbar (Snapshot/Version); spätere Änderungen sind als solche erkennbar. | 2.1 | P1 |
+| R-06 | **Semesterbesprechung:** Journale eines Zeitraums als Übersicht/DOCX mit Feldern für Datum, Name und Unterschrift der Berufsbildnerin/des Berufsbildners ausgeben. In der App lässt sich «besprochen am …» festhalten (Selbstauskunft, keine digitale Signatur). | 2.1 | ~~P1~~ → P2 (voraussichtlich nicht genutzt) |
+| R-07 | Nach einer Besprechung ist der besprochene Stand nachvollziehbar (Snapshot/Version); spätere Änderungen sind als solche erkennbar. | 2.1 | ~~P1~~ → P2 |
 | R-08 | **QV-Mappe:** Auswahl von Journalen (Hinweis, wenn weniger als 12 – Standard für Print/Printmediatechnik, konfigurierbar), **PDF als Hauptformat** für den Upload in PkOrg, zusätzlich DOCX zum Weiterbearbeiten und Ausdruck. Dateigrösse nach Export anzeigen; Bilder für PDF moderat komprimieren. | 2.3 | P1 |
 | R-09 | Handlungskompetenzen/Leistungsziele (inkl. Wortlaut, Mitlieferung zulässig) aus einem **versionierten, offline mitgelieferten Katalog** einem Journal zuordnen – **freiwillig**, nie Pflicht beim Schreiben; Abdeckungsübersicht als Orientierung, **nicht** als amtliche Zuordnung oder Bewertung. | 2.4 | P1 |
 | R-10 | Vor jedem Export: Hinweis auf Geschäftsgeheimnisse, Kundendaten und Personen auf Bildern; einmalig pro Export bestätigbar. | 2.5 | P0 |
@@ -88,8 +88,9 @@ Die App verarbeitet Personendaten (Name der lernenden Person, evtl. Fotos von Mi
 2. **Wortlaut der Leistungsziele** darf mitgeliefert werden, muss aber nicht. Die App ist **keine offizielle Anwendung**; Ziel ist, Lernenden das Führen des Journals zu vereinfachen (→ R-14, R-09 freiwillig).
 3. **PkOrg-Upload: PDF**, keine Maximalgrösse bekannt (→ R-08).
 
+4. **Revision BiVo/Bildungsplan:** angekündigt, aber frühestens in rund 6 Jahren. → Vorerst nur mit dem Bildungsplan 2018 planen; das Katalogformat bleibt versioniert, ein Parallelbetrieb mehrerer Versionen wird **nicht** vorab gebaut.
+5. **Semesterbesprechung/Unterschrift in der App:** wird voraussichtlich nicht genutzt. → R-06/R-07 nach P2 verschoben; Besprechungen laufen weiterhin mit einem normalen DOCX/PDF-Export.
+6. **Exportvorlage nach 10er-Register (COPYPRINTSUISSE):** nicht gewünscht.
+
 ## 5. Offene Fragen
-1. Ist eine Revision der BiVo/des Bildungsplans Medientechnologe angekündigt? (Katalog muss dann mehrere Versionen parallel führen.)
-2. Bevorzugen Lehrbetriebe eine Unterschrift auf Papier, auf PDF oder genügt ein Gesprächsvermerk?
-3. Wie sieht die ZIP-Vorlage von COPYPRINTSUISSE (10 Register) aus – lohnt sich eine Exportvorlage, die diese Gliederung nachbildet?
-4. Siebdruck (VPA): Werden Lerndokumentationen eingereicht? (niedrige Priorität, Fokus Print)
+1. Siebdruck (VPA): Werden Lerndokumentationen eingereicht? Unbekannt; niedrige Priorität, Fokus Print. Bis zur Klärung zeigt die App für Siebdruck keinen QV-Zähler.

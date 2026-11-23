@@ -1,6 +1,6 @@
 # Lernjournal – umsetzbares Backlog
 
-Stand: 2026-11-23. **P0:** AJ-00–AJ-17. **P1:** AJ-18–AJ-23 (erst nach bestandener P0-Abnahme; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
+Stand: 2026-11-23. **P0:** AJ-00–AJ-17. **P1:** AJ-18, AJ-20–AJ-23 (AJ-19 Semesterbesprechung → P2) (erst nach bestandener P0-Abnahme; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
 
 Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung für eine Person mit KI-Unterstützung).
 
@@ -59,7 +59,6 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 | ID | Umsetzung | Abnahme | Grundlage |
 |---|---|---|---|
 | AJ-18 | PDF-Export (zuerst) | Einzel- und Sammel-PDF offline via `printToPDF`; Schriften eingebettet, Text durchsuchbar, Bilder moderat komprimiert, Dateigrösse angezeigt; Layout entspricht DOCX sinngemäss | R-08 |
-| AJ-19 | Semesterbesprechung | Zeitraum wählen, Visumsblatt DOCX/PDF, «besprochen am» erfassen, Snapshot + Änderungsanzeige | R-06, R-07 |
 | AJ-20 | QV-Mappe | Auswahl + Reihenfolge, Zähler «x von mindestens 12» (Print/Printmediatechnik, konfigurierbar), Titelseite, TOC; **PDF für PkOrg**, DOCX optional | R-08 |
 | AJ-21 | Kompetenzkatalog | versionierter Katalog 34200 offline inkl. Wortlaut, freiwillige Zuordnung Journal ↔ Handlungskompetenz/Leistungsziel, Standardfilter Print + Betrieb | R-09 |
 | AJ-22 | Abdeckungsübersicht | Matrix Bereiche a–g × Lehrjahr, Hinweis «Orientierung, keine amtliche Zuordnung» | R-09 |

@@ -1,6 +1,6 @@
-# Lernjournal – MVP-Spezifikation v1.2
+# Lernjournal – MVP-Spezifikation v1.3
 
-Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
+Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel; v1.3: Semesterbesprechung nach P2, Katalog nur Bildungsplan 2018). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
 
 ## Ziel und Scope
 Einzelplatz-Windows-App für Lerndokumentation über die vier Lehrjahre. Journal = unabhängiges, nach Word exportierbares Dokument und entspricht einer **Lerndokumentation nach BiVo Art. 12** (R-01). Fachbuch = dynamische Sicht auf dieselben Journale mit Kategorien, Tags, Links und Suche. Keine inhaltliche Doppelerfassung. Offline, keine Registrierung oder externe Verarbeitung. Abgeschlossene Journale sind nicht automatisch vom Lehrbetrieb freigegeben; kein offizielles Bewertungssystem (R-02). Lernjournal ist ein **inoffizielles Hilfsmittel** (R-14). **Fachlicher Fokus: Fachrichtung Print**; Printmediatechnik und Siebdruck werden unterstützt, aber nicht priorisiert.
@@ -20,8 +20,8 @@ Die App soll Lernenden das Führen des Journals **erleichtern**, nicht zusätzli
 
 ### Prioritäten
 **P0:** Journal erstellen/bearbeiten/duplizieren/archivieren/löschen; strukturierter Editor mit Bildern; Entwurf/Abgeschlossen; Lernort (R-03); Fachrichtung im Profil (R-04); Vorschlag-Kategorien a–g (R-05); Themen, Tags, Links, Volltextsuche; Word-Einzel-/Sammelexport mit Exporthinweis (R-10); Autosave, Projektimport/-export, Backup/Restore; Windows-Installer + portable EXE.
-**P1:** PDF-Export (erstes P1-Ticket, Voraussetzung für die QV-Mappe); QV-Mappe als PDF für PkOrg (R-08); Semesterbesprechung mit Visumsblatt und Snapshot (R-06, R-07); Kompetenzkatalog und Abdeckungsübersicht (R-09); weitere Vorlagen; Qualitätshinweise; konfigurierbare Word-Layouts.
-**P2:** Berufsbildner-Feedback in der App, KI-Reflexion, Cloud-Sync, eigenständige Wissensseiten, frei importierbare DOCX-Templates, weitere Berufe (z. B. Polygraf EFZ) über Katalog, macOS-Build.
+**P1:** PDF-Export (erstes P1-Ticket, Voraussetzung für die QV-Mappe); QV-Mappe als PDF für PkOrg (R-08); Kompetenzkatalog und Abdeckungsübersicht (R-09); weitere Vorlagen; Qualitätshinweise; konfigurierbare Word-Layouts.
+**P2:** Semesterbesprechung mit Visumsblatt und Snapshot (R-06, R-07), Berufsbildner-Feedback in der App, KI-Reflexion, Cloud-Sync, eigenständige Wissensseiten, frei importierbare DOCX-Templates, weitere Berufe (z. B. Polygraf EFZ) über Katalog, macOS-Build.
 
 ### Nicht-Ziele
 Bildungsbericht (R-12), Notenberechnung, Prüfungsbewertung, Klassen- und Benutzerverwaltung, Mehrbenutzerbetrieb, Synchronisation mit Word-Dateien, digitale Signaturen mit Rechtswirkung.
@@ -32,14 +32,13 @@ Bildungsbericht (R-12), Notenberechnung, Prüfungsbewertung, Klassen- und Benutz
 | Journal | ein Eintrag mit Auftrag/Durchführung/Reflexion | «Lerndokumentation» (BiVo Art. 12) bzw. «Lernbericht» (SDBB) |
 | Fachbuch | Sicht über alle Journale | Nachschlagewerk (SDBB) |
 | Kategorie | Ordnungsbegriff, Vorschlag = Handlungskompetenzbereich a–g | Bildungsplan |
-| Besprechung | festgehaltenes Gespräch mit Berufsbildner/in | Kontrolle/Unterschrift pro Semester |
 | QV-Mappe | Auswahl für die IPA-Einreichung | Ausführungsbestimmungen QV |
 
 ## Navigation
-1. **Start:** zuletzt bearbeitet, Entwürfe, abgeschlossene Journale, neues Journal; Hinweis «Semesterbesprechung fällig?» (P1).
+1. **Start:** zuletzt bearbeitet, Entwürfe, abgeschlossene Journale, neues Journal.
 2. **Journale:** Liste, Sortierung, Filter (Status, Lehrjahr, Semester, Lernort, Kategorie, Tag), Bearbeiten und Organisation.
 3. **Fachbuch:** Themen, Schlagwörter, Volltext und verwandte Journale.
-4. **Export:** Einzel- und Sammel-DOCX mit Reihenfolge; P1: Besprechung und QV-Mappe.
+4. **Export:** Einzel- und Sammel-DOCX mit Reihenfolge; P1: PDF und QV-Mappe.
 5. **Einstellungen:** Profil, Speicherort, Word-Design, Backups und Wiederherstellung, Datenschutzhinweis.
 
 ## Journal
@@ -90,16 +89,14 @@ media(id,journal_id,relative_path,original_name,mime_type,caption,
       width,height,sha256,created_at)
 journal_fts(derived_search_index)
 -- P1
-review(id,held_on,reviewer_name,note,period_from,period_to,created_at)
-journal_review(journal_id,review_id,snapshot_json,snapshot_hash)
 competency_catalog(id,profession_code,version,source_ref)
 competency(catalog_id,code,parent_code,title,level)   -- a, a1, a1.1
 journal_competency(journal_id,catalog_id,code)
 qv_selection(id,title,created_at), qv_selection_item(selection_id,journal_id,position)
 ```
-Integrität: keine doppelten Beziehungen oder Selbstlinks, referenzielle Integrität, Links in beide Richtungen anzeigen, Bilder nicht verwaisen lassen (Aufräumen beim Löschen und Prüfung «verwaiste Medien»). Fachbuch speichert keine Kopien. Snapshot einer Besprechung ist die einzige erlaubte Kopie und dient nur der Nachvollziehbarkeit (R-07).
+Integrität: keine doppelten Beziehungen oder Selbstlinks, referenzielle Integrität, Links in beide Richtungen anzeigen, Bilder nicht verwaisen lassen (Aufräumen beim Löschen und Prüfung «verwaiste Medien»). Fachbuch speichert keine Kopien.
 
-Kompetenzkatalog: als versionierte JSON-Datei mit der App ausgeliefert (Bildungsplan 34200, Stand 12.10.2018, inkl. Wortlaut der Leistungsziele – Mitlieferung zulässig), beim Projektstart importiert; mehrere Versionen parallel möglich. Standardfilter Fachrichtung Print und Lernort Betrieb. Zuordnung immer freiwillig.
+Kompetenzkatalog: als versionierte JSON-Datei mit der App ausgeliefert (Bildungsplan 34200, Stand 12.10.2018, inkl. Wortlaut der Leistungsziele – Mitlieferung zulässig), beim Projektstart importiert; Format versioniert (`catalog_id`), aber nur eine Version wird ausgeliefert – nächste Revision frühestens in ca. 6 Jahren. Standardfilter Fachrichtung Print und Lernort Betrieb. Zuordnung immer freiwillig.
 
 ### Projektordner
 ```
@@ -122,7 +119,7 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 
 **PDF (P1, erstes P1-Ticket):** Hauptformat für die QV-Einreichung in PkOrg (keine Maximalgrösse bekannt). Aus derselben Dokumentstruktur über ein HTML-Druckbild und Electron `printToPDF` (offline, ohne Word). Schriften einbetten, Bilder für Druck/Bildschirm moderat komprimieren (Ziel ca. 150–200 ppi), Dateigrösse nach Export anzeigen, durchsuchbarer Text, Lesezeichen je Journal wenn technisch möglich. PDF ist Ausgabe, nicht Datenformat.
 
-**Besprechung (P1, R-06):** DOCX/PDF mit Liste der Journale des Zeitraums, den Journalen selbst und einem Abschlussblatt «Besprochen am / Berufsbildner/in / Unterschrift / Bemerkungen».
+**Besprechung mit Berufsbildner/in:** im MVP über den normalen Sammel-Export (Filter nach Zeitraum); eigenes Besprechungs-Feature erst P2.
 
 **QV-Mappe (P1, R-08):** Auswahl mit Reihenfolge, Zähler «x von mindestens 12» (Standard für Print/Printmediatechnik, in den Einstellungen änderbar, keine harte Sperre), Titelseite, Inhaltsverzeichnis; **PDF als Hauptausgabe**, DOCX optional.
 
