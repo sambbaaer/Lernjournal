@@ -2,7 +2,7 @@
 
 Offlinefähige Windows-Desktop-App für Lernende Medientechnolog*innen EFZ zum Führen der obligatorischen Lerndokumentation (BiVo Art. 12) und zur Vorbereitung auf das Qualifikationsverfahren. **Ein Arbeitsjournal ist ein eigenständiges Dokument; alle Journale bilden über Kategorien, Tags, Links und Volltextsuche ein persönliches Fachbuch.**
 
-**Status:** Konzept + Phase 0 (technische Spikes) abgeschlossen, App-Code folgt ab AJ-01. **Produktname:** Lernjournal, neutrale Marke.
+**Status:** Phase 0 und Grundgerüst (AJ-01) fertig: sichere Electron-App startet, noch ohne Journal-Funktionen. Start: siehe [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md). **Produktname:** Lernjournal, neutrale Marke.
 
 ## Fixe Entscheidungen
 - Electron, React, TypeScript, Tiptap, SQLite (`node:sqlite`), Tailwind CSS, `docx`, electron-builder.
@@ -18,6 +18,7 @@ Offlinefähige Windows-Desktop-App für Lernende Medientechnolog*innen EFZ zum F
 2. [docs/SPEC.md](docs/SPEC.md) – Architektur, UX, Daten, Abnahme
 3. [docs/BACKLOG.md](docs/BACKLOG.md) – priorisierte Tickets
 4. [docs/QUELLEN.md](docs/QUELLEN.md) – offizielle Grundlagen (BiVo, Bildungsplan, QV) und abgeleitete Anforderungen
-5. [docs/adr/](docs/adr/) – Architekturentscheide, [spikes/](spikes/) – Phase-0-Prototypen
+5. [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md) – Entwicklungsumgebung, Befehle, IPC-Muster
+6. [docs/adr/](docs/adr/) – Architekturentscheide, [spikes/](spikes/) – Phase-0-Prototypen
 
 MVP vollständig, wenn ein Lernender offline ein Projekt erstellen, Journale schreiben, Bilder einfügen, automatisch speichern, verknüpfen, durchsuchen, als Einzel-/Sammel-DOCX ausgeben und komplett sichern/wiederherstellen kann.

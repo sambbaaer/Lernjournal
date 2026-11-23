@@ -1,0 +1,46 @@
+# Haupt-CI: läuft auf echtem Windows (Zielplattform laut SPEC).
+name: CI
+
+on:
+  push:
+    paths-ignore: ['spikes/**', 'docs/**', '**/*.md']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # 1) Typen, Lint, Formatierung, Unit-Tests
+      - run: npm run check
+
+      # 2) App bauen und Ende-zu-Ende-Test mit Playwright (Sicherheitsgrenzen)
+      - run: npm run test:e2e
+
+      # 3) Installer + portable EXE bauen (mit Fuses)
+      - run: npx electron-builder --win nsis portable
+
+      # 4) Gepackte EXE starten: Rauchtest prüft Preload-Brücke und Sandbox
+      - name: Rauchtest gepackte App
+        shell: pwsh
+        env:
+          LERNJOURNAL_SMOKE_TEST: '1'
+        run: |
+          $p = Start-Process -FilePath 'dist/win-unpacked/Lernjournal.exe' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Rauchtest fehlgeschlagen (Exitcode $($p.ExitCode))" }
+          Write-Host 'Rauchtest OK'
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: lernjournal-windows
+          path: |
+            dist/*.exe
+          retention-days: 14
