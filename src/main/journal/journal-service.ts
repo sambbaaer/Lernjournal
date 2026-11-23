@@ -58,8 +58,22 @@ export class JournalService {
     return r?.apprenticeship_start ?? null;
   }
 
-  private toSummary(r: Row, start: string | null): JournalSummary {
+  // Kategorien- und Schlagwort-IDs eines Journals
+  private assignments(id: string): { categoryIds: string[]; tagIds: string[] } {
+    const categoryIds = (
+      this.db.prepare('SELECT category_id AS v FROM journal_category WHERE journal_id = ?').all(id) as {
+        v: string;
+      }[]
+    ).map((r) => r.v);
+    const tagIds = (
+      this.db.prepare('SELECT tag_id AS v FROM journal_tag WHERE journal_id = ?').all(id) as { v: string }[]
+    ).map((r) => r.v);
+    return { categoryIds, tagIds };
+  }
+
+  private toSummary(r: Row, start: string | null, assigned = this.assignments(r.id)): JournalSummary {
     return {
+      ...assigned,
       id: r.id,
       title: r.title,
       workDate: r.work_date,
@@ -85,10 +99,28 @@ export class JournalService {
       { title: string; sections_json: string } | undefined;
     if (!r) return;
     const sections = JSON.parse(r.sections_json) as Sections;
-    const body = SECTION_KEYS.map((k) => plainTextOf(sections[k])).join('\n');
+    // Schlagwörter sind ebenfalls durchsuchbar (SPEC «Suche»)
+    const tags = (
+      this.db
+        .prepare('SELECT t.name FROM tag t JOIN journal_tag jt ON jt.tag_id = t.id WHERE jt.journal_id = ?')
+        .all(id) as {
+        name: string;
+      }[]
+    ).map((t) => t.name);
+    const body = [...SECTION_KEYS.map((k) => plainTextOf(sections[k])), tags.join(' ')].join('\n');
     this.db
       .prepare('INSERT INTO journal_fts (journal_id, title, body) VALUES (?, ?, ?)')
       .run(id, r.title, body);
+  }
+
+  // Suchindex für mehrere Journale neu schreiben (z. B. nach Umbenennen eines Schlagworts)
+  resyncFts(ids: string[]): void {
+    if (ids.length === 0) return;
+    transaction(this.db, () => ids.forEach((id) => this.syncFts(id)));
+  }
+
+  summary(id: string): JournalSummary {
+    return this.toSummary(this.row(id), this.apprenticeshipStart());
   }
 
   list(options: { includeArchived: boolean }): JournalSummary[] {
@@ -97,7 +129,22 @@ export class JournalService {
       .prepare(`SELECT ${COLUMNS} FROM journal ${where} ORDER BY work_date DESC, updated_at DESC`)
       .all() as Row[];
     const start = this.apprenticeshipStart();
-    return rows.map((r) => this.toSummary(r, start));
+    // Zuordnungen aller Journale in zwei Abfragen statt zwei pro Journal
+    const cats = new Map<string, string[]>();
+    const tags = new Map<string, string[]>();
+    for (const r of this.db.prepare('SELECT journal_id, category_id FROM journal_category').all() as {
+      journal_id: string;
+      category_id: string;
+    }[])
+      cats.set(r.journal_id, [...(cats.get(r.journal_id) ?? []), r.category_id]);
+    for (const r of this.db.prepare('SELECT journal_id, tag_id FROM journal_tag').all() as {
+      journal_id: string;
+      tag_id: string;
+    }[])
+      tags.set(r.journal_id, [...(tags.get(r.journal_id) ?? []), r.tag_id]);
+    return rows.map((r) =>
+      this.toSummary(r, start, { categoryIds: cats.get(r.id) ?? [], tagIds: tags.get(r.id) ?? [] }),
+    );
   }
 
   get(id: string): JournalDetail {
@@ -244,6 +291,8 @@ export class JournalService {
     transaction(this.db, () => {
       this.db.prepare('DELETE FROM journal_fts WHERE journal_id = ?').run(id);
       this.db.prepare('DELETE FROM journal WHERE id = ?').run(id);
+      // Schlagwörter, die nur dieses Journal hatte, verschwinden mit
+      this.db.prepare('DELETE FROM tag WHERE id NOT IN (SELECT tag_id FROM journal_tag)').run();
     });
     // Dateien erst NACH erfolgreichem Commit löschen – nie Daten ohne Datei
     // hinterlassen. Pfade stammen aus der DB und sind per CHECK auf media/ beschränkt.

@@ -9,6 +9,8 @@ import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
 import { MediaService } from './media/media-service';
+import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
+import { TaxonomyService } from './taxonomy/taxonomy-service';
 import { createProjectHandlers } from './project/project-handlers';
 import { ProjectService } from './project/project-service';
 import {
@@ -58,6 +60,10 @@ const journals = new JournalService(
   () => projects.dir,
   () => new Date(),
   media,
+);
+const taxonomy = new TaxonomyService(
+  () => projects.db,
+  (ids) => journals.resyncFts(ids),
 );
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
@@ -208,6 +214,7 @@ function registerIpc() {
         return { ok: true };
       },
       ...createJournalHandlers(journals),
+      ...createTaxonomyHandlers(taxonomy, journals),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
     trusted,

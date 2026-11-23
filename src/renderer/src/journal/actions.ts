@@ -12,6 +12,33 @@ export async function loadJournals(d: Dispatch): Promise<void> {
   else fail(d, 'Journale konnten nicht geladen werden.');
 }
 
+export async function loadTaxonomy(d: Dispatch): Promise<void> {
+  const res = await window.lernjournal.taxonomy.list();
+  if (res.ok) d({ type: 'taxonomyLoaded', ...res.data });
+}
+
+export async function setJournalCategories(d: Dispatch, id: string, categoryIds: string[]): Promise<boolean> {
+  const res = await window.lernjournal.journal.setCategories({ id, categoryIds });
+  if (!res.ok) {
+    fail(d, 'Kategorien konnten nicht gespeichert werden.');
+    return false;
+  }
+  d({ type: 'journalUpserted', journal: res.data.journal });
+  d({ type: 'taxonomyLoaded', categories: res.data.categories, tags: res.data.tags });
+  return true;
+}
+
+export async function setJournalTags(d: Dispatch, id: string, tags: string[]): Promise<string | null> {
+  const res = await window.lernjournal.journal.setTags({ id, tags });
+  if (!res.ok)
+    return res.error.code === 'INVALID_REQUEST'
+      ? res.error.message
+      : 'Schlagwörter konnten nicht gespeichert werden.';
+  d({ type: 'journalUpserted', journal: res.data.journal });
+  d({ type: 'taxonomyLoaded', categories: res.data.categories, tags: res.data.tags });
+  return null;
+}
+
 export async function createJournal(d: Dispatch): Promise<void> {
   const res = await window.lernjournal.journal.create();
   if (!res.ok) return fail(d, 'Journal konnte nicht angelegt werden.');

@@ -23,9 +23,14 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'archived', label: 'Archiviert' },
 ];
 
-function matches(j: JournalSummary, filter: Filter, q: string): boolean {
+function matches(j: JournalSummary, filter: Filter, q: string, categoryId: string, tagId: string): boolean {
   const statusOk = filter === 'active' ? j.status !== 'archived' : j.status === filter;
-  return statusOk && (!q || j.title.toLowerCase().includes(q.toLowerCase()));
+  return (
+    statusOk &&
+    (!q || j.title.toLowerCase().includes(q.toLowerCase())) &&
+    (!categoryId || j.categoryIds.includes(categoryId)) &&
+    (!tagId || j.tagIds.includes(tagId))
+  );
 }
 
 const toolButton = 'flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover';
@@ -34,13 +39,15 @@ export function JournalList() {
   const { state, dispatch } = useApp();
   const [filter, setFilter] = useState<Filter>('active');
   const [query, setQuery] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [tagId, setTagId] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<JournalSummary | null>(null);
   const tableRef = useRef<HTMLTableSectionElement>(null);
 
   const rows = useMemo(
-    () => state.journals.filter((j) => matches(j, filter, query)),
-    [state.journals, filter, query],
+    () => state.journals.filter((j) => matches(j, filter, query, categoryId, tagId)),
+    [state.journals, filter, query, categoryId, tagId],
   );
   const selected = rows.find((j) => j.id === selectedId) ?? null;
 
@@ -86,9 +93,10 @@ export function JournalList() {
             className="w-56 rounded-sm border border-border-strong bg-surface py-1.5 pl-8 pr-2 text-sm placeholder:text-ink-muted"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          Anzeigen
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="journal-filter-status">Anzeigen</label>
           <select
+            id="journal-filter-status"
             value={filter}
             onChange={(e) => setFilter(e.target.value as Filter)}
             className="rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
@@ -99,7 +107,39 @@ export function JournalList() {
               </option>
             ))}
           </select>
-        </label>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="journal-filter-category">Kategorie</label>
+          <select
+            id="journal-filter-category"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="max-w-56 rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
+          >
+            <option value="">Alle</option>
+            {state.categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="journal-filter-tag">Schlagwort</label>
+          <select
+            id="journal-filter-tag"
+            value={tagId}
+            onChange={(e) => setTagId(e.target.value)}
+            className="max-w-48 rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
+          >
+            <option value="">Alle</option>
+            {state.tags.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.count})
+              </option>
+            ))}
+          </select>
+        </div>
         <div
           role="toolbar"
           aria-label="Aktionen für ausgewähltes Journal"

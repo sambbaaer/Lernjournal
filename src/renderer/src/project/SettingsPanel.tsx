@@ -4,6 +4,7 @@ import type { Profile } from '@shared/ipc';
 import { useApp } from '../state/AppContext';
 import { ErrorMessage, SyncWarning } from './Notices';
 import { ProfileFields } from './ProfileFields';
+import { TaxonomyManager } from './TaxonomyManager';
 import { useProjectActions } from './useProjectActions';
 
 export function SettingsPanel() {
@@ -48,6 +49,13 @@ export function SettingsPanel() {
             {saving ? 'Speichert …' : 'Profil speichern'}
           </button>
         </form>
+      </section>
+
+      <section aria-labelledby="settings-taxonomy" className="max-w-4xl space-y-3">
+        <h2 id="settings-taxonomy" className="text-lg font-semibold">
+          Kategorien und Schlagwörter
+        </h2>
+        <TaxonomyManager />
       </section>
 
       <section aria-labelledby="settings-location" className="max-w-2xl space-y-3">

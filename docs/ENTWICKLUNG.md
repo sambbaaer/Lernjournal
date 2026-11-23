@@ -102,6 +102,12 @@ src/main/media/media-service.ts               speichern (atomar, SHA-256), aufl�
 - **Schliessen:** `src/main/close-guard.ts` hält das Schliessen an, die Oberfläche speichert (`app.onBeforeClose` → `app.closeReady`), bei Fehler fragt ein Windows-Dialog nach. Antwortet die Oberfläche nicht innert 5 s, wird trotzdem geschlossen.
 - **Tests:** `src/main/db/crash.test.ts` (Schreibprozess hart beenden) und `e2e/autosave.test.mjs` (App schliessen, SIGKILL, gesperrte Datenbank). In E2E-Tests mit `waitForNewSave()` auf einen *neuen* Speichervorgang warten.
 
+## Kategorien und Schlagwörter
+- `src/main/taxonomy/taxonomy-service.ts`: Kategorien bleiben bestehen (Struktur), Schlagwörter ohne Journal werden automatisch entfernt. Namen eindeutig ohne Rücksicht auf Gross-/Kleinschreibung.
+- Schlagwörter sind Teil des Suchindex; nach Umbenennen/Zusammenführen werden die betroffenen Journale neu indexiert (`resyncFts`).
+- `JournalSummary` enthält `categoryIds`/`tagIds`; Namen kommen aus `state.categories`/`state.tags`.
+- Auswahlfelder mit `<label htmlFor>` verknüpfen (nicht umschliessen) – sonst wird der Optionstext Teil des Namens.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

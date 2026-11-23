@@ -92,6 +92,19 @@ export const OpenResultSchema = z.discriminatedUnion('status', [
 ]);
 export type OpenResult = z.infer<typeof OpenResultSchema>;
 
+export const TaxonomyKind = z.enum(['category', 'tag']);
+export const CategorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  source: z.enum(['bipla', 'user']),
+  sortOrder: z.number(),
+  count: z.number(),
+});
+export const TagSchema = z.object({ id: z.string(), name: z.string(), count: z.number() });
+export const TaxonomyListSchema = z.object({ categories: z.array(CategorySchema), tags: z.array(TagSchema) });
+export type Category = z.infer<typeof CategorySchema>;
+export type Tag = z.infer<typeof TagSchema>;
+
 export const ipcContract = {
   // Liefert App-Version und Laufzeit – erster, harmloser Befehl, an dem
   // das ganze Sicherheitsmuster getestet wird.
@@ -162,6 +175,32 @@ export const ipcContract = {
       originalName: z.string().max(260),
     }),
     response: z.object({ id: z.string(), width: z.number(), height: z.number(), mime: z.string() }),
+  },
+  // --- Kategorien und Schlagwörter (AJ-09) ---
+  'taxonomy:list': { request: z.undefined(), response: TaxonomyListSchema },
+  'taxonomy:create': {
+    request: z.object({ kind: TaxonomyKind, name: z.string().max(200) }),
+    response: TaxonomyListSchema,
+  },
+  'taxonomy:rename': {
+    request: z.object({ kind: TaxonomyKind, id: z.uuid(), name: z.string().max(200) }),
+    response: TaxonomyListSchema,
+  },
+  'taxonomy:merge': {
+    request: z.object({ kind: TaxonomyKind, sourceId: z.uuid(), targetId: z.uuid() }),
+    response: TaxonomyListSchema,
+  },
+  'taxonomy:delete': {
+    request: z.object({ kind: TaxonomyKind, id: z.uuid() }),
+    response: TaxonomyListSchema,
+  },
+  'journal:setCategories': {
+    request: z.object({ id: JournalId, categoryIds: z.array(z.uuid()).max(100) }),
+    response: TaxonomyListSchema.extend({ journal: JournalSummarySchema }),
+  },
+  'journal:setTags': {
+    request: z.object({ id: JournalId, tags: z.array(z.string().max(200)).max(30) }),
+    response: TaxonomyListSchema.extend({ journal: JournalSummarySchema }),
   },
   'journal:setStatus': {
     request: z.object({ id: JournalId, status: z.enum(['draft', 'completed', 'archived']) }),

@@ -253,14 +253,28 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           label: 'Kategorien',
           icon: FolderTree,
           iconOnly: false,
-          disabledReason: LATER('Kategorien zuordnen'),
+          disabledReason: ({ state }) =>
+            state.openJournal && state.view === 'journal'
+              ? null
+              : 'Nur in einem geöffneten Journal verfügbar',
+          // Aufklappliste der Kategorien öffnen und fokussieren
+          run: () => {
+            const summary = document.getElementById('journal-categories-summary');
+            const details = summary?.parentElement as HTMLDetailsElement | null;
+            if (details) details.open = true;
+            summary?.focus();
+          },
         },
         {
           id: 'tags',
           label: 'Schlagwörter',
           icon: Tags,
           iconOnly: false,
-          disabledReason: LATER('Schlagwörter zuordnen'),
+          disabledReason: ({ state }) =>
+            state.openJournal && state.view === 'journal'
+              ? null
+              : 'Nur in einem geöffneten Journal verfügbar',
+          run: () => document.getElementById('journal-tags-input')?.focus(),
         },
       ],
     },

@@ -11,6 +11,9 @@ import { InvalidContentError } from '@shared/editor-schema';
 import { ipcContract, type IpcChannel, type IpcRequest, type IpcResponse, type IpcResult } from '@shared/ipc';
 
 // Minimal das, was wir vom Electron-Event brauchen: die URL des aufrufenden Frames.
+// Fehler mit Meldung für Nutzer (z. B. «Gibt es schon»); alle anderen bleiben «Interner Fehler»
+const USER_FACING_ERRORS = new Set(['MediaError', 'TaxonomyError']);
+
 export type SenderInfo = { senderFrame?: { url: string } | null };
 
 export type Handlers = {
@@ -46,7 +49,7 @@ export function createIpcDispatcher(handlers: Handlers, isTrustedUrl: (url: stri
       return { ok: true, data };
     } catch (err) {
       // Inhalt verletzt das Editor-Schema: verständliche Meldung, kein interner Fehler
-      if (err instanceof InvalidContentError || (err instanceof Error && err.name === 'MediaError')) {
+      if (err instanceof InvalidContentError || (err instanceof Error && USER_FACING_ERRORS.has(err.name))) {
         return { ok: false, error: { code: 'INVALID_REQUEST', message: err.message } };
       }
       // Details nur ins lokale Protokoll, nicht an die Oberfläche

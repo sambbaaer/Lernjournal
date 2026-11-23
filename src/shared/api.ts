@@ -27,6 +27,13 @@ export interface LernjournalApi {
   profile: {
     update: Call<'profile:update'>;
   };
+  taxonomy: {
+    list: Call<'taxonomy:list'>;
+    create: Call<'taxonomy:create'>;
+    rename: Call<'taxonomy:rename'>;
+    merge: Call<'taxonomy:merge'>;
+    delete: Call<'taxonomy:delete'>;
+  };
   media: {
     add: Call<'media:add'>;
   };
@@ -36,6 +43,8 @@ export interface LernjournalApi {
     create: Call<'journal:create'>;
     updateMeta: Call<'journal:updateMeta'>;
     updateSections: Call<'journal:updateSections'>;
+    setCategories: Call<'journal:setCategories'>;
+    setTags: Call<'journal:setTags'>;
     setStatus: Call<'journal:setStatus'>;
     duplicate: Call<'journal:duplicate'>;
     delete: Call<'journal:delete'>;

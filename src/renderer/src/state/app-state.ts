@@ -7,7 +7,7 @@ export type View = 'start' | 'journale' | 'journal' | 'fachbuch' | 'export' | 'e
 export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren' | 'tabelle';
 export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' | 'info';
 
-import type { ProjectInfo } from '@shared/ipc';
+import type { Category, ProjectInfo, Tag } from '@shared/ipc';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
@@ -39,6 +39,9 @@ export type AppState = {
   journals: JournalSummary[];
   journalsLoaded: boolean;
   openJournal: JournalDetail | null;
+  // Kategorien und Schlagwörter des Projekts (mit Anzahl Journale)
+  categories: Category[];
+  tags: Tag[];
 };
 
 export const initialState: AppState = {
@@ -57,6 +60,8 @@ export const initialState: AppState = {
   journals: [],
   journalsLoaded: false,
   openJournal: null,
+  categories: [],
+  tags: [],
 };
 
 export type Action =
@@ -78,7 +83,8 @@ export type Action =
   | { type: 'journalUpserted'; journal: JournalSummary }
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
-  | { type: 'journalClosed' };
+  | { type: 'journalClosed' }
+  | { type: 'taxonomyLoaded'; categories: Category[]; tags: Tag[] };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -171,6 +177,8 @@ export function reducer(state: AppState, action: Action): AppState {
         backstage: null,
         saveStatus: { kind: 'idle' },
       };
+    case 'taxonomyLoaded':
+      return { ...state, categories: action.categories, tags: action.tags };
     case 'journalClosed':
       return { ...state, openJournal: null, saveStatus: { kind: 'idle' } };
   }

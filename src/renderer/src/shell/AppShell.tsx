@@ -12,7 +12,7 @@ import { matchesShortcut } from '../state/shortcuts';
 import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
 import { saveIfNeeded } from '../editor/save-registry';
-import { loadJournals } from '../journal/actions';
+import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
@@ -107,7 +107,10 @@ export function AppShell({ version }: { version: string | null }) {
   // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu)
   const projectId = state.project?.id;
   useEffect(() => {
-    if (projectId) void loadJournals(dispatch);
+    if (projectId) {
+      void loadJournals(dispatch);
+      void loadTaxonomy(dispatch);
+    }
   }, [projectId, dispatch]);
 
   // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»

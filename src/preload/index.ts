@@ -28,6 +28,13 @@ const api: LernjournalApi = {
   profile: {
     update: (req) => ipcRenderer.invoke('profile:update', req),
   },
+  taxonomy: {
+    list: () => ipcRenderer.invoke('taxonomy:list'),
+    create: (req) => ipcRenderer.invoke('taxonomy:create', req),
+    rename: (req) => ipcRenderer.invoke('taxonomy:rename', req),
+    merge: (req) => ipcRenderer.invoke('taxonomy:merge', req),
+    delete: (req) => ipcRenderer.invoke('taxonomy:delete', req),
+  },
   media: {
     add: (req) => ipcRenderer.invoke('media:add', req),
   },
@@ -37,6 +44,8 @@ const api: LernjournalApi = {
     create: () => ipcRenderer.invoke('journal:create'),
     updateMeta: (req) => ipcRenderer.invoke('journal:updateMeta', req),
     updateSections: (req) => ipcRenderer.invoke('journal:updateSections', req),
+    setCategories: (req) => ipcRenderer.invoke('journal:setCategories', req),
+    setTags: (req) => ipcRenderer.invoke('journal:setTags', req),
     setStatus: (req) => ipcRenderer.invoke('journal:setStatus', req),
     duplicate: (req) => ipcRenderer.invoke('journal:duplicate', req),
     delete: (req) => ipcRenderer.invoke('journal:delete', req),

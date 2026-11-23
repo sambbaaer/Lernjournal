@@ -20,6 +20,7 @@ import { SectionEditor } from '../editor/SectionEditor';
 import { registerSaveNow } from '../editor/save-registry';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { deleteJournal, displayTitle, duplicateJournal, setJournalStatus } from './actions';
+import { Classification } from './Classification';
 import { StatusBadge } from './StatusBadge';
 
 const SAVE_DELAY_MS = 800; // SPEC: speichern nach kurzer Ruhephase
@@ -297,6 +298,8 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
             </select>
           </label>
         </div>
+
+        <Classification journal={state.journals.find((j) => j.id === journal.id) ?? journal} />
 
         {SECTION_KEYS.map((k) => (
           <section key={k} aria-labelledby={`sec-${k}`} className="mt-8">
