@@ -1,0 +1,12 @@
+# Einheitliche Zeilenenden (LF) auf allen Systemen.
+# Ohne diese Datei wandelt Git unter Windows beim Auschecken in CRLF um,
+# und Prettier meldet dann jede Datei als «falsch formatiert».
+* text=auto eol=lf
+
+# Binärdateien nie verändern
+*.png binary
+*.jpg binary
+*.ico binary
+*.docx binary
+*.pdf binary
+*.woff2 binary
