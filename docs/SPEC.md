@@ -1,6 +1,6 @@
-# Lernjournal – MVP-Spezifikation v1.4
+# Lernjournal – MVP-Spezifikation v1.5
 
-Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel; v1.3: Semesterbesprechung nach P2, Katalog nur Bildungsplan 2018; v1.4: Phase 0 abgeschlossen – Original-Quellen gegengelesen, ADR 0001/0002). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
+Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel; v1.3: Semesterbesprechung nach P2, Katalog nur Bildungsplan 2018; v1.4: Phase 0 abgeschlossen – Original-Quellen gegengelesen, ADR 0001/0002; v1.5: Suche mit Trigramm-Tokenizer für Wortteile, ADR 0004). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
 
 ## Ziel und Scope
 Einzelplatz-Windows-App für Lerndokumentation über die vier Lehrjahre. Journal = unabhängiges, nach Word exportierbares Dokument und entspricht einer **Lerndokumentation nach BiVo Art. 12** (R-01). Fachbuch = dynamische Sicht auf dieselben Journale mit Kategorien, Tags, Links und Suche. Keine inhaltliche Doppelerfassung. Offline, keine Registrierung oder externe Verarbeitung. Abgeschlossene Journale sind nicht automatisch vom Lehrbetrieb freigegeben; kein offizielles Bewertungssystem (R-02). Lernjournal ist ein **inoffizielles Hilfsmittel** (R-14). **Fachlicher Fokus: Fachrichtung Print**; Printmediatechnik und Siebdruck werden unterstützt, aber nicht priorisiert.
@@ -38,7 +38,7 @@ Bildungsbericht (R-12), Notenberechnung, Prüfungsbewertung, Klassen- und Benutz
 ## Navigation
 1. **Start:** zuletzt bearbeitet, Entwürfe, abgeschlossene Journale, neues Journal.
 2. **Journale:** Liste, Sortierung, Filter (Status, Lehrjahr, Semester, Lernort, Kategorie, Tag), Bearbeiten und Organisation.
-3. **Fachbuch:** Themen, Schlagwörter, Volltext und verwandte Journale.
+3. **Fachbuch:** Themen (Kategorien, «Ohne Kategorie»), Schlagwörter, Volltext und verwandte Schlagwörter; Suche lässt sich auf ein Thema einschränken, Archiv wählbar. Verwandte Journale zeigt das Journal selbst («Verknüpft mit», «Erwähnt in»).
 4. **Export:** Einzel- und Sammel-DOCX mit Reihenfolge; P1: PDF und QV-Mappe.
 5. **Einstellungen:** Profil, Speicherort, Word-Design, Backups und Wiederherstellung, Datenschutzhinweis.
 
@@ -69,7 +69,7 @@ Tastatur: Alt+D (Datei-Menü, Esc schliesst), Ctrl+S (sofort speichern), Ctrl+Kl
 - **Renderer:** React, TypeScript, Tailwind, Tiptap; kein direkter Zugriff auf Node/DB/Dateisystem.
 - **Shared:** Typen, IPC-Verträge und Validierungsschemas in einem gemeinsamen Paket.
 - **Persistenz:** SQLite über das eingebaute `node:sqlite` ([ADR 0001](adr/0001-sqlite-adapter-node-sqlite.md)), gekapselt in einer schmalen Repository-Schicht; WAL, `synchronous=FULL`, Migrationen, Foreign Keys und Transaktionen; Rich-Text-Abschnitte als Tiptap-JSON, Bilder separat im Projektordner über UUID/relative Pfade referenziert.
-- **Suche:** SQLite FTS5 mit extrahierter Klartextprojektion (Titel + Textabschnitte + Bildlegenden + Tags); Tokenizer `unicode61 remove_diacritics 2`, damit «Farbmessung» und «farbmessung» sowie Umlaut-Varianten treffen. Index rekonstruierbar (Befehl «Suchindex neu aufbauen»).
+- **Suche:** SQLite FTS5 mit extrahierter Klartextprojektion (Titel + Textabschnitte + Bildlegenden + Tags + Kategorien, je eigene Spalte); Tokenizer `trigram remove_diacritics 1`, damit «Farbmessung» und «farbmessung», Umlaut-Varianten und Wortteile («messung» in «Farbmessung») treffen; Umschreibungen ae/oe/ue und ss/ß als Abfragevarianten; Suchbegriffe ab 3 Zeichen. Index in jeder Änderung nachgeführt, beim Öffnen geprüft und rekonstruierbar (Befehl «Suchindex neu aufbauen» in den Einstellungen). Details: [ADR 0004](adr/0004-volltextsuche-fachbuch.md).
 - **Zeit:** Arbeitsdatum als lokales ISO-Datum; Zeitstempel UTC.
 - **Pfadfreigabe:** Der Hauptprozess akzeptiert vom Renderer nur Ordnerpfade, die aus dem nativen Dialog, der Zuletzt-Liste oder dem eigenen Vorschlag stammen (`PathGuard`).
 - **Start:** Das zuletzt verwendete Projekt wird beim Programmstart automatisch geöffnet; gelingt das nicht (gesperrt, verschoben), erscheint der Startbildschirm.
@@ -90,7 +90,7 @@ tag(id,name), journal_tag(journal_id,tag_id)
 journal_link(source_journal_id,target_journal_id)
 media(id,journal_id,relative_path,original_name,mime_type,caption,
       width,height,sha256,created_at)
-journal_fts(derived_search_index)
+journal_fts(journal_id,title,body,captions,tags,categories)  -- abgeleitet, Schema v2
 -- P1
 competency_catalog(id,profession_code,version,source_ref)
 competency(catalog_id,code,parent_code,title,level)   -- a, a1, a1.1

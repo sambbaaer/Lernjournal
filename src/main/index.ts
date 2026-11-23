@@ -15,6 +15,8 @@ import { createProjectHandlers } from './project/project-handlers';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
 import { TaxonomyService } from './taxonomy/taxonomy-service';
 import { ProjectService } from './project/project-service';
+import { createSearchHandlers } from './search/search-handlers';
+import { SearchIndex } from './search/search-index';
 import {
   APP_ORIGIN,
   APP_SCHEME,
@@ -46,13 +48,16 @@ let closeGuard: ReturnType<typeof createCloseGuard> | null = null;
 
 // Höchstens ein geöffnetes Projekt pro App-Instanz
 // Beim Öffnen eines Projekts verwaiste Bilder aufräumen (älter als 1 Stunde)
+// und den Suchindex prüfen (unvollständig → neu aufbauen, AJ-11)
 const projects: ProjectService = new ProjectService({
   appVersion: app.getVersion(),
   afterOpen: () => {
     const r = media.collectGarbage();
     if (r.rows || r.files) console.log(`[medien] aufgeräumt: ${r.rows} Einträge, ${r.files} Dateien`);
+    if (search.ensureComplete()) console.log('[suche] Suchindex war unvollständig und wurde neu aufgebaut');
   },
 });
+const search = new SearchIndex(() => projects.db);
 const media = new MediaService(
   () => projects.db,
   () => projects.dir,
@@ -64,8 +69,13 @@ const journals = new JournalService(
   () => new Date(),
   media,
   links,
+  search,
 );
-const taxonomy = new TaxonomyService(() => projects.db);
+const taxonomy = new TaxonomyService(
+  () => projects.db,
+  () => new Date(),
+  search,
+);
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
 // weitere Fenster und <webview> sind blockiert (hardenWebContents). Auf das
@@ -217,6 +227,7 @@ function registerIpc() {
       ...createJournalHandlers(journals),
       ...createTaxonomyHandlers(taxonomy, journals),
       ...createLinkHandlers(links, journals),
+      ...createSearchHandlers(search),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
     trusted,

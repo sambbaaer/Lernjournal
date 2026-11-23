@@ -17,6 +17,7 @@ import {
   SectionsSchema,
 } from './journal';
 import { JournalLinksSchema } from './links';
+import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
 
 const TaxonomyId = z.uuid();
@@ -220,6 +221,14 @@ export const ipcContract = {
     request: z.object({ id: JournalId, otherId: JournalId }),
     response: z.object({ journal: JournalSummarySchema, links: JournalLinksSchema }),
   },
+
+  // --- Fachbuch-Suche (AJ-11) ---
+  // Volltextsuche über Titel, Text, Bildlegenden, Schlagwörter und Kategorien.
+  // Die Eingabe ist freier Text; der Hauptprozess baut daraus selbst eine
+  // sichere FTS5-Abfrage (keine Abfragesprache vom Renderer).
+  'search:query': { request: SearchRequestSchema, response: SearchResultSchema },
+  // «Suchindex neu aufbauen»: liefert die Anzahl neu indexierter Journale
+  'search:rebuild': { request: z.undefined(), response: z.object({ journals: z.number().int() }) },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;

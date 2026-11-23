@@ -1,7 +1,7 @@
-// Die fünf Hauptansichten. Bis Projekte und Journale existieren (AJ-03/AJ-05)
-// zeigen sie leere Zustände mit klaren Hinweisen statt Scheinfunktionen.
-import { useEffect, useRef } from 'react';
-import { BookOpen, FileOutput, FilePlus, NotebookPen, Search } from 'lucide-react';
+// Hauptansichten Start, Journale, Export und Einstellungen. Das Fachbuch
+// (AJ-11) liegt in src/renderer/src/fachbuch/. Noch nicht umgesetzte
+// Ansichten zeigen leere Zustände mit klaren Hinweisen statt Scheinfunktionen.
+import { FileOutput, FilePlus, NotebookPen } from 'lucide-react';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
@@ -12,7 +12,7 @@ import { StatusBadge } from '../journal/StatusBadge';
 import type { JournalSummary } from '@shared/journal';
 import { EmptyState } from './EmptyState';
 
-function ViewFrame({
+export function ViewFrame({
   title,
   actions,
   children,
@@ -121,45 +121,6 @@ export function JournaleView() {
   return (
     <ViewFrame title="Journale" actions={<NewJournalButton />}>
       <JournalList />
-    </ViewFrame>
-  );
-}
-
-export function FachbuchView() {
-  const { state, dispatch } = useApp();
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  // Strg+Umschalt+F: Fokus ins Suchfeld, sobald die Ansicht da ist
-  useEffect(() => {
-    if (state.focusRequest === 'fachbuch-search') {
-      searchRef.current?.focus();
-      dispatch({ type: 'requestFocus', target: null });
-    }
-  }, [state.focusRequest, dispatch]);
-
-  return (
-    <ViewFrame title="Fachbuch">
-      <div role="search" className="relative max-w-xl">
-        <label htmlFor="fachbuch-search" className="sr-only">
-          Im Fachbuch suchen
-        </label>
-        <Search
-          aria-hidden="true"
-          size={18}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
-        />
-        <input
-          ref={searchRef}
-          id="fachbuch-search"
-          type="search"
-          placeholder="Im Fachbuch suchen, z. B. «Farbmessung»"
-          className="w-full rounded-sm border border-border-strong bg-surface py-2 pl-10 pr-3 text-sm placeholder:text-ink-muted"
-        />
-      </div>
-      <EmptyState icon={BookOpen} title="Dein persönliches Fachbuch">
-        Alle Journale, geordnet nach Themen und Schlagwörtern und durchsuchbar – ohne doppelte Inhalte.
-        Während der IPA darfst du deine Lerndokumentation als Hilfsmittel verwenden.
-      </EmptyState>
     </ViewFrame>
   );
 }

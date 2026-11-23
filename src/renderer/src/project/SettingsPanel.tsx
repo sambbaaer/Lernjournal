@@ -1,4 +1,5 @@
-// Einstellungen: Profil bearbeiten, Speicherort anzeigen, Projekt schliessen.
+// Einstellungen: Profil bearbeiten, Kategorien/Schlagwörter verwalten,
+// Suchindex neu aufbauen, Speicherort anzeigen, Projekt schliessen.
 import { useState, type FormEvent } from 'react';
 import type { Profile } from '@shared/ipc';
 import { useApp } from '../state/AppContext';
@@ -55,6 +56,8 @@ export function SettingsPanel() {
 
       <TaxonomyManager />
 
+      <SearchIndexSection />
+
       <section aria-labelledby="settings-location" className="max-w-2xl space-y-3">
         <h2 id="settings-location" className="text-lg font-semibold">
           Projekt
@@ -82,5 +85,46 @@ export function SettingsPanel() {
         </button>
       </section>
     </div>
+  );
+}
+
+// «Suchindex neu aufbauen» (AJ-11, SPEC «Suche»). Der Index wird sonst
+// automatisch nachgeführt und beim Öffnen geprüft; der Knopf ist die
+// Notlösung, falls die Suche trotzdem einmal etwas nicht findet.
+function SearchIndexSection() {
+  const { dispatch } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function rebuild() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const res = await window.lernjournal.search.rebuild().catch(() => null);
+    setBusy(false);
+    if (!res?.ok) return setError('Suchindex konnte nicht neu aufgebaut werden.');
+    const n = res.data.journals;
+    dispatch({ type: 'notice', text: `Suchindex neu aufgebaut (${n} ${n === 1 ? 'Journal' : 'Journale'}).` });
+  }
+
+  return (
+    <section aria-labelledby="settings-search" className="max-w-2xl space-y-3">
+      <h2 id="settings-search" className="text-lg font-semibold">
+        Suche
+      </h2>
+      <p className="text-sm text-ink-muted">
+        Die Fachbuch-Suche wird automatisch aktuell gehalten. Findet sie ein Journal nicht, obwohl der Begriff
+        darin steht, hilft es, den Suchindex neu aufzubauen. Deine Journale werden dabei nicht verändert.
+      </p>
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <button
+        type="button"
+        onClick={() => void rebuild()}
+        aria-disabled={busy || undefined}
+        className="rounded-sm border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-hover"
+      >
+        {busy ? 'Baut neu auf …' : 'Suchindex neu aufbauen'}
+      </button>
+    </section>
   );
 }

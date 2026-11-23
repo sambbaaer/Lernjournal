@@ -143,7 +143,7 @@ describe('Schema v1: Datenintegrität', () => {
 
   it('Suchindex findet Begriffe ohne Rücksicht auf Gross-/Kleinschreibung und Umlaute', () => {
     db.prepare(
-      "INSERT INTO journal_fts VALUES ('j1', 'Möglichkeiten der Weiterverarbeitung', 'Falzen und Rillen')",
+      "INSERT INTO journal_fts (journal_id, title, body) VALUES ('j1', 'Möglichkeiten der Weiterverarbeitung', 'Falzen und Rillen')",
     ).run();
     expect(
       db.prepare("SELECT journal_id FROM journal_fts WHERE journal_fts MATCH 'moglichkeiten'").all(),

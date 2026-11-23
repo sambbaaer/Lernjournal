@@ -1,13 +1,11 @@
 // Journal-Dienst: Anlegen, Lesen, Ändern, Duplizieren, Archivieren, Löschen.
 // Arbeitet auf der Datenbank des geöffneten Projekts. Jede Änderung läuft in
-// einer Transaktion und hält den Suchindex (journal_fts) gleich mit aktuell.
+// einer Transaktion und hält den Suchindex (journal_fts, AJ-11) gleich mit aktuell.
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import {
   EMPTY_SECTIONS,
-  SECTION_KEYS,
-  plainTextOf,
   type JournalDetail,
   type JournalMeta,
   type JournalSummary,
@@ -18,6 +16,7 @@ import { effectiveSchoolYear, localIsoDate } from '@shared/school-year';
 import { transaction, type Db } from '../db/connection';
 import type { LinkService } from '../links/link-service';
 import type { MediaService } from '../media/media-service';
+import { SearchIndex } from '../search/search-index';
 
 type Row = {
   id: string;
@@ -51,6 +50,8 @@ export class JournalService {
     private readonly media?: MediaService,
     // AJ-10: beim Löschen Links im Text anderer Journale entfernen
     private readonly links?: LinkService,
+    // AJ-11: Suchindex (Standard: eigener Zugriff auf dieselbe Datenbank)
+    private readonly search: SearchIndex = new SearchIndex(getDb),
   ) {}
 
   private get db() {
@@ -119,17 +120,9 @@ export class JournalService {
     return r;
   }
 
-  // Suchindex für ein Journal neu schreiben (Titel + Text aller Abschnitte)
+  // Suchindex für ein Journal neu schreiben (Titel, Text, Legenden, Zuordnungen)
   private syncFts(id: string): void {
-    this.db.prepare('DELETE FROM journal_fts WHERE journal_id = ?').run(id);
-    const r = this.db.prepare('SELECT title, sections_json FROM journal WHERE id = ?').get(id) as
-      { title: string; sections_json: string } | undefined;
-    if (!r) return;
-    const sections = JSON.parse(r.sections_json) as Sections;
-    const body = SECTION_KEYS.map((k) => plainTextOf(sections[k])).join('\n');
-    this.db
-      .prepare('INSERT INTO journal_fts (journal_id, title, body) VALUES (?, ?, ?)')
-      .run(id, r.title, body);
+    this.search.sync(id);
   }
 
   list(options: { includeArchived: boolean }): JournalSummary[] {
@@ -289,7 +282,7 @@ export class JournalService {
       // Kein Link ins Leere: Verweise im Text anderer Journale entfernen und
       // deren Suchindex nachführen – alles oder nichts, in derselben Transaktion
       for (const changed of this.links?.removeTextLinksTo(id) ?? []) this.syncFts(changed);
-      this.db.prepare('DELETE FROM journal_fts WHERE journal_id = ?').run(id);
+      this.search.remove(id);
       this.db.prepare('DELETE FROM journal WHERE id = ?').run(id);
       // Schlagwörter, die nur dieses Journal hatte, verschwinden mit (AJ-09:
       // Schlagwörter ohne Journal gibt es nicht). Kategorien bleiben bestehen.
