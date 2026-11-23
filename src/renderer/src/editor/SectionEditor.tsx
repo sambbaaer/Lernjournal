@@ -8,6 +8,7 @@ import { baseExtensions, Figure } from '@shared/editor-schema';
 import { useApp } from '../state/AppContext';
 import { useActiveEditor } from './EditorContext';
 import { FigureView } from './FigureView';
+import { openJournal } from '../journal/actions';
 import { insertImages } from './insert-image';
 
 // Bild-Knoten mit eigener Darstellung (Legendenfeld). Eingaben im Legendenfeld
@@ -51,6 +52,23 @@ export function SectionEditor({
         'aria-label': label,
         spellcheck: 'true',
         lang: 'de-CH',
+      },
+      // Strg+Klick auf einen Link: Journal öffnen bzw. Webseite nach Rückfrage (wie in Word)
+      handleClick: (view, pos, event) => {
+        if (!(event.ctrlKey || event.metaKey)) return false;
+        const link = view.state.doc
+          .resolve(pos)
+          .marks()
+          .find((m) => m.type.name === 'link');
+        const href = String(link?.attrs['href'] ?? '');
+        if (!href) return false;
+        const internal = /^lernjournal:\/\/journal\/([0-9a-f-]{36})$/i.exec(href);
+        if (internal) {
+          void openJournal(dispatch, internal[1]!).catch(() => undefined);
+        } else {
+          void window.lernjournal.app.openExternal({ url: href });
+        }
+        return true;
       },
       // Bilder per Drag & Drop (aus dem Explorer) an der Drop-Position einfügen
       handleDrop: (view, event, _slice, moved) => {

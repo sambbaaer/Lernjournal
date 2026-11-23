@@ -108,6 +108,12 @@ src/main/media/media-service.ts               speichern (atomar, SHA-256), aufl�
 - `JournalSummary` enthält `categoryIds`/`tagIds`; Namen kommen aus `state.categories`/`state.tags`.
 - Auswahlfelder mit `<label htmlFor>` verknüpfen (nicht umschliessen) – sonst wird der Optionstext Teil des Namens.
 
+## Verknüpfungen
+- `src/main/links/link-service.ts`: Beziehung A–B einmal in `journal_link`, Anzeige in beiden Richtungen (`direction: outgoing|incoming`).
+- `search()` nutzt den FTS-Index mit Präfixsuche; `ftsPrefixQuery()` entfernt Operatoren aus der Eingabe (nie Rohtext an `MATCH` geben).
+- Links im Text: `lernjournal://journal/<uuid>`; Strg+Klick öffnet. Weblinks öffnet nur der Hauptprozess (`app:openExternal`) nach Rückfrage und nur für http/https.
+- E2E: Bei Knöpfen mit ähnlichen Namen `exact: true` verwenden (Playwright vergleicht sonst Teilstrings).
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

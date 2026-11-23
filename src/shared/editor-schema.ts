@@ -46,7 +46,7 @@ export function baseExtensions() {
         linkOnPaste: true,
         protocols: ['https', 'http'],
         isAllowedUri: (url) => ALLOWED_LINK.test(url),
-        HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: null },
+        HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: null, title: 'Strg+Klick zum Öffnen' },
       },
     }),
     TableKit.configure({ table: { resizable: false } }),

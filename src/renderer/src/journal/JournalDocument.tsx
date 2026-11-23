@@ -21,6 +21,7 @@ import { registerSaveNow } from '../editor/save-registry';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { deleteJournal, displayTitle, duplicateJournal, setJournalStatus } from './actions';
 import { Classification } from './Classification';
+import { RelatedJournals } from './RelatedJournals';
 import { StatusBadge } from './StatusBadge';
 
 const SAVE_DELAY_MS = 800; // SPEC: speichern nach kurzer Ruhephase
@@ -315,6 +316,7 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
             />
           </section>
         ))}
+        <RelatedJournals journalId={journal.id} />
       </article>
 
       {confirmDelete && (

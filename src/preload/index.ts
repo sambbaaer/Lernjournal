@@ -9,6 +9,7 @@ import type { LernjournalApi } from '@shared/api';
 const api: LernjournalApi = {
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
+    openExternal: (req) => ipcRenderer.invoke('app:openExternal', req),
     closeReady: (req) => ipcRenderer.invoke('app:closeReady', req),
     // Nur dieses eine Ereignis vom Hauptprozess, ohne Ereignisdaten weiterzugeben
     onBeforeClose: (listener) => {
@@ -35,6 +36,11 @@ const api: LernjournalApi = {
     merge: (req) => ipcRenderer.invoke('taxonomy:merge', req),
     delete: (req) => ipcRenderer.invoke('taxonomy:delete', req),
   },
+  links: {
+    list: (req) => ipcRenderer.invoke('link:list', req),
+    add: (req) => ipcRenderer.invoke('link:add', req),
+    remove: (req) => ipcRenderer.invoke('link:remove', req),
+  },
   media: {
     add: (req) => ipcRenderer.invoke('media:add', req),
   },
@@ -46,6 +52,7 @@ const api: LernjournalApi = {
     updateSections: (req) => ipcRenderer.invoke('journal:updateSections', req),
     setCategories: (req) => ipcRenderer.invoke('journal:setCategories', req),
     setTags: (req) => ipcRenderer.invoke('journal:setTags', req),
+    search: (req) => ipcRenderer.invoke('journal:search', req),
     setStatus: (req) => ipcRenderer.invoke('journal:setStatus', req),
     duplicate: (req) => ipcRenderer.invoke('journal:duplicate', req),
     delete: (req) => ipcRenderer.invoke('journal:delete', req),

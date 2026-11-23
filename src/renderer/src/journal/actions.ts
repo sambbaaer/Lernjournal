@@ -48,7 +48,7 @@ export async function createJournal(d: Dispatch): Promise<void> {
 
 export async function openJournal(d: Dispatch, id: string): Promise<void> {
   const res = await window.lernjournal.journal.get({ id });
-  if (!res.ok) return fail(d, 'Journal konnte nicht geöffnet werden.');
+  if (!res.ok) return fail(d, 'Dieses Journal gibt es nicht mehr oder es konnte nicht geöffnet werden.');
   d({ type: 'journalOpened', journal: res.data });
 }
 

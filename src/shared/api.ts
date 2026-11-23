@@ -11,6 +11,7 @@ type Call<C extends IpcChannel> =
 export interface LernjournalApi {
   app: {
     getInfo: Call<'app:getInfo'>;
+    openExternal: Call<'app:openExternal'>;
     closeReady: Call<'app:closeReady'>;
     // Der Hauptprozess meldet «Fenster wird geschlossen – bitte speichern».
     // Gibt eine Funktion zum Abmelden zurück.
@@ -34,6 +35,11 @@ export interface LernjournalApi {
     merge: Call<'taxonomy:merge'>;
     delete: Call<'taxonomy:delete'>;
   };
+  links: {
+    list: Call<'link:list'>;
+    add: Call<'link:add'>;
+    remove: Call<'link:remove'>;
+  };
   media: {
     add: Call<'media:add'>;
   };
@@ -45,6 +51,7 @@ export interface LernjournalApi {
     updateSections: Call<'journal:updateSections'>;
     setCategories: Call<'journal:setCategories'>;
     setTags: Call<'journal:setTags'>;
+    search: Call<'journal:search'>;
     setStatus: Call<'journal:setStatus'>;
     duplicate: Call<'journal:duplicate'>;
     delete: Call<'journal:delete'>;

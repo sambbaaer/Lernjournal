@@ -35,7 +35,7 @@ test('Renderer hat keinen Zugriff auf Node.js oder Electron', async () => {
     process: 'undefined',
     module: 'undefined',
     ipcRenderer: 'undefined',
-    bridgeKeys: ['app', 'project', 'profile', 'taxonomy', 'media', 'journal'],
+    bridgeKeys: ['app', 'project', 'profile', 'taxonomy', 'links', 'media', 'journal'],
   });
 });
 

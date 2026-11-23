@@ -2,6 +2,9 @@
 import { useId, useState } from 'react';
 import { useActiveEditor } from '../editor/EditorContext';
 import { LinkDialog } from '../editor/LinkDialog';
+import { displayTitle } from '../journal/actions';
+import { JournalPicker } from '../journal/JournalPicker';
+import { notifyLinksChanged } from '../journal/RelatedJournals';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
@@ -14,9 +17,16 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
   useActiveEditor(); // abonniert «tick»: Knopfzustände folgen der Einfügemarke
   const baseId = useId();
   const [linkOpen, setLinkOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileCmd = commands['file.open'];
 
-  const ctx: RibbonCtx = { state, dispatch, editor, openLinkDialog: () => setLinkOpen(true) };
+  const ctx: RibbonCtx = {
+    state,
+    dispatch,
+    editor,
+    openLinkDialog: () => setLinkOpen(true),
+    openJournalPicker: () => setPickerOpen(true),
+  };
   const tabs = ribbonTabs(ctx);
   // Kontextuelles Register verschwindet, wenn die Einfügemarke die Tabelle verlässt
   const activeTab = state.ribbonTab === 'tabelle' && !inTable(ctx) ? 'start' : state.ribbonTab;
@@ -96,6 +106,38 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
           ))}
         </div>
       </div>
+      {pickerOpen && editor && state.openJournal && (
+        <JournalPicker
+          title="Link zu Journal einfügen"
+          excludeId={state.openJournal.id}
+          hint="Strg+Klick auf den Link öffnet das Journal."
+          onCancel={() => {
+            setPickerOpen(false);
+            editor.commands.focus();
+          }}
+          onPick={(hit) => {
+            setPickerOpen(false);
+            const href = `lernjournal://journal/${hit.id}`;
+            const chain = editor.chain().focus();
+            if (editor.state.selection.empty) {
+              // Ohne Markierung: Titel des Ziels als verlinkten Text einfügen
+              chain
+                .insertContent({
+                  type: 'text',
+                  text: displayTitle(hit.title),
+                  marks: [{ type: 'link', attrs: { href } }],
+                })
+                .run();
+            } else {
+              chain.setLink({ href }).run();
+            }
+            const sourceId = state.openJournal!.id;
+            void window.lernjournal.links
+              .add({ sourceId, targetId: hit.id })
+              .then(() => notifyLinksChanged());
+          }}
+        />
+      )}
       {linkOpen && editor && (
         <LinkDialog
           initial={String(editor.getAttributes('link')['href'] ?? '')}

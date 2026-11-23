@@ -45,6 +45,7 @@ export type RibbonCtx = {
   dispatch: (a: Action) => void;
   editor: Editor | null;
   openLinkDialog: () => void;
+  openJournalPicker: () => void;
 };
 
 export type RibbonItem = {
@@ -206,11 +207,9 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       label: 'Verknüpfungen',
       items: [
         {
-          id: 'journal-link',
-          label: 'Link zu Journal',
-          icon: Link2,
-          iconOnly: false,
-          disabledReason: LATER('Verknüpfen von Journalen'),
+          ...editorItem('journal-link', 'Link zu Journal', Link2, () => {}, { iconOnly: false }),
+          // Auswahl per Suche; verknüpft die Journale zusätzlich (Rückverweis im Ziel)
+          run: (c) => c.openJournalPicker(),
         },
         {
           ...editorItem('web-link', 'Weblink', Globe, () => {}, {

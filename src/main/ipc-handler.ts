@@ -12,7 +12,7 @@ import { ipcContract, type IpcChannel, type IpcRequest, type IpcResponse, type I
 
 // Minimal das, was wir vom Electron-Event brauchen: die URL des aufrufenden Frames.
 // Fehler mit Meldung für Nutzer (z. B. «Gibt es schon»); alle anderen bleiben «Interner Fehler»
-const USER_FACING_ERRORS = new Set(['MediaError', 'TaxonomyError']);
+const USER_FACING_ERRORS = new Set(['MediaError', 'TaxonomyError', 'LinkError']);
 
 export type SenderInfo = { senderFrame?: { url: string } | null };
 

@@ -169,3 +169,9 @@ body {
   outline: none;
   border-bottom: 2px solid var(--color-accent);
 }
+
+/* Links auf andere Journale: gestrichelt unterstrichen, damit sie sich von Weblinks unterscheiden */
+.lj-editor a[href^='lernjournal://'] {
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+}

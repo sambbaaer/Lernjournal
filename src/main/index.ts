@@ -2,12 +2,23 @@
 // einzige Teil mit Zugriff auf Dateien (später auch auf die Datenbank).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, session, type WebContents } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  protocol,
+  session,
+  shell,
+  type WebContents,
+} from 'electron';
 import { ipcContract } from '@shared/ipc';
 import { createCloseGuard } from './close-guard';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
+import { LinkService } from './links/link-service';
 import { MediaService } from './media/media-service';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
 import { TaxonomyService } from './taxonomy/taxonomy-service';
@@ -61,6 +72,7 @@ const journals = new JournalService(
   () => new Date(),
   media,
 );
+const links = new LinkService(() => projects.db);
 const taxonomy = new TaxonomyService(
   () => projects.db,
   (ids) => journals.resyncFts(ids),
@@ -215,6 +227,40 @@ function registerIpc() {
       },
       ...createJournalHandlers(journals),
       ...createTaxonomyHandlers(taxonomy, journals),
+      'link:list': ({ journalId }) => links.list(journalId),
+      'link:add': ({ sourceId, targetId }) => {
+        links.add(sourceId, targetId);
+        return links.list(sourceId);
+      },
+      'link:remove': ({ journalId, otherId }) => {
+        links.remove(journalId, otherId);
+        return links.list(journalId);
+      },
+      'journal:search': ({ query, excludeId, limit }) => links.search(query, { excludeId, limit }),
+      'app:openExternal': async ({ url }) => {
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          return { opened: false };
+        }
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return { opened: false };
+        const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+        const options: Electron.MessageBoxOptions = {
+          type: 'question',
+          title: 'Lernjournal',
+          message: 'Webseite im Browser öffnen?',
+          detail: parsed.toString(),
+          buttons: ['Abbrechen', 'Öffnen'],
+          defaultId: 1,
+          cancelId: 0,
+          noLink: true,
+        };
+        const r = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+        if (r.response !== 1) return { opened: false };
+        await shell.openExternal(parsed.toString());
+        return { opened: true };
+      },
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
     trusted,

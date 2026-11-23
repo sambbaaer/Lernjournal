@@ -105,6 +105,22 @@ export const TaxonomyListSchema = z.object({ categories: z.array(CategorySchema)
 export type Category = z.infer<typeof CategorySchema>;
 export type Tag = z.infer<typeof TagSchema>;
 
+export const LinkedJournalSchema = z.object({
+  journalId: z.string(),
+  title: z.string(),
+  workDate: z.string(),
+  status: z.enum(['draft', 'completed', 'archived']),
+  direction: z.enum(['outgoing', 'incoming']),
+});
+export type LinkedJournal = z.infer<typeof LinkedJournalSchema>;
+export const SearchHitSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  workDate: z.string(),
+  status: z.string(),
+});
+export type SearchHit = z.infer<typeof SearchHitSchema>;
+
 export const ipcContract = {
   // Liefert App-Version und Laufzeit – erster, harmloser Befehl, an dem
   // das ganze Sicherheitsmuster getestet wird.
@@ -201,6 +217,30 @@ export const ipcContract = {
   'journal:setTags': {
     request: z.object({ id: JournalId, tags: z.array(z.string().max(200)).max(30) }),
     response: TaxonomyListSchema.extend({ journal: JournalSummarySchema }),
+  },
+  // --- Verknüpfungen (AJ-10) ---
+  'link:list': { request: z.object({ journalId: JournalId }), response: z.array(LinkedJournalSchema) },
+  'link:add': {
+    request: z.object({ sourceId: JournalId, targetId: JournalId }),
+    response: z.array(LinkedJournalSchema),
+  },
+  'link:remove': {
+    request: z.object({ journalId: JournalId, otherId: JournalId }),
+    response: z.array(LinkedJournalSchema),
+  },
+  // Journale suchen (Auswahl beim Verknüpfen; später auch Fachbuch)
+  'journal:search': {
+    request: z.object({
+      query: z.string().max(200),
+      excludeId: JournalId.optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+    response: z.array(SearchHitSchema),
+  },
+  // Weblink im Standardbrowser öffnen – nur nach Rückfrage und nur http/https (SPEC)
+  'app:openExternal': {
+    request: z.object({ url: z.string().max(2000) }),
+    response: z.object({ opened: z.boolean() }),
   },
   'journal:setStatus': {
     request: z.object({ id: JournalId, status: z.enum(['draft', 'completed', 'archived']) }),
