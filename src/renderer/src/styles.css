@@ -1,0 +1,171 @@
+/* Tailwind CSS v4: ein Import genügt, Klassen werden beim Build erzeugt. */
+@import 'tailwindcss';
+
+/* Farben und Schrift zentral als Design-Tokens (Office-vertraut, eigenständig).
+   Segoe UI ist auf jedem Windows vorhanden – keine Schrift aus dem Internet (offline). */
+@theme {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  /* Kontraste geprüft (WCAG 2.2 AA): Text ≥ 4.5:1, Bedienelemente ≥ 3:1 */
+  --color-canvas: #f3f3f3; /* Hintergrund Dokumentfläche */
+  --color-surface: #ffffff; /* Flächen: Menüband, Navigation, Karten */
+  --color-ribbon: #fafafa; /* Befehlszeile des Menübands */
+  --color-ink: #1f1f1f; /* Haupttext: 16.0:1 auf Weiss */
+  --color-ink-muted: #595959; /* Nebentext: 7.0:1 auf Weiss, 6.3:1 auf #f3f3f3 */
+  --color-ink-disabled: #8a8a8a; /* nicht verfügbar (von WCAG ausgenommen, trotzdem lesbar) */
+  --color-accent: #0f6cbd; /* Akzent: 5.2:1 auf Weiss */
+  --color-accent-strong: #0c5596; /* Akzent dunkel (Hover, Datei-Menü): 7.4:1 mit Weiss */
+  --color-selected: #e8f1fa; /* ausgewählte Elemente */
+  --color-hover: #ececec;
+  --color-pressed: #e0e0e0;
+  --color-border: #d1d1d1;
+  --color-border-subtle: #e6e6e6;
+  --color-border-strong: #8a8a8a; /* Eingabefelder: 3.4:1 auf Weiss */
+  --color-danger: #b10e1c; /* Fehler: 6.9:1 auf Weiss */
+  --color-danger-bg: #fdf3f4;
+  --color-success: #0e7a0d; /* Abgeschlossen: 5.3:1 auf Weiss */
+  --color-warning: #8a5a00; /* Warnrand */
+  --color-warning-bg: #fff8e6; /* Warnfläche: Text #1f1f1f darauf 15:1 */
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Sichtbarer Tastaturfokus überall (SPEC/WCAG) */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Windows-Kontrastdesigns: Systemfarben verwenden, Auswahl über Rahmen sichtbar */
+@media (forced-colors: active) {
+  [aria-current='page'],
+  [role='tab'][aria-selected='true'] {
+    border-color: Highlight;
+  }
+  [aria-disabled='true'] {
+    color: GrayText;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Editor-Inhalte (Tiptap). Bewusst nahe an der Word-Ausgabe (ADR 0002), damit
+   der Export so aussieht wie das, was Lernende beim Schreiben sehen.
+   --------------------------------------------------------------------------- */
+.lj-editor {
+  min-height: 4.5rem;
+  padding: 0.25rem 0.5rem;
+  margin: 0 -0.5rem;
+  border-radius: 2px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  outline: none;
+}
+/* Sichtbarer, aber ruhiger Fokus: Rahmen um den aktiven Abschnitt */
+.lj-editor:focus-visible,
+.lj-editor.ProseMirror-focused {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+.lj-editor > * + * {
+  margin-top: 0.6em;
+}
+.lj-editor h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 1em;
+}
+.lj-editor h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: italic;
+  margin-top: 0.8em;
+}
+.lj-editor ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.lj-editor ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.lj-editor li > p {
+  margin: 0;
+}
+.lj-editor a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: text;
+}
+.lj-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.lj-editor th,
+.lj-editor td {
+  border: 1px solid var(--color-border-strong);
+  padding: 0.25rem 0.5rem;
+  vertical-align: top;
+}
+.lj-editor th {
+  background: var(--color-pressed);
+  font-weight: 600;
+  text-align: left;
+}
+/* Markierte Tabellenzellen (Mehrfachauswahl) */
+.lj-editor .selectedCell {
+  background: var(--color-selected);
+}
+/* Hilfetext im leeren Abschnitt: wird nur angezeigt, nie gespeichert */
+.lj-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--color-ink-muted);
+  pointer-events: none;
+}
+
+/* Bilder mit Legende im Editor */
+.lj-editor .lj-figure {
+  margin: 1em 0;
+  text-align: center;
+}
+.lj-editor .lj-figure img {
+  display: inline-block;
+  max-width: 100%;
+  max-height: 28rem;
+  border-radius: 2px;
+}
+.lj-editor .lj-figure.is-selected img {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.lj-editor .lj-figure figcaption input {
+  width: 100%;
+  min-height: 1.75rem; /* WCAG 2.2: Klickziel mind. 24 px */
+  padding: 0.25rem 0;
+  margin-top: 0.25rem;
+  border: 0;
+  border-bottom: 1px dashed var(--color-border);
+  background: transparent;
+  text-align: center;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--color-ink);
+}
+.lj-editor .lj-figure figcaption input::placeholder {
+  color: var(--color-ink-muted);
+}
+.lj-editor .lj-figure figcaption input:focus {
+  outline: none;
+  border-bottom: 2px solid var(--color-accent);
+}

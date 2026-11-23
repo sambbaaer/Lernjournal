@@ -1,0 +1,62 @@
+# Phase-0-Spikes auf echtem Windows prüfen (SPEC: Abnahme auf Windows).
+# Läuft bei jedem Push, der etwas unter spikes/ ändert, oder manuell.
+name: Phase-0-Spikes
+
+on:
+  push:
+    paths: ['spikes/**', '.github/workflows/spikes.yml']
+  workflow_dispatch:
+
+jobs:
+  aj-00a-sqlite:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: spikes/aj-00a-sqlite
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      # 1) Schneller Test mit normalem Node (gleicher Adapter node:sqlite)
+      - run: npm run check:node
+      # 2) Gepackter Build mit ASAR und Fuses – wie später ausgeliefert
+      - run: npx electron-builder --win dir portable nsis
+      # 3) Gepackte EXE starten und Bericht prüfen
+      - name: Gepackte EXE ausführen
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist/win-unpacked -Filter *.exe | Where-Object { $_.Name -notlike 'Uninstall*' } | Select-Object -First 1
+          $p = Start-Process -FilePath $exe.FullName -Wait -PassThru
+          $report = Join-Path $env:APPDATA 'AJ-00a SQLite Spike\aj00a-report.json'
+          Get-Content $report
+          Copy-Item $report dist/aj00a-report-windows.json
+          if ($p.ExitCode -ne 0) { throw "Spike fehlgeschlagen (Exitcode $($p.ExitCode))" }
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: aj-00a-windows
+          path: |
+            spikes/aj-00a-sqlite/dist/aj00a-report-windows.json
+            spikes/aj-00a-sqlite/dist/*.exe
+
+  aj-00b-docx:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: spikes/aj-00b-docx
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      # XML-Prüfungen (LibreOffice-Test wird auf Windows-Runnern übersprungen)
+      - run: npm test
+      # Beispiel-DOCX erzeugen und als Artefakt anbieten → in Word öffnen
+      - run: npm run build
+      - uses: actions/upload-artifact@v5
+        with:
+          name: aj-00b-docx-beispiele
+          path: spikes/aj-00b-docx/out/*.docx

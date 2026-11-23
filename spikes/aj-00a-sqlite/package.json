@@ -1,0 +1,36 @@
+{
+  "name": "aj-00a-sqlite",
+  "productName": "AJ-00a SQLite Spike",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Spike: node:sqlite im gepackten Electron-Build (WAL, FTS5, Backup, Absturz)",
+  "main": "main.js",
+  "author": "Lernjournal",
+  "license": "UNLICENSED",
+  "scripts": {
+    "check:node": "node src/run-node.js",
+    "check:electron": "electron .",
+    "dist:linux": "electron-builder --linux dir",
+    "dist:win": "electron-builder --win portable nsis"
+  },
+  "build": {
+    "appId": "ch.lernjournal.spike.aj00a",
+    "files": ["main.js", "src/**"],
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeCliInspectArguments": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true
+    },
+    "win": { "target": ["portable", "nsis"] },
+    "nsis": { "perMachine": false, "oneClick": true },
+    "linux": { "target": "dir" }
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  }
+}
