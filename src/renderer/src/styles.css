@@ -23,6 +23,7 @@
   --color-danger: #b10e1c; /* Fehler: 6.9:1 auf Weiss */
   --color-danger-bg: #fdf3f4;
   --color-success: #0e7a0d; /* Abgeschlossen: 5.3:1 auf Weiss */
+  --color-highlight: #fff0a8; /* Suchtreffer: Text #1f1f1f darauf 15:1 */
   --color-warning: #8a5a00; /* Warnrand */
   --color-warning-bg: #fff8e6; /* Warnfläche: Text #1f1f1f darauf 15:1 */
 }
@@ -174,4 +175,14 @@ body {
 .lj-editor a[href^='lernjournal://'] {
   text-decoration-style: dashed;
   text-underline-offset: 3px;
+}
+
+/* Treffer von «Im Journal suchen» (CSS Custom Highlight API) */
+::highlight(lj-find) {
+  background-color: var(--color-highlight);
+  color: var(--color-ink);
+}
+::highlight(lj-find-active) {
+  background-color: #f6a623; /* aktiver Treffer: Text #1f1f1f darauf 8.6:1 */
+  color: #1f1f1f;
 }

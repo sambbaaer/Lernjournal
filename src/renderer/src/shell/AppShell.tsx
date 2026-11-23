@@ -13,6 +13,7 @@ import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } 
 import { EditorProvider } from '../editor/EditorContext';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
+import { FindBar } from '../journal/FindBar';
 import { JournalDocument } from '../journal/JournalDocument';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
@@ -184,6 +185,7 @@ export function AppShell({ version }: { version: string | null }) {
           </>
         )}
         <StatusBar version={version} />
+        {state.findOpen && state.view === 'journal' && state.project && <FindBar />}
       </div>
     </EditorProvider>
   );

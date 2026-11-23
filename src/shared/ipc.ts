@@ -121,6 +121,18 @@ export const SearchHitSchema = z.object({
 });
 export type SearchHit = z.infer<typeof SearchHitSchema>;
 
+export const SearchResultSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  snippet: z.string(),
+  workDate: z.string(),
+  status: z.enum(['draft', 'completed', 'archived']),
+});
+export type SearchResult = z.infer<typeof SearchResultSchema>;
+// Markierung der Treffer in title/snippet (Steuerzeichen statt HTML)
+export const HL_START = '\u0002';
+export const HL_END = '\u0003';
+
 export const ipcContract = {
   // Liefert App-Version und Laufzeit – erster, harmloser Befehl, an dem
   // das ganze Sicherheitsmuster getestet wird.
@@ -242,6 +254,12 @@ export const ipcContract = {
     request: z.object({ url: z.string().max(2000) }),
     response: z.object({ opened: z.boolean() }),
   },
+  // --- Fachbuch-Suche (AJ-11) ---
+  'search:query': {
+    request: z.object({ query: z.string().max(200), includeArchived: z.boolean().optional() }),
+    response: z.array(SearchResultSchema),
+  },
+  'search:rebuild': { request: z.undefined(), response: z.object({ count: z.number() }) },
   'journal:setStatus': {
     request: z.object({ id: JournalId, status: z.enum(['draft', 'completed', 'archived']) }),
     response: JournalSummarySchema,

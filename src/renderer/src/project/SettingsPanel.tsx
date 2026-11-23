@@ -75,6 +75,21 @@ export function SettingsPanel() {
         {project.syncProvider && <SyncWarning provider={project.syncProvider} />}
         <button
           type="button"
+          onClick={async () => {
+            const res = await window.lernjournal.search.rebuild();
+            dispatch({
+              type: 'notice',
+              text: res.ok
+                ? `Suchindex neu aufgebaut (${res.data.count} Journale).`
+                : 'Suchindex konnte nicht neu aufgebaut werden.',
+            });
+          }}
+          className="mr-2 rounded-sm border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-hover"
+        >
+          Suchindex neu aufbauen
+        </button>
+        <button
+          type="button"
           onClick={() => void actions.close()}
           className="rounded-sm border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-hover"
         >

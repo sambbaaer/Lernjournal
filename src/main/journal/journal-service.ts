@@ -119,6 +119,16 @@ export class JournalService {
     transaction(this.db, () => ids.forEach((id) => this.syncFts(id)));
   }
 
+  // Suchindex komplett neu aufbauen (z. B. nach Import oder wenn er unvollständig ist)
+  rebuildFts(): number {
+    const ids = (this.db.prepare('SELECT id FROM journal').all() as { id: string }[]).map((r) => r.id);
+    transaction(this.db, () => {
+      this.db.prepare('DELETE FROM journal_fts').run();
+      ids.forEach((id) => this.syncFts(id));
+    });
+    return ids.length;
+  }
+
   summary(id: string): JournalSummary {
     return this.toSummary(this.row(id), this.apprenticeshipStart());
   }

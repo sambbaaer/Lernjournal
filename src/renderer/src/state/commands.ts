@@ -23,8 +23,6 @@ export type Command = {
   run: (s: AppState, dispatch: (a: Action) => void) => void;
 };
 
-const NO_JOURNAL = 'Nur in einem geöffneten Journal verfügbar';
-
 export const commands: Record<CommandId, Command> = {
   'file.open': {
     id: 'file.open',
@@ -58,8 +56,9 @@ export const commands: Record<CommandId, Command> = {
     id: 'journal.find',
     label: 'Im Journal suchen',
     shortcut: 'Ctrl+F',
-    disabledReason: () => NO_JOURNAL,
-    run: () => {},
+    disabledReason: (s) =>
+      s.openJournal && s.view === 'journal' ? null : 'Nur in einem geöffneten Journal verfügbar',
+    run: (_s, d) => d({ type: 'setFindOpen', open: true }),
   },
   'fachbuch.search': {
     id: 'fachbuch.search',

@@ -19,6 +19,7 @@ import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
 import { LinkService } from './links/link-service';
+import { SearchService } from './search/search-service';
 import { MediaService } from './media/media-service';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
 import { TaxonomyService } from './taxonomy/taxonomy-service';
@@ -58,6 +59,8 @@ let closeGuard: ReturnType<typeof createCloseGuard> | null = null;
 const projects: ProjectService = new ProjectService({
   appVersion: app.getVersion(),
   afterOpen: () => {
+    // Suchindex unvollständig (z. B. nach Absturz während einer Migration)? Neu aufbauen.
+    if (!search.isIndexComplete()) console.log(`[suche] Index neu aufgebaut: ${search.rebuild()} Journale`);
     const r = media.collectGarbage();
     if (r.rows || r.files) console.log(`[medien] aufgeräumt: ${r.rows} Einträge, ${r.files} Dateien`);
   },
@@ -73,6 +76,10 @@ const journals = new JournalService(
   media,
 );
 const links = new LinkService(() => projects.db);
+const search = new SearchService(
+  () => projects.db,
+  () => journals.rebuildFts(),
+);
 const taxonomy = new TaxonomyService(
   () => projects.db,
   (ids) => journals.resyncFts(ids),
@@ -237,6 +244,8 @@ function registerIpc() {
         return links.list(journalId);
       },
       'journal:search': ({ query, excludeId, limit }) => links.search(query, { excludeId, limit }),
+      'search:query': ({ query, includeArchived }) => search.search(query, { includeArchived }),
+      'search:rebuild': () => ({ count: search.rebuild() }),
       'app:openExternal': async ({ url }) => {
         let parsed: URL;
         try {

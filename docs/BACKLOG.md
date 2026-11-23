@@ -36,7 +36,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 |---|---|---|---|---|
 | AJ-09 ✔ | Kategorien/Tags | Mehrfachzuordnung im Journal (Kategorien als Auswahlliste, Schlagwörter mit Vorschlägen), Umbenennen mit Kollisionsprüfung, Zusammenführen ohne Doppelzuordnung, Löschen ohne Journalverlust; nicht verwendete Schlagwörter verschwinden; Filter in der Journalliste; Schlagwörter im Suchindex; Vorschlag a–g (R-05) | 05 | M |
 | AJ-10 ✔ | Journal-Verknüpfungen | Beziehung einmal gespeichert, in beiden Journalen sichtbar (Rückverweis), keine Kopien; Auswahl per Suche (Combobox, FTS-Präfix, entschärfte Eingabe); «Link zu Journal» im Text verknüpft zusätzlich; Strg+Klick öffnet Journal bzw. Webseite nach Rückfrage (nur http/https) | 05 | S |
-| AJ-11 | Fachbuch und FTS5-Suche | Titel, Text, Legenden, Tags durchsuchbar (diakritikunabhängig); Themenansichten; Index neu aufbauen | 09, 10 | L |
+| AJ-11 ✔ | Fachbuch und FTS5-Suche | Volltextsuche über Titel, Text, Bildlegenden und Schlagwörter (diakritik- und grossschreibungsunabhängig, Präfix, Titel gewichtet) mit sicher hervorgehobenen Ausschnitten; Themenansicht nach Kategorie (inkl. «Ohne Kategorie») und Schlagwort; Strg+F im Journal (CSS Custom Highlight API); Index-Prüfung beim Öffnen und «Suchindex neu aufbauen» | 09, 10 | L |
 
 ## Phase 4 – Word
 

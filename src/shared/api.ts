@@ -35,6 +35,10 @@ export interface LernjournalApi {
     merge: Call<'taxonomy:merge'>;
     delete: Call<'taxonomy:delete'>;
   };
+  search: {
+    query: Call<'search:query'>;
+    rebuild: Call<'search:rebuild'>;
+  };
   links: {
     list: Call<'link:list'>;
     add: Call<'link:add'>;

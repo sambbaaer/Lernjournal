@@ -42,6 +42,8 @@ export type AppState = {
   // Kategorien und Schlagwörter des Projekts (mit Anzahl Journale)
   categories: Category[];
   tags: Tag[];
+  // Suchleiste «Im Journal suchen» (Strg+F) sichtbar
+  findOpen: boolean;
 };
 
 export const initialState: AppState = {
@@ -62,6 +64,7 @@ export const initialState: AppState = {
   openJournal: null,
   categories: [],
   tags: [],
+  findOpen: false,
 };
 
 export type Action =
@@ -84,13 +87,14 @@ export type Action =
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
   | { type: 'journalClosed' }
-  | { type: 'taxonomyLoaded'; categories: Category[]; tags: Tag[] };
+  | { type: 'taxonomyLoaded'; categories: Category[]; tags: Tag[] }
+  | { type: 'setFindOpen'; open: boolean };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'navigate':
       // Navigieren schliesst das Datei-Menü, wie in Office
-      return { ...state, view: action.view, backstage: null, notice: null };
+      return { ...state, view: action.view, backstage: null, notice: null, findOpen: false };
     case 'selectRibbonTab':
       return { ...state, ribbonTab: action.tab };
     case 'openBackstage':
@@ -177,6 +181,8 @@ export function reducer(state: AppState, action: Action): AppState {
         backstage: null,
         saveStatus: { kind: 'idle' },
       };
+    case 'setFindOpen':
+      return { ...state, findOpen: action.open };
     case 'taxonomyLoaded':
       return { ...state, categories: action.categories, tags: action.tags };
     case 'journalClosed':

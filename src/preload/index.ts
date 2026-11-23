@@ -36,6 +36,10 @@ const api: LernjournalApi = {
     merge: (req) => ipcRenderer.invoke('taxonomy:merge', req),
     delete: (req) => ipcRenderer.invoke('taxonomy:delete', req),
   },
+  search: {
+    query: (req) => ipcRenderer.invoke('search:query', req),
+    rebuild: () => ipcRenderer.invoke('search:rebuild'),
+  },
   links: {
     list: (req) => ipcRenderer.invoke('link:list', req),
     add: (req) => ipcRenderer.invoke('link:add', req),

@@ -114,6 +114,11 @@ src/main/media/media-service.ts               speichern (atomar, SHA-256), aufl�
 - Links im Text: `lernjournal://journal/<uuid>`; Strg+Klick öffnet. Weblinks öffnet nur der Hauptprozess (`app:openExternal`) nach Rückfrage und nur für http/https.
 - E2E: Bei Knöpfen mit ähnlichen Namen `exact: true` verwenden (Playwright vergleicht sonst Teilstrings).
 
+## Suche
+- **Fachbuch** (`src/main/search/search-service.ts`): FTS5 mit `bm25` (Titel × 5), Präfixsuche über `ftsPrefixQuery()`. Treffer werden mit `\u0002 … \u0003` markiert und im Renderer von `Highlight.tsx` als `<mark>` gezeigt – nie HTML aus der Datenbank rendern.
+- **Index:** Jede Journal-Änderung schreibt `journal_fts` mit. Beim Öffnen prüft `isIndexComplete()`, sonst Neuaufbau; manuell über Einstellungen.
+- **Strg+F** (`find-in-document.ts`): CSS Custom Highlight API statt `webContents.findInPage` – Letzteres findet auch das Suchfeld selbst und nimmt ihm den Fokus.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/
