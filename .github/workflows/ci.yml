@@ -26,7 +26,7 @@ jobs:
       - run: npm run test:e2e
 
       # 3) Installer + portable EXE bauen (mit Fuses)
-      - run: npx electron-builder --win nsis portable
+      - run: npx electron-builder --win nsis portable --publish never
 
       # 4) Gepackte EXE starten: Rauchtest prüft Preload-Brücke und Sandbox
       - name: Rauchtest gepackte App

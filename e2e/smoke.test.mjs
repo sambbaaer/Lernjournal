@@ -3,19 +3,13 @@
 // sie sehen würde.  Ausführen:  npm run test:e2e
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { _electron as electron } from 'playwright';
-
-// In Linux-Containern als root braucht Chromium --no-sandbox (betrifft nur die
-// OS-Sandbox des Testlaufs; die App-Einstellung sandbox:true bleibt aktiv).
-const extraArgs = process.env.E2E_EXTRA_ARGS ? process.env.E2E_EXTRA_ARGS.split(' ') : [];
+import { launchApp } from './helpers.mjs';
 
 let app;
 let page;
 
 before(async () => {
-  app = await electron.launch({ args: [...extraArgs, '.'], env: { ...process.env, NODE_ENV: 'production' } });
-  page = await app.firstWindow();
-  await page.waitForSelector('[data-testid="app-version"]', { timeout: 15000 });
+  ({ app, page } = await launchApp());
 });
 
 after(async () => {
@@ -23,9 +17,9 @@ after(async () => {
 });
 
 test('Fenster zeigt Lernjournal und lädt über das eigene Protokoll', async () => {
-  assert.equal(await page.title(), 'Lernjournal');
+  assert.match(await page.title(), /– Lernjournal$/);
   assert.match(page.url(), /^app:\/\/lernjournal\//);
-  assert.equal(await page.textContent('[data-testid="app-version"]'), '0.1.0');
+  await page.getByText('Version 0.1.0').waitFor();
 });
 
 test('Renderer hat keinen Zugriff auf Node.js oder Electron', async () => {

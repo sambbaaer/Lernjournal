@@ -36,6 +36,20 @@ e2e/          Ende-zu-Ende-Tests gegen die gebaute App
 spikes/       Phase-0-Prototypen (nicht App-Code)
 ```
 
+## Oberfläche (Renderer)
+```
+src/renderer/src/
+  state/      app-state.ts (Reducer), commands.ts (Befehle + Tastenkürzel),
+              shortcuts.ts, regions.ts (F6) – reine Logik, mit Vitest getestet
+  shell/      AppShell, Ribbon (+ ribbon-items.ts), NavigationPane, Backstage, StatusBar
+  views/      Start, Journale, Fachbuch, Export, Einstellungen
+```
+- **Befehle** stehen genau einmal in `state/commands.ts` (Text, Kürzel, Verfügbarkeit). Menüband, Tooltips und Tastatur lesen daraus – nie Kürzel doppelt verdrahten.
+- **Nicht verfügbare Befehle** bekommen `aria-disabled` und einen Grund (Tooltip), nicht `disabled` – so bleiben sie per Tastatur erreichbar.
+- **Farben** nur über die Tokens in `styles.css` (Kontraste dort dokumentiert). Auswahl immer zusätzlich mit Rahmen/Balken markieren (Windows-Kontrastmodus).
+- **Speicherstatus** nur anzeigen, wenn er zutrifft (`saveStatus`), sonst nichts.
+- **E2E** (`e2e/shell.test.mjs`) prüft Tastatur, Fokus und Barrierefreiheit mit axe-core (WCAG 2.2 AA). Neue Ansichten in den axe-Test aufnehmen.
+
 ## Einen neuen IPC-Befehl hinzufügen (Muster)
 1. **Vertrag** in `src/shared/ipc.ts`: Kanal mit zod-Schema für `request` und `response`.
 2. **Brücke** in `src/shared/api.ts` (Typ) und `src/preload/index.ts` (Funktion) – fachlich benennen.

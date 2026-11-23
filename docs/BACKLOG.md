@@ -17,7 +17,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 | ID | Umsetzung | Abnahme | Abhängig | Grösse |
 |---|---|---|---|---|
 | AJ-01 ✔ | Electron/Vite/React/TS/Tailwind Setup, Lint, Vitest, CI auf `windows-latest` | Devstart auf Windows; sichere Preload-Bridge; Fuses gesetzt; CI grün → [ADR 0003](adr/0003-toolchain-und-sicherheitsrahmen.md), [ENTWICKLUNG.md](ENTWICKLUNG.md) | 00a | M |
-| AJ-02 | Office-nahe App-Shell | Datei-Menü, Ribbon-Tabs, Navigation, Dokumentfläche, Statusleiste, Tastatur inkl. F6; Kontrast AA | 01 | M |
+| AJ-02 ✔ | Office-nahe App-Shell | Datei-Menü (Alt+D, Esc), vereinfachtes Menüband mit 4 Registern, Navigation, Dokumentfläche, Statusleiste; Tastatur inkl. F6, Pfeiltasten, Strg+Umschalt+F; axe-Prüfung WCAG 2.2 AA ohne Verstösse; 1024 × 640 und 150 % Zoom | 01 | M |
 | AJ-03 | Projektanlage/Öffnen/Profil, Onboarding | Frei wählbarer lokaler Ordner; Profil mit Name, Fachrichtung (R-04, Standard Print), Lehrbeginn; Hinweis inoffizielles Hilfsmittel (R-14); OneDrive-Warnung | 02, 04 | M |
 | AJ-04 | SQLite-Schema/Migrationen/Lock | DB und P0-Tabellen aus SPEC; Integritätstests; verwaister Lock erkannt | 00a | M |
 

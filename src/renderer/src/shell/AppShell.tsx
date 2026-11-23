@@ -1,0 +1,129 @@
+// Gesamtlayout im Office-Stil:
+//   ┌ Menüband (Datei + Register + Befehle) ───────────────┐
+//   │ Navigation │ Dokumentfläche (aktuelle Ansicht)        │
+//   └ Statusleiste ────────────────────────────────────────┘
+// Ausserdem: globale Tastenkürzel und F6-Bereichswechsel.
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useApp } from '../state/AppContext';
+import { VIEW_LABELS, type AppState } from '../state/app-state';
+import { commands } from '../state/commands';
+import { nextRegion, REGIONS, type Region } from '../state/regions';
+import { matchesShortcut } from '../state/shortcuts';
+import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
+import { Backstage } from './Backstage';
+import { NavigationPane } from './NavigationPane';
+import { Ribbon } from './Ribbon';
+import { StatusBar } from './StatusBar';
+
+// Erstes sinnvolles Fokusziel eines Bereichs
+function focusRegion(region: Region) {
+  const el = document.querySelector<HTMLElement>(`[data-region="${region}"]`);
+  if (!el) return;
+  const preferred =
+    el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
+    el.querySelector<HTMLElement>('[aria-current="page"]') ??
+    (region === 'document' || region === 'statusbar' ? el : null) ??
+    el.querySelector<HTMLElement>('button, [href], input, [tabindex="0"]');
+  preferred?.focus();
+}
+
+function currentRegion(): Region | null {
+  const el = document.activeElement?.closest<HTMLElement>('[data-region]');
+  const r = el?.dataset['region'];
+  return REGIONS.includes(r as Region) ? (r as Region) : null;
+}
+
+export function AppShell({ version }: { version: string | null }) {
+  const { state, dispatch } = useApp();
+  const fileButtonRef = useRef<HTMLButtonElement>(null);
+  // Aktueller Zustand für den Tastatur-Listener (ohne ihn ständig neu anzumelden)
+  const stateRef = useRef<AppState>(state);
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // Fenstertitel: «Fachbuch – Lernjournal» (Electron übernimmt ihn in die Titelleiste)
+  useEffect(() => {
+    document.title = state.backstage ? 'Datei – Lernjournal' : `${VIEW_LABELS[state.view]} – Lernjournal`;
+  }, [state.view, state.backstage]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const s = stateRef.current;
+      // Esc schliesst das Datei-Menü, egal wo der Fokus gerade ist
+      if (e.key === 'Escape' && s.backstage) {
+        e.preventDefault();
+        dispatch({ type: 'closeBackstage' });
+        return;
+      }
+      // F6 / Umschalt+F6: zwischen Bereichen springen (nicht im Datei-Menü)
+      if (e.key === 'F6' && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        if (s.backstage) return;
+        focusRegion(nextRegion(currentRegion(), e.shiftKey));
+        return;
+      }
+      for (const cmd of Object.values(commands)) {
+        if (!cmd.shortcut || cmd.id.startsWith('region.')) continue;
+        if (matchesShortcut(e, cmd.shortcut)) {
+          e.preventDefault(); // auch bei nicht verfügbaren Befehlen: kein Browser-Standardverhalten
+          if (!cmd.disabledReason(s)) cmd.run(s, dispatch);
+          return;
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [dispatch]);
+
+  // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !state.backstage) fileButtonRef.current?.focus();
+    wasOpen.current = state.backstage !== null;
+  }, [state.backstage]);
+
+  const views = {
+    start: <StartView />,
+    journale: <JournaleView />,
+    fachbuch: <FachbuchView />,
+    export: <ExportView />,
+    einstellungen: <EinstellungenView />,
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* «Zum Inhalt springen» für Tastatur und Screenreader */}
+      <a
+        href="#document"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-surface focus:p-2"
+      >
+        Zum Inhalt springen
+      </a>
+      {state.backstage ? (
+        <Backstage
+          page={state.backstage}
+          version={version}
+          onClose={() => dispatch({ type: 'closeBackstage' })}
+        />
+      ) : (
+        <>
+          <Ribbon fileButtonRef={fileButtonRef} />
+          <div className="flex min-h-0 flex-1">
+            <NavigationPane />
+            <main
+              id="document"
+              data-region="document"
+              tabIndex={-1}
+              aria-label={VIEW_LABELS[state.view]}
+              className="min-w-0 flex-1 overflow-auto bg-canvas"
+            >
+              {views[state.view]}
+            </main>
+          </div>
+        </>
+      )}
+      <StatusBar version={version} />
+    </div>
+  );
+}
