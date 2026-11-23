@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { initialState, reducer } from './app-state';
+import type { ProjectInfo } from '@shared/ipc';
+import type { JournalSummary } from '@shared/journal';
+import { initialState, journalCounts, reducer } from './app-state';
 import { commands } from './commands';
 import { nextRegion } from './regions';
 import { formatShortcut, matchesShortcut, parseShortcut } from './shortcuts';
@@ -75,5 +77,44 @@ describe('Zustand', () => {
     expect(s.backstage).toBe('neu');
     run();
     expect(s.backstage).toBeNull();
+  });
+});
+
+describe('Anzahl Journale (Einstellungen)', () => {
+  const summary = (id: string, status: JournalSummary['status'] = 'draft'): JournalSummary => ({
+    id,
+    title: id,
+    workDate: '2026-11-23',
+    status,
+    learningPlace: 'betrieb',
+    schoolYear: null,
+    schoolYearOverride: null,
+    updatedAt: '2026-11-23T10:00:00.000Z',
+    completedAt: null,
+  });
+  // Projekt wurde mit 0 Journalen geöffnet
+  const opened = reducer(initialState, {
+    type: 'projectOpened',
+    project: { journalCount: 0 } as ProjectInfo,
+  });
+
+  it('zählt neu angelegte Journale sofort mit (nicht den Wert vom Öffnen)', () => {
+    let s = reducer(opened, { type: 'journalsLoaded', journals: [] });
+    s = reducer(s, { type: 'journalUpserted', journal: summary('a') });
+    s = reducer(s, { type: 'journalUpserted', journal: summary('b') });
+    expect(journalCounts(s)).toEqual({ total: 2, archived: 0 });
+    s = reducer(s, { type: 'journalRemoved', id: 'a' });
+    expect(journalCounts(s).total).toBe(1);
+  });
+  it('weist archivierte Journale separat aus', () => {
+    const s = reducer(opened, {
+      type: 'journalsLoaded',
+      journals: [summary('a'), summary('b', 'archived')],
+    });
+    expect(journalCounts(s)).toEqual({ total: 2, archived: 1 });
+  });
+  it('nutzt vor dem Laden der Liste den Wert aus dem Projekt', () => {
+    const s = reducer(initialState, { type: 'projectOpened', project: { journalCount: 5 } as ProjectInfo });
+    expect(journalCounts(s).total).toBe(5);
   });
 });

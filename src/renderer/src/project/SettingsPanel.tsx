@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import type { Profile } from '@shared/ipc';
 import { useApp } from '../state/AppContext';
+import { journalCounts } from '../state/app-state';
 import { ErrorMessage, SyncWarning } from './Notices';
 import { ProfileFields } from './ProfileFields';
 import { useProjectActions } from './useProjectActions';
@@ -9,6 +10,7 @@ import { useProjectActions } from './useProjectActions';
 export function SettingsPanel() {
   const { state, dispatch } = useApp();
   const project = state.project!;
+  const counts = journalCounts(state);
   const [profile, setProfile] = useState<Profile>(project.profile);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,10 @@ export function SettingsPanel() {
             {project.path}
           </dd>
           <dt className="text-ink-muted">Journale</dt>
-          <dd>{project.journalCount}</dd>
+          <dd data-testid="journal-count">
+            {counts.total}
+            {counts.archived > 0 && ` (davon ${counts.archived} archiviert)`}
+          </dd>
         </dl>
         {project.syncProvider && <SyncWarning provider={project.syncProvider} />}
         <button

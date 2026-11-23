@@ -176,6 +176,18 @@ export function reducer(state: AppState, action: Action): AppState {
   }
 }
 
+// Anzahl Journale für die Anzeige. Sobald die Liste geladen ist, zählt sie –
+// sie wird bei jedem Anlegen/Duplizieren/Löschen nachgeführt. Der Wert aus
+// ProjectInfo stammt vom Öffnen des Projekts und veraltet danach (Bug: «0»
+// in den Einstellungen trotz vorhandener Journale).
+export function journalCounts(state: AppState): { total: number; archived: number } {
+  if (!state.journalsLoaded) return { total: state.project?.journalCount ?? 0, archived: 0 };
+  return {
+    total: state.journals.length,
+    archived: state.journals.filter((j) => j.status === 'archived').length,
+  };
+}
+
 // Neuestes Arbeitsdatum zuerst, bei Gleichstand zuletzt geändert zuerst
 export function sortJournals(list: JournalSummary[]): JournalSummary[] {
   return [...list].sort(
