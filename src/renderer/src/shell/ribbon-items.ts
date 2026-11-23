@@ -62,6 +62,8 @@ export type RibbonItem = {
 export type RibbonGroup = { id: string; label: string; items: RibbonItem[] };
 
 const NO_EDITOR = 'Zuerst in einen Abschnitt des Journals klicken';
+const onlyInJournal = ({ state }: RibbonCtx) =>
+  state.openJournal && state.view === 'journal' ? null : 'Nur in einem geöffneten Journal verfügbar';
 const LATER = (what: string) => () => `${what} folgt in einem der nächsten Entwicklungsschritte`;
 
 // Hilfsfunktion für Editor-Befehle: verfügbar, wenn ein Journal offen und ein
@@ -232,10 +234,7 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           label: 'Abgeschlossen',
           icon: CircleCheck,
           iconOnly: false,
-          disabledReason: ({ state }) =>
-            state.openJournal && state.view === 'journal'
-              ? null
-              : 'Nur in einem geöffneten Journal verfügbar',
+          disabledReason: onlyInJournal,
           pressed: ({ state }) => state.openJournal?.status === 'completed',
           run: ({ state, dispatch }) => {
             const j = state.openJournal;
@@ -253,14 +252,17 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           label: 'Kategorien',
           icon: FolderTree,
           iconOnly: false,
-          disabledReason: LATER('Kategorien zuordnen'),
+          disabledReason: onlyInJournal,
+          // Springt zur Kategorienauswahl im Journal (öffnet die Liste)
+          run: ({ dispatch }) => dispatch({ type: 'requestFocus', target: 'journal-categories' }),
         },
         {
           id: 'tags',
           label: 'Schlagwörter',
           icon: Tags,
           iconOnly: false,
-          disabledReason: LATER('Schlagwörter zuordnen'),
+          disabledReason: onlyInJournal,
+          run: ({ dispatch }) => dispatch({ type: 'requestFocus', target: 'journal-tags' }),
         },
       ],
     },

@@ -21,6 +21,7 @@ import { registerSaveNow } from '../editor/save-registry';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { deleteJournal, displayTitle, duplicateJournal, setJournalStatus } from './actions';
 import { StatusBadge } from './StatusBadge';
+import { TaxonomyFields } from './TaxonomyFields';
 
 const SAVE_DELAY_MS = 800; // SPEC: speichern nach kurzer Ruhephase
 const MAX_WAIT_MS = 10_000; // SPEC: bei Dauertippen spätestens alle 10 s
@@ -246,7 +247,7 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
           className="w-full border-0 border-b border-transparent bg-transparent pb-1 text-3xl font-semibold placeholder:text-ink-muted focus:border-accent"
         />
 
-        <div className="mt-4 flex flex-wrap items-end gap-4 border-b border-border-subtle pb-4 text-sm">
+        <div className="mt-4 flex flex-wrap items-end gap-4 text-sm">
           <label className="flex flex-col gap-1">
             <span className="text-ink-muted">Arbeitsdatum</span>
             <input
@@ -296,6 +297,11 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
               ))}
             </select>
           </label>
+        </div>
+        {/* Kategorien und Schlagwörter (AJ-09): aktueller Stand aus dem Zustand,
+            damit Änderungen aus der Verwaltung sofort sichtbar sind */}
+        <div className="border-b border-border-subtle pb-4">
+          <TaxonomyFields journal={state.openJournal?.id === journal.id ? state.openJournal : journal} />
         </div>
 
         {SECTION_KEYS.map((k) => (

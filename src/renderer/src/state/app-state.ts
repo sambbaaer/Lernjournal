@@ -9,6 +9,7 @@ export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' 
 
 import type { ProjectInfo } from '@shared/ipc';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
+import { EMPTY_TAXONOMY, type Taxonomy } from '@shared/taxonomy';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
 
@@ -25,7 +26,9 @@ export type AppState = {
   // Kurze Meldung in der Statusleiste (z. B. «Folgt in einem späteren Schritt»)
   notice: string | null;
   // Fokuswunsch, den eine Ansicht nach dem Rendern erfüllt (z. B. Suchfeld)
-  focusRequest: 'fachbuch-search' | null;
+  // 'journal-categories'/'journal-tags': Menüband «Journal → Ordnen» springt
+  // zu den Feldern im geöffneten Journal
+  focusRequest: 'fachbuch-search' | 'journal-categories' | 'journal-tags' | null;
   // Projekt: null = keines geöffnet → Startbildschirm/Assistent
   project: ProjectInfo | null;
   projectLoaded: boolean; // erster Abruf beim Start erledigt?
@@ -39,6 +42,8 @@ export type AppState = {
   journals: JournalSummary[];
   journalsLoaded: boolean;
   openJournal: JournalDetail | null;
+  // Kategorien und Schlagwörter des Projekts (AJ-09)
+  taxonomy: Taxonomy;
 };
 
 export const initialState: AppState = {
@@ -57,6 +62,7 @@ export const initialState: AppState = {
   journals: [],
   journalsLoaded: false,
   openJournal: null,
+  taxonomy: EMPTY_TAXONOMY,
 };
 
 export type Action =
@@ -78,7 +84,8 @@ export type Action =
   | { type: 'journalUpserted'; journal: JournalSummary }
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
-  | { type: 'journalClosed' };
+  | { type: 'journalClosed' }
+  | { type: 'taxonomyLoaded'; taxonomy: Taxonomy };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -122,6 +129,7 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        taxonomy: EMPTY_TAXONOMY,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
           : null,
@@ -137,6 +145,7 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        taxonomy: EMPTY_TAXONOMY,
       };
     case 'profileUpdated':
       return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
@@ -173,7 +182,21 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     case 'journalClosed':
       return { ...state, openJournal: null, saveStatus: { kind: 'idle' } };
+    case 'taxonomyLoaded':
+      return { ...state, taxonomy: action.taxonomy };
   }
+}
+
+// Anzahl Journale für die Anzeige. Sobald die Liste geladen ist, zählt sie –
+// sie wird bei jedem Anlegen/Duplizieren/Löschen nachgeführt. Der Wert aus
+// ProjectInfo stammt vom Öffnen des Projekts und veraltet danach (Bug: «0»
+// in den Einstellungen trotz vorhandener Journale).
+export function journalCounts(state: AppState): { total: number; archived: number } {
+  if (!state.journalsLoaded) return { total: state.project?.journalCount ?? 0, archived: 0 };
+  return {
+    total: state.journals.length,
+    archived: state.journals.filter((j) => j.status === 'archived').length,
+  };
 }
 
 // Neuestes Arbeitsdatum zuerst, bei Gleichstand zuletzt geändert zuerst

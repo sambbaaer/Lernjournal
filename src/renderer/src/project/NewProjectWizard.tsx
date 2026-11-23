@@ -75,7 +75,7 @@ export function NewProjectWizard() {
       id="document"
       data-region="document"
       tabIndex={-1}
-      className="min-h-0 flex-1 overflow-auto bg-canvas"
+      className="min-h-0 flex-1 relative overflow-auto bg-canvas"
     >
       <form
         onSubmit={submit}

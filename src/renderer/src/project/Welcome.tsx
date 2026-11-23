@@ -15,7 +15,7 @@ export function Welcome() {
       id="document"
       data-region="document"
       tabIndex={-1}
-      className="min-h-0 flex-1 overflow-auto bg-canvas"
+      className="min-h-0 flex-1 relative overflow-auto bg-canvas"
       aria-labelledby="welcome-title"
     >
       <div className="mx-auto max-w-3xl space-y-8 px-8 py-12">

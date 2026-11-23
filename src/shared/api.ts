@@ -39,5 +39,15 @@ export interface LernjournalApi {
     setStatus: Call<'journal:setStatus'>;
     duplicate: Call<'journal:duplicate'>;
     delete: Call<'journal:delete'>;
+    setCategories: Call<'journal:setCategories'>;
+    setTags: Call<'journal:setTags'>;
+  };
+  taxonomy: {
+    list: Call<'taxonomy:list'>;
+    createCategory: Call<'category:create'>;
+    addSuggestions: Call<'category:addSuggestions'>;
+    rename: Call<'taxonomy:rename'>;
+    merge: Call<'taxonomy:merge'>;
+    delete: Call<'taxonomy:delete'>;
   };
 }
