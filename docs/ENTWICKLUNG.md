@@ -36,6 +36,20 @@ e2e/          Ende-zu-Ende-Tests gegen die gebaute App
 spikes/       Phase-0-Prototypen (nicht App-Code)
 ```
 
+## Datenbank und Migrationen
+```
+src/main/db/
+  connection.ts   openDatabase (WAL, synchronous=FULL, Fremdschlüssel), transaction, checkIntegrity
+  schema-v1.ts    Grundschema – nach Veröffentlichung NIE mehr ändern
+  migrations.ts   Liste aller Migrationen, migrate()
+src/main/project/
+  lock.ts         Projektsperre (project.lock)
+```
+- **Neue Spalte/Tabelle?** Nie `schema-v1.ts` ändern, sondern eine neue Migration `{ version: 2, name, up }` in `MIGRATIONS` anhängen und testen (alte Datei → neue Version, Daten bleiben).
+- `migrate()` sichert bestehende Daten **vor** dem Umbau (SQLite-Backup-API), führt jede Migration in einer eigenen Transaktion aus und verweigert Dateien aus neueren Programmversionen.
+- **Regeln, die immer gelten müssen**, gehören als `CHECK`/`UNIQUE`/Fremdschlüssel ins Schema, nicht nur in den Code. Achtung SQLite: Ein `CHECK`, der `NULL` ergibt, gilt als erfüllt – darum `IS` statt `=` bei Funktionen wie `date()`.
+- Datenbankzugriffe nur im Hauptprozess; der Renderer bekommt Daten ausschliesslich über IPC.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/
