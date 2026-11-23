@@ -1,6 +1,7 @@
 // E2E: Speichern ohne Datenverlust (AJ-08) – Schliessen, harter Absturz,
 // gesperrte Datenbank mit automatischem Wiederholversuch.
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -16,6 +17,16 @@ async function openJournal(page, title) {
     .click();
   await page.getByRole('row', { name: new RegExp(title) }).dblclick();
   await editor(page, 'Reflexion').waitFor();
+}
+
+// Harter Abbruch des ganzen Prozessbaums. Unter Windows beendet SIGKILL nur den
+// Hauptprozess; die Electron-Kindprozesse würden weiterlaufen und die
+// Einzelinstanz-Sperre halten. taskkill /T /F entspricht «Task beenden».
+function hardKill(app) {
+  const pid = app.process().pid;
+  if (process.platform === 'win32')
+    execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+  else app.process().kill('SIGKILL');
 }
 
 function exited(app) {
@@ -49,7 +60,7 @@ test('Harter Absturz nach «Gespeichert»: Daten intakt, verwaiste Sperre übern
   await editor(first.page, 'Durchführung').click();
   await waitForNewSave(first.page, () => first.page.keyboard.type('Vor dem Absturz gespeichert.'));
   const done = exited(first.app);
-  first.app.process().kill('SIGKILL'); // wie Stromausfall oder Task-Manager «Task beenden»
+  hardKill(first.app); // wie Stromausfall oder Task-Manager «Task beenden»
   await done;
 
   // Datenbank direkt prüfen
