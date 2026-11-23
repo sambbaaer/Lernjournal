@@ -59,3 +59,20 @@ export function focusedRegion(page) {
     () => document.activeElement?.closest('[data-region]')?.getAttribute('data-region') ?? null,
   );
 }
+
+// Wartet auf einen NEUEN Speichervorgang nach `action` (nicht auf ein «Gespeichert»,
+// das noch von früher dasteht). Nutzt den Zeitstempel der Statusanzeige.
+export async function waitForNewSave(page, action) {
+  const before = await page.evaluate(
+    () => document.querySelector('[data-saved-at]')?.getAttribute('data-saved-at') ?? '',
+  );
+  await action();
+  await page.waitForFunction(
+    (prev) => {
+      const v = document.querySelector('[data-saved-at]')?.getAttribute('data-saved-at');
+      return v !== undefined && v !== null && v !== prev;
+    },
+    before,
+    { timeout: 15000 },
+  );
+}

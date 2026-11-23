@@ -1,6 +1,7 @@
 // Statusleiste unten: Speicherstatus, Hinweise, Offline-Kennzeichen.
 // Speichertexte erscheinen NUR, wenn sie zutreffen (SPEC) – im Leerlauf nichts.
 import { CircleAlert, LoaderCircle, Check, WifiOff } from 'lucide-react';
+import { saveNow } from '../editor/save-registry';
 import { useApp } from '../state/AppContext';
 import type { SaveStatus } from '../state/app-state';
 
@@ -17,7 +18,11 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
       );
     case 'saved':
       return (
-        <span className="flex items-center gap-1">
+        <span
+          className="flex items-center gap-1"
+          data-saved-at={status.at}
+          title={`Zuletzt gespeichert um ${new Date(status.at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+        >
           <Check aria-hidden="true" size={14} />
           Gespeichert
         </span>
@@ -26,7 +31,14 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
       return (
         <span className="flex items-center gap-1 font-semibold text-danger">
           <CircleAlert aria-hidden="true" size={14} />
-          Speichern fehlgeschlagen: {status.message}
+          Speichern fehlgeschlagen. {status.message}
+          <button
+            type="button"
+            onClick={() => void saveNow()}
+            className="ml-1 rounded-sm border border-danger px-2 py-0.5 font-semibold hover:bg-danger-bg"
+          >
+            Erneut versuchen
+          </button>
         </span>
       );
   }

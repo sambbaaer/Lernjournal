@@ -9,6 +9,13 @@ import type { LernjournalApi } from '@shared/api';
 const api: LernjournalApi = {
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
+    closeReady: (req) => ipcRenderer.invoke('app:closeReady', req),
+    // Nur dieses eine Ereignis vom Hauptprozess, ohne Ereignisdaten weiterzugeben
+    onBeforeClose: (listener) => {
+      const wrapped = () => listener();
+      ipcRenderer.on('lj:before-close', wrapped);
+      return () => ipcRenderer.removeListener('lj:before-close', wrapped);
+    },
   },
   project: {
     getState: () => ipcRenderer.invoke('project:getState'),

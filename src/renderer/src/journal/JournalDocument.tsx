@@ -59,32 +59,44 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
 
   // Speichert ausstehende Änderungen. «Gespeichert» erst nach Bestätigung durch
   // den Hauptprozess (= Transaktion abgeschlossen), sonst Fehlermeldung.
-  const flush = useCallback(async (): Promise<void> => {
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = useRef(0);
+  // Verweis auf die aktuelle flush-Funktion (für den automatischen Wiederholversuch)
+  const flushRef = useRef<(() => Promise<boolean>) | null>(null);
+
+  const flush = useCallback(async (): Promise<boolean> => {
     if (timer.current) clearTimeout(timer.current);
+    if (retryTimer.current) clearTimeout(retryTimer.current);
     timer.current = null;
+    retryTimer.current = null;
     // Läuft schon ein Speichervorgang, zuerst diesen abwarten (Reihenfolge wahren)
     if (saving.current) await saving.current;
     const todo = pending.current;
-    if (!todo.meta && !todo.sections) return;
+    if (!todo.meta && !todo.sections) return true;
     pending.current = {};
     firstPendingAt.current = null;
     dispatch({ type: 'setSaveStatus', status: { kind: 'saving' } });
+    let ok = true;
     const run = (async () => {
-      let ok = true;
-      if (todo.meta) {
-        const res = await window.lernjournal.journal.updateMeta({ id: journal.id, meta: todo.meta });
-        if (res.ok) dispatch({ type: 'journalUpserted', journal: res.data });
-        else ok = false;
-      }
-      if (todo.sections) {
-        const res = await window.lernjournal.journal.updateSections({
-          id: journal.id,
-          sections: todo.sections,
-        });
-        if (res.ok) dispatch({ type: 'journalUpserted', journal: res.data });
-        else ok = false;
+      try {
+        if (todo.meta) {
+          const res = await window.lernjournal.journal.updateMeta({ id: journal.id, meta: todo.meta });
+          if (res.ok) dispatch({ type: 'journalUpserted', journal: res.data });
+          else ok = false;
+        }
+        if (todo.sections) {
+          const res = await window.lernjournal.journal.updateSections({
+            id: journal.id,
+            sections: todo.sections,
+          });
+          if (res.ok) dispatch({ type: 'journalUpserted', journal: res.data });
+          else ok = false;
+        }
+      } catch {
+        ok = false; // z. B. Hauptprozess nicht erreichbar
       }
       if (ok) {
+        retryCount.current = 0;
         dispatch({ type: 'setSaveStatus', status: { kind: 'saved', at: Date.now() } });
       } else {
         // Nichts verlieren: beim nächsten Versuch erneut senden (neuere Änderungen haben Vorrang)
@@ -94,14 +106,32 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
         };
         dispatch({
           type: 'setSaveStatus',
-          status: { kind: 'error', message: 'Bitte erneut versuchen (Strg+S).' },
+          status: { kind: 'error', message: 'Wird automatisch erneut versucht.' },
         });
+        // Automatisch erneut versuchen: nach 2, 5, 10, dann alle 30 Sekunden
+        const delays = [2000, 5000, 10000, 30000];
+        const delay = delays[Math.min(retryCount.current, delays.length - 1)]!;
+        retryCount.current++;
+        retryTimer.current = setTimeout(() => void flushRef.current?.(), delay);
       }
     })();
     saving.current = run;
     await run;
     saving.current = null;
+    return ok;
   }, [dispatch, journal.id]);
+
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
+  // Ansicht verlassen: geplanten Wiederholversuch beenden (das Aufräumen unten speichert ein letztes Mal)
+  useEffect(
+    () => () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    },
+    [],
+  );
 
   function schedule() {
     const now = currentTime();
@@ -124,7 +154,12 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
   }
 
   // Beim Verlassen der Ansicht (Navigation, anderes Journal) sofort speichern
-  useEffect(() => () => void flush(), [flush]);
+  useEffect(
+    () => () => {
+      void flush();
+    },
+    [flush],
+  );
 
   // Strg+S: sofort speichern
   useEffect(() => {

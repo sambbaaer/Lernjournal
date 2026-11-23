@@ -11,6 +11,7 @@ import { nextRegion, REGIONS, type Region } from '../state/regions';
 import { matchesShortcut } from '../state/shortcuts';
 import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
+import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
 import { NewProjectWizard } from '../project/NewProjectWizard';
@@ -91,6 +92,17 @@ export function AppShell({ version }: { version: string | null }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [dispatch]);
+
+  // Fenster wird geschlossen: Ausstehendes speichern und dem Hauptprozess melden
+  useEffect(
+    () =>
+      window.lernjournal.app.onBeforeClose(() => {
+        void saveIfNeeded()
+          .catch(() => false)
+          .then((saved) => window.lernjournal.app.closeReady({ saved }));
+      }),
+    [],
+  );
 
   // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu)
   const projectId = state.project?.id;

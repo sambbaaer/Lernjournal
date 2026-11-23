@@ -11,6 +11,10 @@ type Call<C extends IpcChannel> =
 export interface LernjournalApi {
   app: {
     getInfo: Call<'app:getInfo'>;
+    closeReady: Call<'app:closeReady'>;
+    // Der Hauptprozess meldet «Fenster wird geschlossen – bitte speichern».
+    // Gibt eine Funktion zum Abmelden zurück.
+    onBeforeClose(listener: () => void): () => void;
   };
   project: {
     getState: Call<'project:getState'>;

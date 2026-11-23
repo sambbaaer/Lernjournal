@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, session, type WebContents } from 'electron';
 import { ipcContract } from '@shared/ipc';
+import { createCloseGuard } from './close-guard';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
@@ -35,6 +36,9 @@ if (e2eDir) {
   app.setPath('userData', path.join(e2eDir, 'userData'));
   app.setPath('documents', path.join(e2eDir, 'Dokumente'));
 }
+
+// Sicheres Schliessen des Hauptfensters (siehe close-guard.ts)
+let closeGuard: ReturnType<typeof createCloseGuard> | null = null;
 
 // Höchstens ein geöffnetes Projekt pro App-Instanz
 // Beim Öffnen eines Projekts verwaiste Bilder aufräumen (älter als 1 Stunde)
@@ -199,6 +203,10 @@ function registerIpc() {
           return r.canceled ? null : (r.filePaths[0] ?? null);
         },
       }),
+      'app:closeReady': async ({ saved }) => {
+        await closeGuard?.onFlushResult(saved);
+        return { ok: true };
+      },
       ...createJournalHandlers(journals),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
     },
@@ -241,6 +249,31 @@ function createMainWindow() {
   win.once('ready-to-show', () => {
     if (process.env['LERNJOURNAL_SMOKE_TEST'] !== '1') win.show();
   });
+
+  // Vor dem Schliessen: Oberfläche speichern lassen, bei Fehler nachfragen
+  closeGuard = createCloseGuard({
+    requestFlush: () => win.webContents.send('lj:before-close'),
+    close: () => win.close(),
+    confirmCloseUnsaved: async () => {
+      const r = await dialog.showMessageBox(win, {
+        type: 'warning',
+        title: 'Lernjournal',
+        message: 'Einige Änderungen konnten nicht gespeichert werden.',
+        detail:
+          'Wenn du jetzt schliesst, gehen diese Änderungen verloren. Prüfe, ob der Projektordner erreichbar ist (USB-Stick, Netzlaufwerk) und versuche es erneut.',
+        buttons: ['Abbrechen', 'Ohne Speichern schliessen'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      return r.response === 1;
+    },
+  });
+  win.on('close', (event) => {
+    if (closeGuard?.onCloseRequested()) event.preventDefault();
+  });
+  // Oberfläche abgestürzt: nichts mehr zu speichern, Schliessen nicht blockieren
+  win.webContents.on('render-process-gone', () => closeGuard?.allowClose());
 
   if (devServerUrl) {
     void win.loadURL(devServerUrl);

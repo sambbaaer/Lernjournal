@@ -96,6 +96,12 @@ src/main/media/media-service.ts               speichern (atomar, SHA-256), aufl�
 - Ein Journal darf nur eigene Bilder referenzieren (`checkAndSyncCaptions` beim Speichern).
 - Aus dem Inhalt entfernte Bilder bleiben bis zum nächsten Öffnen des Projekts (Rückgängig bleibt möglich) und werden dann aufgeräumt, wenn sie älter als 1 Stunde sind.
 
+## Speichern (Autosave)
+- **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.
+- **Anzeige:** «Speichert …» → «Gespeichert» erst nach Bestätigung durch den Hauptprozess (`synchronous=FULL`). Bei Fehlern «Speichern fehlgeschlagen» mit Knopf «Erneut versuchen» und automatischem Wiederholversuch nach 2/5/10/30 s – die Änderungen bleiben im Speicher und gehen nicht verloren.
+- **Schliessen:** `src/main/close-guard.ts` hält das Schliessen an, die Oberfläche speichert (`app.onBeforeClose` → `app.closeReady`), bei Fehler fragt ein Windows-Dialog nach. Antwortet die Oberfläche nicht innert 5 s, wird trotzdem geschlossen.
+- **Tests:** `src/main/db/crash.test.ts` (Schreibprozess hart beenden) und `e2e/autosave.test.mjs` (App schliessen, SIGKILL, gesperrte Datenbank). In E2E-Tests mit `waitForNewSave()` auf einen *neuen* Speichervorgang warten.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

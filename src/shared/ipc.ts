@@ -97,6 +97,9 @@ export const ipcContract = {
   // das ganze Sicherheitsmuster getestet wird.
   'app:getInfo': { request: z.undefined(), response: AppInfoSchema },
 
+  // Antwort auf «Fenster wird geschlossen»: Ist alles gespeichert?
+  'app:closeReady': { request: z.object({ saved: z.boolean() }), response: z.object({ ok: z.boolean() }) },
+
   // Aktuelles Projekt (oder keines), Zuletzt-Liste und vorgeschlagener Speicherort
   'project:getState': {
     request: z.undefined(),

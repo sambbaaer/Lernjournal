@@ -2,6 +2,7 @@
 // Von Startbildschirm, Assistent, Datei-Menü und Einstellungen gemeinsam genutzt.
 import { useCallback, useState } from 'react';
 import type { OpenResult, Profile } from '@shared/ipc';
+import { saveIfNeeded } from '../editor/save-registry';
 import { useApp } from '../state/AppContext';
 import { openResultMessage } from './messages';
 
@@ -32,6 +33,11 @@ export function useProjectActions() {
   const run = useCallback(async (fn: () => Promise<void>) => {
     setBusy(true);
     try {
+      // Vor jedem Projektwechsel: Ausstehendes im offenen Journal speichern
+      if (!(await saveIfNeeded())) {
+        setError('Änderungen konnten nicht gespeichert werden. Bitte zuerst erneut versuchen (Strg+S).');
+        return;
+      }
       await fn();
     } catch {
       setError('Unerwarteter Fehler. Bitte erneut versuchen.');
