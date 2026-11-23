@@ -36,7 +36,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 |---|---|---|---|---|
 | AJ-09 ✔ | Kategorien/Tags | Mehrfachzuordnung im Journal (Kategorien per Auswahlliste, Schlagwörter per Eingabe mit Vorschlägen, sofort gespeichert); Umbenennen, Zusammenführen, Löschen in den Einstellungen; Filter Kategorie/«ohne Kategorie»/Schlagwort in der Journalliste; Vorschlag-Kategorien a–g nachträglich ergänzbar (R-05); Namen eindeutig auch bei Umlauten; Schlagwörter ohne Journal werden automatisch entfernt | 05 | M |
 | AJ-10 ✔ | Journal-Verknüpfungen | Verknüpfung in beiden Journalen sichtbar und in beiden lösbar (Rückverweis), nur Verweise statt Kopien; Auswahl per Suche (Titel, Datum, Kategorien, Schlagwörter; ohne Gross/Klein und Umlaute); Link zu Journal im Text (Menüband «Einfügen», Strg+Klick öffnet) mit «Erwähnt in» im Ziel; Löschen eines Journals entfernt Links darauf, der Text bleibt | 05 | S |
-| AJ-11 | Fachbuch und FTS5-Suche | Titel, Text, Legenden, Tags durchsuchbar (diakritikunabhängig); Themenansichten; Index neu aufbauen | 09, 10 | L |
+| AJ-11 ✔ | Fachbuch und FTS5-Suche | Titel, Text, Bildlegenden, Schlagwörter und Kategorien durchsuchbar – auch Wortteile («messung» → «Farbmessung»), ohne Gross/Klein, Akzente und Umlaut-Schreibweisen (ae/ä, ss/ß), Treffer markiert mit «Gefunden in»; Themenansichten (Kategorien, «Ohne Kategorie», Schlagwörter, verwandte Schlagwörter), Suche im Thema, Archiv wählbar; Index in jeder Änderung nachgeführt, beim Öffnen geprüft, «Suchindex neu aufbauen» in den Einstellungen; Schema v2 mit Migration → [ADR 0004](adr/0004-volltextsuche-fachbuch.md) | 09, 10 | L |
 
 ## Phase 4 – Word
 

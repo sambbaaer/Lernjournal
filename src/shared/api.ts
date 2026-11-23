@@ -46,6 +46,11 @@ export interface LernjournalApi {
     link: Call<'journal:link'>;
     unlink: Call<'journal:unlink'>;
   };
+  // Fachbuch-Suche (AJ-11)
+  search: {
+    query: Call<'search:query'>;
+    rebuild: Call<'search:rebuild'>;
+  };
   taxonomy: {
     list: Call<'taxonomy:list'>;
     createCategory: Call<'category:create'>;

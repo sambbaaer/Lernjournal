@@ -9,12 +9,24 @@
 //     auf dem letzten gültigen Stand.
 import { backup } from 'node:sqlite';
 import { SCHEMA_V1 } from './schema-v1';
+import { SCHEMA_V2 } from './schema-v2';
 import { transaction, type Db } from './connection';
+import { fillSearchIndex } from '../search/search-index';
 
 export type Migration = { version: number; name: string; up: (db: Db) => void };
 
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'Grundschema P0', up: (db) => db.exec(SCHEMA_V1) },
+  {
+    version: 2,
+    name: 'Suchindex mit Bildlegenden, Schlagwörtern und Kategorien (AJ-11)',
+    // Index ist abgeleitet: neu anlegen und aus den vorhandenen Journalen füllen.
+    // fillSearchIndex liest nur Tabellen aus v1 – bleibt also auch später gültig.
+    up: (db) => {
+      db.exec(SCHEMA_V2);
+      fillSearchIndex(db);
+    },
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

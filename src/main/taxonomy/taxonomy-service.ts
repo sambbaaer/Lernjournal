@@ -2,7 +2,9 @@
 // löschen und Journalen zuordnen. Arbeitet auf den Tabellen aus Schema v1
 // (category, journal_category, tag, journal_tag) – keine Migration nötig.
 //
-// Jede Änderung läuft in einer Transaktion. Die Datenbank sichert Eindeutigkeit
+// Jede Änderung läuft in einer Transaktion und führt den Suchindex der
+// betroffenen Journale nach (AJ-11: Schlagwörter und Kategorien sind
+// durchsuchbar – auch ein umbenanntes Schlagwort). Die Datenbank sichert Eindeutigkeit
 // und referenzielle Integrität ab (UNIQUE, Fremdschlüssel mit CASCADE); der
 // Dienst prüft zusätzlich Namen ohne Rücksicht auf Umlaut-Gross/Klein und
 // liefert verständliche Fehlermeldungen statt SQL-Fehlern.
@@ -10,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { BIPLA_CATEGORIES } from '@shared/bipla';
 import { nameKey, type Category, type Tag, type Taxonomy, type TaxonomyKind } from '@shared/taxonomy';
 import { transaction, type Db } from '../db/connection';
+import { SearchIndex } from '../search/search-index';
 
 // Fehler mit Meldung für die Oberfläche (ipc-handler gibt sie weiter)
 export class TaxonomyError extends Error {
@@ -27,6 +30,7 @@ export class TaxonomyService {
   constructor(
     private readonly getDb: () => Db,
     private readonly now: () => Date = () => new Date(),
+    private readonly search: SearchIndex = new SearchIndex(getDb),
   ) {}
 
   private get db() {
@@ -116,6 +120,7 @@ export class TaxonomyService {
       this.assertExists(kind, id);
       this.assertNameFree(kind, name, id);
       this.db.prepare(`UPDATE ${t.table} SET name = ? WHERE id = ?`).run(name, id);
+      this.search.syncMany(this.journalsWith(kind, id));
     });
   }
 
@@ -128,6 +133,7 @@ export class TaxonomyService {
     transaction(this.db, () => {
       this.assertExists(kind, sourceId);
       this.assertExists(kind, targetId);
+      const affected = this.journalsWith(kind, sourceId);
       this.db
         .prepare(
           `INSERT OR IGNORE INTO ${t.link} (journal_id, ${t.fk})
@@ -136,6 +142,7 @@ export class TaxonomyService {
         .run(targetId, sourceId);
       // Zuordnungen von source verschwinden per ON DELETE CASCADE
       this.db.prepare(`DELETE FROM ${t.table} WHERE id = ?`).run(sourceId);
+      this.search.syncMany(affected);
     });
   }
 
@@ -144,7 +151,9 @@ export class TaxonomyService {
     const t = TABLES[kind];
     transaction(this.db, () => {
       this.assertExists(kind, id);
+      const affected = this.journalsWith(kind, id);
       this.db.prepare(`DELETE FROM ${t.table} WHERE id = ?`).run(id);
+      this.search.syncMany(affected);
     });
   }
 
@@ -160,6 +169,7 @@ export class TaxonomyService {
       const insert = this.db.prepare('INSERT INTO journal_category (journal_id, category_id) VALUES (?, ?)');
       for (const id of unique) insert.run(journalId, id);
       this.touch(journalId);
+      this.search.sync(journalId);
     });
   }
 
@@ -188,6 +198,7 @@ export class TaxonomyService {
       for (const id of ids) link.run(journalId, id);
       this.pruneUnusedTags();
       this.touch(journalId);
+      this.search.sync(journalId);
     });
   }
 
@@ -199,6 +210,14 @@ export class TaxonomyService {
   }
 
   // --- Hilfen ---------------------------------------------------------------
+
+  // IDs der Journale mit dieser Kategorie bzw. diesem Schlagwort
+  private journalsWith(kind: TaxonomyKind, id: string): string[] {
+    const t = TABLES[kind];
+    return (
+      this.db.prepare(`SELECT journal_id AS j FROM ${t.link} WHERE ${t.fk} = ?`).all(id) as { j: string }[]
+    ).map((r) => r.j);
+  }
 
   // «Zuletzt geändert» des Journals nachführen (Startseite «Zuletzt bearbeitet»)
   private touch(journalId: string): void {

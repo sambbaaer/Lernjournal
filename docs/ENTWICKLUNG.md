@@ -65,12 +65,12 @@ src/shared/bipla.ts    Vorschlag-Kategorien a–g aus dem Bildungsplan
 
 ## Journale
 ```
-src/shared/journal.ts       Typen, Labels, leere Abschnitte, plainTextOf (Suchtext)
+src/shared/journal.ts       Typen, Labels, leere Abschnitte, plainTextOf (Klartext)
 src/shared/school-year.ts   Lehrjahr/Semester aus Lehrbeginn (reine Kalenderrechnung)
 src/main/journal/           JournalService (Transaktionen + Suchindex) und IPC-Handler
 src/renderer/src/journal/   actions.ts, JournalList, JournalDocument, StatusBadge
 ```
-- Jede Änderung an einem Journal aktualisiert im selben Durchgang `journal_fts` (Suchindex).
+- Jede Änderung an einem Journal aktualisiert im selben Durchgang `journal_fts` (Suchindex, siehe «Fachbuch und Suche»).
 - Bilddateien werden beim Löschen **nach** dem erfolgreichen Commit entfernt.
 - Metadaten speichern nach 600 ms Ruhe und beim Verlassen der Ansicht; «Gespeichert» erscheint erst nach Bestätigung durch den Hauptprozess.
 
@@ -109,7 +109,7 @@ src/renderer/src/project/TaxonomyManager.tsx Verwaltung in den Einstellungen
 - **Eindeutige Namen:** Die Datenbank prüft mit `COLLATE NOCASE` (nur A–Z), der Dienst zusätzlich mit `nameKey()` (Umlaute, Unicode-NFC). Konflikte beim Umbenennen melden «… gibt es schon» und verweisen auf «Zusammenführen».
 - **Zuordnungen** stehen in `JournalSummary.categoryIds/tagIds` (eine Abfrage pro Tabelle für die ganze Liste). Zusammenführen/Löschen lädt die Journalliste neu.
 - Zuordnungen speichern sofort; die Kategorien-Auswahl wird bis zur Bestätigung optimistisch angezeigt und springt bei einem Fehler zurück.
-- Schlagwörter im Suchindex (`journal_fts`) folgen mit AJ-11.
+- Schlagwörter und Kategorien stehen im Suchindex; Zuordnen, Umbenennen, Zusammenführen und Löschen führen die betroffenen Journale im Index nach (AJ-11).
 
 ## Journal-Verknüpfungen
 ```
@@ -122,9 +122,27 @@ src/renderer/src/journal/JournalPicker.tsx Auswahldialog mit Suche (Combobox), a
 - **Verknüpfung** = Zeile in `journal_link` (Schema v1, keine Migration). Gespeichert in einer Richtung, angezeigt in beiden; die Datenbank verbietet Selbstlinks und die Gegenrichtung (`journal_link_undirected`). Doppeltes Verknüpfen ist kein Fehler, sondern «nichts zu tun».
 - **Link im Text** = Tiptap-Link mit `href` `lernjournal://journal/<uuid>`; `ALLOWED_LINK` lässt nur genau dieses Muster zu. «Erwähnt in» sucht das Ziel per `instr()` im gespeicherten JSON (kein Index nötig bei einigen hundert Journalen).
 - **Löschen** eines Journals entfernt in derselben Transaktion die Text-Links darauf (`stripJournalLinks`, Text bleibt) und führt den Suchindex der betroffenen Journale nach; Verknüpfungen fallen per `ON DELETE CASCADE` weg.
-- Die Auswahl sucht im Renderer über die bereits geladene Journalliste (`filterLinkCandidates`, Umlaute/ae-oe-ue egal). Die Volltextsuche über den Inhalt folgt mit AJ-11.
+- Die Auswahl sucht im Renderer über die bereits geladene Journalliste (`filterLinkCandidates`, Umlaute/ae-oe-ue egal) – bewusst nur Titel, Datum und Zuordnungen; die Volltextsuche über den Inhalt ist das Fachbuch (AJ-11).
 - Ein verknüpftes Journal öffnen (`openLinkedJournal`) speichert zuerst das aktuelle – sonst sähe das Ziel einen eben eingefügten Text-Link noch nicht.
 - Der Picker im Editor gibt den Fokus nicht selbst zurück (`restoreFocus={false}`), sonst springt die Einfügemarke an den Textanfang.
+
+## Fachbuch und Suche (AJ-11)
+```
+src/main/db/schema-v2.ts                     Suchindex v2 (Migration 2): eigene Spalten, Trigramm-Tokenizer
+src/main/search/projection.ts                Tiptap-JSON → Klartext (Text und Bildlegenden getrennt)
+src/main/search/fts-query.ts                 Eingabe → sichere FTS5-Abfrage (Wörter ≥ 3 Zeichen, AND, Varianten)
+src/main/search/search-index.ts              SearchIndex: sync, rebuild, ensureComplete, search
+src/main/search/search-handlers.ts           IPC search:query / search:rebuild
+src/shared/search.ts                         Typen, Markierungszeichen, parseMarked, queryWords
+src/renderer/src/fachbuch/fachbuch-logic.ts  Themen, Ausschnitt, verwandte Schlagwörter (reine Logik, getestet)
+src/renderer/src/fachbuch/FachbuchView.tsx   Ansicht: Suchfeld, Themen links, Treffer rechts
+```
+- **Index ist abgeleitet:** nie Datenquelle, jederzeit neu aufbaubar. Wer Journale, Titel, Inhalt oder Zuordnungen ändert, ruft in **derselben Transaktion** `search.sync(id)` bzw. `syncMany(ids)` auf. `JournalService` und `TaxonomyService` tun das bereits.
+- **Beim Öffnen** prüft `ensureComplete()` den Index (fehlende/verwaiste/doppelte Zeilen, FTS5-Integrität) und baut ihn bei Bedarf neu auf. Manuell: Einstellungen → «Suchindex neu aufbauen».
+- **Abfrage:** nie Nutzereingaben direkt an `MATCH` geben, immer über `buildFtsQuery()`. Wörter unter 3 Zeichen findet der Trigramm-Index nicht; die Oberfläche zeigt dann «Suchbegriffe ab 3 Zeichen».
+- **Markierung:** `highlight()`/`snippet()` liefern Treffer zwischen U+0002 und U+0003; die Oberfläche baut daraus `<mark>` (`parseMarked`), nie HTML. Farbe über Token `--color-highlight`.
+- **Fachbuch-Zustand** (Suchbegriff, Thema, Archiv) liegt im zentralen Zustand (`state.fachbuch`), damit die Suche beim Zurückkehren aus einem Journal erhalten bleibt; Projektwechsel setzt ihn zurück.
+- **Tests:** `src/main/search/search.test.ts` (Abfrage, Projektion, Index, Neuaufbau, Migration v1 → v2), `fachbuch-logic.test.ts`, `e2e/fachbuch.test.mjs`.
 
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.

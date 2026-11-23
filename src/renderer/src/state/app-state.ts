@@ -11,6 +11,7 @@ import type { ProjectInfo } from '@shared/ipc';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
 import { EMPTY_LINKS, type JournalLinks } from '@shared/links';
 import { EMPTY_TAXONOMY, type Taxonomy } from '@shared/taxonomy';
+import { INITIAL_FACHBUCH, type FachbuchState } from '../fachbuch/fachbuch-logic';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
 
@@ -47,6 +48,10 @@ export type AppState = {
   openJournalLinks: JournalLinks;
   // Kategorien und Schlagwörter des Projekts (AJ-09)
   taxonomy: Taxonomy;
+  // Fachbuch (AJ-11): Suchbegriff, gewähltes Thema, Archiv ein/aus. Im
+  // zentralen Zustand, damit die Suche erhalten bleibt, wenn man ein Journal
+  // aus den Treffern öffnet und wieder zum Fachbuch zurückkehrt.
+  fachbuch: FachbuchState;
 };
 
 export const initialState: AppState = {
@@ -67,6 +72,7 @@ export const initialState: AppState = {
   openJournal: null,
   openJournalLinks: EMPTY_LINKS,
   taxonomy: EMPTY_TAXONOMY,
+  fachbuch: INITIAL_FACHBUCH,
 };
 
 export type Action =
@@ -90,7 +96,8 @@ export type Action =
   | { type: 'journalOpened'; journal: JournalDetail }
   | { type: 'journalClosed' }
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
-  | { type: 'linksLoaded'; journalId: string; links: JournalLinks };
+  | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
+  | { type: 'fachbuchChanged'; change: Partial<FachbuchState> };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -136,6 +143,7 @@ export function reducer(state: AppState, action: Action): AppState {
         openJournal: null,
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
+        fachbuch: INITIAL_FACHBUCH,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
           : null,
@@ -153,6 +161,7 @@ export function reducer(state: AppState, action: Action): AppState {
         openJournal: null,
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
+        fachbuch: INITIAL_FACHBUCH,
       };
     case 'profileUpdated':
       return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
@@ -206,6 +215,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return state.openJournal?.id === action.journalId
         ? { ...state, openJournalLinks: action.links }
         : state;
+    case 'fachbuchChanged':
+      return { ...state, fachbuch: { ...state.fachbuch, ...action.change } };
   }
 }
 
