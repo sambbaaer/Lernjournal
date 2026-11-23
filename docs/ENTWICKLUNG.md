@@ -50,6 +50,19 @@ src/main/project/
 - **Regeln, die immer gelten müssen**, gehören als `CHECK`/`UNIQUE`/Fremdschlüssel ins Schema, nicht nur in den Code. Achtung SQLite: Ein `CHECK`, der `NULL` ergibt, gilt als erfüllt – darum `IS` statt `=` bei Funktionen wie `date()`.
 - Datenbankzugriffe nur im Hauptprozess; der Renderer bekommt Daten ausschliesslich über IPC.
 
+## Projekte (Hauptprozess)
+```
+src/main/project/
+  project-service.ts   anlegen, öffnen (Sperre → Integrität → Migration mit Backup), schliessen, Profil
+  project-handlers.ts  IPC-Handler: Freigabeliste, Zuletzt-Liste, automatisches Öffnen
+  path-guard.ts        nur Pfade aus Dialog/Zuletzt-Liste/Vorschlag
+  sync-detect.ts       OneDrive/Dropbox/… erkennen (Warnung)
+  recent.ts            Zuletzt-Liste in den Benutzerdaten (atomar geschrieben)
+src/shared/bipla.ts    Vorschlag-Kategorien a–g aus dem Bildungsplan
+```
+- Der Projektdienst kennt kein Electron (testbar mit Vitest); Dialoge und App-Pfade werden in `src/main/index.ts` hineingereicht.
+- E2E-Tests setzen `LERNJOURNAL_E2E_DIR`: eigene Benutzerdaten und «Dokumente» in einem Temp-Ordner (wirkt nur in der ungepackten App). `launchApp()` legt das Projekt über den echten Assistenten an.
+
 ## Oberfläche (Renderer)
 ```
 src/renderer/src/

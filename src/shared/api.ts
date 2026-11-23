@@ -1,10 +1,26 @@
 // Form der Brücke, die das Preload-Skript als `window.lernjournal` bereitstellt.
-// Bewusst fachlich benannt (app.getInfo), nicht technisch (invoke(channel)):
+// Bewusst fachlich benannt (project.open), nicht technisch (invoke(channel)):
 // Die Oberfläche kann keine beliebigen Kanäle ansprechen.
-import type { AppInfo, IpcResult } from './ipc';
+import type { IpcChannel, IpcRequest, IpcResponse, IpcResult } from './ipc';
+
+type Call<C extends IpcChannel> =
+  IpcRequest<C> extends undefined
+    ? () => Promise<IpcResult<IpcResponse<C>>>
+    : (req: IpcRequest<C>) => Promise<IpcResult<IpcResponse<C>>>;
 
 export interface LernjournalApi {
   app: {
-    getInfo(): Promise<IpcResult<AppInfo>>;
+    getInfo: Call<'app:getInfo'>;
+  };
+  project: {
+    getState: Call<'project:getState'>;
+    chooseFolder: Call<'project:chooseFolder'>;
+    inspectFolder: Call<'project:inspectFolder'>;
+    create: Call<'project:create'>;
+    open: Call<'project:open'>;
+    close: Call<'project:close'>;
+  };
+  profile: {
+    update: Call<'profile:update'>;
   };
 }

@@ -12,7 +12,8 @@ const trustedEvent = { senderFrame: { url: 'app://lernjournal/index.html' } };
 const isTrusted = (url: string) => url.startsWith('app://lernjournal/');
 
 function setup(overrides: Partial<Handlers> = {}) {
-  const handlers: Handlers = { 'app:getInfo': vi.fn(() => info), ...overrides };
+  // Für diese Tests genügt ein Kanal; die übrigen werden nie aufgerufen
+  const handlers = { 'app:getInfo': vi.fn(() => info), ...overrides } as unknown as Handlers;
   return { handlers, dispatch: createIpcDispatcher(handlers, isTrusted) };
 }
 

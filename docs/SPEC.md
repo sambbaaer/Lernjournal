@@ -71,6 +71,8 @@ Tastatur: Alt+D (Datei-Menü, Esc schliesst), Ctrl+S (sofort speichern), Ctrl+N,
 - **Persistenz:** SQLite über das eingebaute `node:sqlite` ([ADR 0001](adr/0001-sqlite-adapter-node-sqlite.md)), gekapselt in einer schmalen Repository-Schicht; WAL, `synchronous=FULL`, Migrationen, Foreign Keys und Transaktionen; Rich-Text-Abschnitte als Tiptap-JSON, Bilder separat im Projektordner über UUID/relative Pfade referenziert.
 - **Suche:** SQLite FTS5 mit extrahierter Klartextprojektion (Titel + Textabschnitte + Bildlegenden + Tags); Tokenizer `unicode61 remove_diacritics 2`, damit «Farbmessung» und «farbmessung» sowie Umlaut-Varianten treffen. Index rekonstruierbar (Befehl «Suchindex neu aufbauen»).
 - **Zeit:** Arbeitsdatum als lokales ISO-Datum; Zeitstempel UTC.
+- **Pfadfreigabe:** Der Hauptprozess akzeptiert vom Renderer nur Ordnerpfade, die aus dem nativen Dialog, der Zuletzt-Liste oder dem eigenen Vorschlag stammen (`PathGuard`).
+- **Start:** Das zuletzt verwendete Projekt wird beim Programmstart automatisch geöffnet; gelingt das nicht (gesperrt, verschoben), erscheint der Startbildschirm.
 - **Protokoll:** lokale Logdatei mit Rotation (ohne Inhalte der Journale), exportierbar für Support.
 
 ### Erlaubte Editor-Knoten (Whitelist)

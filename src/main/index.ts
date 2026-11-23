@@ -2,9 +2,11 @@
 // einzige Teil mit Zugriff auf Dateien (später auch auf die Datenbank).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { app, BrowserWindow, ipcMain, Menu, protocol, session, type WebContents } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, session, type WebContents } from 'electron';
 import { ipcContract } from '@shared/ipc';
 import { createIpcDispatcher } from './ipc-handler';
+import { createProjectHandlers } from './project/project-handlers';
+import { ProjectService } from './project/project-service';
 import {
   APP_ORIGIN,
   APP_SCHEME,
@@ -22,11 +24,28 @@ const rendererDir = path.join(import.meta.dirname, '../renderer');
 const preloadPath = path.join(import.meta.dirname, '../preload/index.cjs');
 const trusted = (url: string) => isTrustedUrl(url, devServerUrl);
 
+// Nur für automatische Tests der ungepackten App: eigene Verzeichnisse für
+// Benutzerdaten und «Dokumente», damit Tests nie echte Daten berühren.
+// Im gepackten Programm wirkungslos.
+const e2eDir = !app.isPackaged ? process.env['LERNJOURNAL_E2E_DIR'] : undefined;
+if (e2eDir) {
+  app.setPath('userData', path.join(e2eDir, 'userData'));
+  app.setPath('documents', path.join(e2eDir, 'Dokumente'));
+}
+
+// Höchstens ein geöffnetes Projekt pro App-Instanz
+const projects = new ProjectService({ appVersion: app.getVersion() });
+
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
 // weitere Fenster und <webview> sind blockiert (hardenWebContents). Auf das
 // globale app.enableSandbox() verzichten wir: Es zwingt auch den Netzwerkdienst
 // in die Sandbox und bricht damit Tests in Linux-Containern ab, ohne für die
 // Oberfläche mehr Schutz zu bringen. Der E2E-Test prüft sandbox:true.
+
+// Oberfläche ist Schweizer Hochdeutsch: Chromium-Sprache fest auf de-CH, damit
+// Datumsfelder (TT.MM.JJJJ), Rechtschreibprüfung und Zahlenformate passen –
+// auch auf Geräten mit englischem Windows.
+app.commandLine.appendSwitch('lang', 'de-CH');
 
 // Das eigene Protokoll muss VOR app.ready als «sicher» registriert werden.
 protocol.registerSchemesAsPrivileged([
@@ -123,6 +142,24 @@ function registerIpc() {
           node: process.versions.node,
         },
       }),
+      ...createProjectHandlers({
+        service: projects,
+        recentFile: path.join(app.getPath('userData'), 'recent-projects.json'),
+        documentsDir: app.getPath('documents'),
+        // Nativer Windows-Dialog (SPEC). Der gewählte Pfad wird freigegeben.
+        chooseFolder: async (purpose) => {
+          const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+          const options: Electron.OpenDialogOptions = {
+            title:
+              purpose === 'create' ? 'Ordner für das neue Lernjournal wählen' : 'Lernjournal-Projekt öffnen',
+            buttonLabel: purpose === 'create' ? 'Ordner wählen' : 'Öffnen',
+            defaultPath: app.getPath('documents'),
+            properties: ['openDirectory', 'createDirectory'],
+          };
+          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+          return r.canceled ? null : (r.filePaths[0] ?? null);
+        },
+      }),
     },
     trusted,
   );
@@ -191,3 +228,12 @@ function createMainWindow() {
 }
 
 app.on('window-all-closed', () => app.quit());
+
+// Beim Beenden Projekt sauber schliessen: WAL zurückschreiben, Sperre freigeben
+app.on('will-quit', () => {
+  try {
+    projects.close();
+  } catch (err) {
+    console.error('[projekt] Schliessen beim Beenden fehlgeschlagen:', err);
+  }
+});

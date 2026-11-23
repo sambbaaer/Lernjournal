@@ -21,6 +21,9 @@
   --color-border-subtle: #e6e6e6;
   --color-border-strong: #8a8a8a; /* Eingabefelder: 3.4:1 auf Weiss */
   --color-danger: #b10e1c; /* Fehler: 6.9:1 auf Weiss */
+  --color-danger-bg: #fdf3f4;
+  --color-warning: #8a5a00; /* Warnrand */
+  --color-warning-bg: #fff8e6; /* Warnfläche: Text #1f1f1f darauf 15:1 */
 }
 
 html,

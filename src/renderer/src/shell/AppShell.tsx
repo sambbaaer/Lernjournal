@@ -10,6 +10,9 @@ import { commands } from '../state/commands';
 import { nextRegion, REGIONS, type Region } from '../state/regions';
 import { matchesShortcut } from '../state/shortcuts';
 import { EinstellungenView, ExportView, FachbuchView, JournaleView, StartView } from '../views/Views';
+import { NewProjectWizard } from '../project/NewProjectWizard';
+import { SyncWarning } from '../project/Notices';
+import { Welcome } from '../project/Welcome';
 import { Backstage } from './Backstage';
 import { NavigationPane } from './NavigationPane';
 import { Ribbon } from './Ribbon';
@@ -44,8 +47,14 @@ export function AppShell({ version }: { version: string | null }) {
 
   // Fenstertitel: «Fachbuch – Lernjournal» (Electron übernimmt ihn in die Titelleiste)
   useEffect(() => {
-    document.title = state.backstage ? 'Datei – Lernjournal' : `${VIEW_LABELS[state.view]} – Lernjournal`;
-  }, [state.view, state.backstage]);
+    document.title = !state.project
+      ? state.wizardOpen
+        ? 'Neues Lernjournal – Lernjournal'
+        : 'Lernjournal'
+      : state.backstage
+        ? 'Datei – Lernjournal'
+        : `${VIEW_LABELS[state.view]} – Lernjournal`;
+  }, [state.view, state.backstage, state.project, state.wizardOpen]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -56,6 +65,8 @@ export function AppShell({ version }: { version: string | null }) {
         dispatch({ type: 'closeBackstage' });
         return;
       }
+      // Ohne geöffnetes Projekt (Startbildschirm/Assistent) keine App-Kürzel
+      if (!s.project || s.wizardOpen) return;
       // F6 / Umschalt+F6: zwischen Bereichen springen (nicht im Datei-Menü)
       if (e.key === 'F6' && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
@@ -100,7 +111,18 @@ export function AppShell({ version }: { version: string | null }) {
       >
         Zum Inhalt springen
       </a>
-      {state.backstage ? (
+      {!state.projectLoaded ? (
+        <main
+          className="flex flex-1 items-center justify-center bg-canvas text-sm text-ink-muted"
+          aria-busy="true"
+        >
+          Lädt …
+        </main>
+      ) : state.wizardOpen ? (
+        <NewProjectWizard />
+      ) : !state.project ? (
+        <Welcome />
+      ) : state.backstage ? (
         <Backstage
           page={state.backstage}
           version={version}
@@ -109,6 +131,12 @@ export function AppShell({ version }: { version: string | null }) {
       ) : (
         <>
           <Ribbon fileButtonRef={fileButtonRef} />
+          {state.project.syncProvider && !state.syncWarningDismissed && (
+            <SyncWarning
+              provider={state.project.syncProvider}
+              onDismiss={() => dispatch({ type: 'dismissSyncWarning' })}
+            />
+          )}
           <div className="flex min-h-0 flex-1">
             <NavigationPane />
             <main

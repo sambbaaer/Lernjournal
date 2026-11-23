@@ -47,6 +47,11 @@ export function StatusBar({ version }: { version: string | null }) {
         {state.notice && <span className="truncate">{state.notice}</span>}
       </div>
       <div className="flex shrink-0 items-center gap-4">
+        {state.project && (
+          <span className="max-w-64 truncate" title={state.project.path}>
+            {state.project.title}
+          </span>
+        )}
         <span className="flex items-center gap-1" title="Lernjournal arbeitet ohne Internet und ohne Konto">
           <WifiOff aria-hidden="true" size={14} />
           Offline

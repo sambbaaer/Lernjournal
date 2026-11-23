@@ -6,6 +6,10 @@ export type View = 'start' | 'journale' | 'fachbuch' | 'export' | 'einstellungen
 export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren';
 export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' | 'info';
 
+import type { ProjectInfo } from '@shared/ipc';
+
+export type RecentProject = { path: string; title: string; lastOpened: string };
+
 // Speicherstatus: nur Zustände, die auch WIRKLICH zutreffen dürfen (SPEC).
 // 'idle' = nichts zu speichern; die Statusleiste zeigt dann keinen Speicherhinweis.
 export type SaveStatus =
@@ -20,6 +24,15 @@ export type AppState = {
   notice: string | null;
   // Fokuswunsch, den eine Ansicht nach dem Rendern erfüllt (z. B. Suchfeld)
   focusRequest: 'fachbuch-search' | null;
+  // Projekt: null = keines geöffnet → Startbildschirm/Assistent
+  project: ProjectInfo | null;
+  projectLoaded: boolean; // erster Abruf beim Start erledigt?
+  recent: RecentProject[];
+  suggestedLocation: string;
+  // Assistent «Neues Lernjournal» sichtbar (auch wenn schon ein Projekt offen war)
+  wizardOpen: boolean;
+  // Cloud-Warnung für diese Sitzung ausgeblendet
+  syncWarningDismissed: boolean;
 };
 
 export const initialState: AppState = {
@@ -29,6 +42,12 @@ export const initialState: AppState = {
   saveStatus: { kind: 'idle' },
   notice: null,
   focusRequest: null,
+  project: null,
+  projectLoaded: false,
+  recent: [],
+  suggestedLocation: '',
+  wizardOpen: false,
+  syncWarningDismissed: false,
 };
 
 export type Action =
@@ -38,7 +57,14 @@ export type Action =
   | { type: 'closeBackstage' }
   | { type: 'setSaveStatus'; status: SaveStatus }
   | { type: 'notice'; text: string | null }
-  | { type: 'requestFocus'; target: AppState['focusRequest'] };
+  | { type: 'requestFocus'; target: AppState['focusRequest'] }
+  | { type: 'projectState'; project: ProjectInfo | null; recent: RecentProject[]; suggestedLocation: string }
+  | { type: 'projectOpened'; project: ProjectInfo }
+  | { type: 'projectClosed' }
+  | { type: 'profileUpdated'; profile: ProjectInfo['profile'] }
+  | { type: 'openWizard' }
+  | { type: 'closeWizard' }
+  | { type: 'dismissSyncWarning' };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -57,6 +83,43 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, notice: action.text };
     case 'requestFocus':
       return { ...state, focusRequest: action.target };
+    case 'projectState':
+      return {
+        ...state,
+        project: action.project,
+        recent: action.recent,
+        suggestedLocation: action.suggestedLocation,
+        projectLoaded: true,
+      };
+    case 'projectOpened': {
+      const p = action.project;
+      const recent = [
+        { path: p.path, title: p.title, lastOpened: new Date().toISOString() },
+        ...state.recent.filter((r) => r.path.toLowerCase() !== p.path.toLowerCase()),
+      ].slice(0, 10);
+      return {
+        ...state,
+        project: p,
+        recent,
+        wizardOpen: false,
+        backstage: null,
+        view: 'start',
+        syncWarningDismissed: false,
+        notice: p.migratedFromVersion
+          ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
+          : null,
+      };
+    }
+    case 'projectClosed':
+      return { ...state, project: null, backstage: null, view: 'start', notice: null };
+    case 'profileUpdated':
+      return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
+    case 'openWizard':
+      return { ...state, wizardOpen: true, backstage: null };
+    case 'closeWizard':
+      return { ...state, wizardOpen: false };
+    case 'dismissSyncWarning':
+      return { ...state, syncWarningDismissed: true };
   }
 }
 

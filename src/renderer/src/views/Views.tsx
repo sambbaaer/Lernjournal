@@ -1,10 +1,11 @@
 // Die fünf Hauptansichten. Bis Projekte und Journale existieren (AJ-03/AJ-05)
 // zeigen sie leere Zustände mit klaren Hinweisen statt Scheinfunktionen.
 import { useEffect, useRef } from 'react';
-import { BookOpen, FileOutput, FilePlus, NotebookPen, Search, Settings } from 'lucide-react';
+import { BookOpen, FileOutput, FilePlus, NotebookPen, Search } from 'lucide-react';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
+import { SettingsPanel } from '../project/SettingsPanel';
 import { EmptyState } from './EmptyState';
 
 function ViewFrame({
@@ -44,8 +45,13 @@ function NewJournalButton() {
 }
 
 export function StartView() {
+  const { state } = useApp();
+  const name = state.project?.profile.displayName.trim();
   return (
-    <ViewFrame title="Willkommen" actions={<NewJournalButton />}>
+    <ViewFrame
+      title={name ? `Willkommen, ${name.split(' ')[0]}` : 'Willkommen'}
+      actions={<NewJournalButton />}
+    >
       <section aria-labelledby="start-recent">
         <h2 id="start-recent" className="mb-2 text-base font-semibold">
           Zuletzt bearbeitet
@@ -136,9 +142,7 @@ export function ExportView() {
 export function EinstellungenView() {
   return (
     <ViewFrame title="Einstellungen">
-      <EmptyState icon={Settings} title="Profil, Speicherort und Backups">
-        Verfügbar, sobald ein Projekt geöffnet ist.
-      </EmptyState>
+      <SettingsPanel />
     </ViewFrame>
   );
 }

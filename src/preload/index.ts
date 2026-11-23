@@ -10,6 +10,17 @@ const api: LernjournalApi = {
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
   },
+  project: {
+    getState: () => ipcRenderer.invoke('project:getState'),
+    chooseFolder: (req) => ipcRenderer.invoke('project:chooseFolder', req),
+    inspectFolder: (req) => ipcRenderer.invoke('project:inspectFolder', req),
+    create: (req) => ipcRenderer.invoke('project:create', req),
+    open: (req) => ipcRenderer.invoke('project:open', req),
+    close: () => ipcRenderer.invoke('project:close'),
+  },
+  profile: {
+    update: (req) => ipcRenderer.invoke('profile:update', req),
+  },
 };
 
 contextBridge.exposeInMainWorld('lernjournal', api);

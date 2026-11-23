@@ -4,6 +4,9 @@ import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { ArrowLeft, FileDown, FilePlus, FolderOpen, Info, Settings, type LucideIcon } from 'lucide-react';
 import { useApp } from '../state/AppContext';
 import type { BackstagePage } from '../state/app-state';
+import { formatDateTime } from '../project/messages';
+import { ConfirmForce, ErrorMessage } from '../project/Notices';
+import { useProjectActions } from '../project/useProjectActions';
 import { handleRovingKeys } from './roving';
 
 const PAGES: { id: BackstagePage; label: string; icon: LucideIcon }[] = [
@@ -116,18 +119,9 @@ export function Backstage({
 function BackstageContent({ page, version }: { page: BackstagePage; version: string | null }) {
   switch (page) {
     case 'neu':
-      return (
-        <Placeholder title="Neues Projekt">
-          Hier legst du künftig einen Projektordner für dein Lernjournal an – lokal auf deinem Computer, ohne
-          Konto.
-        </Placeholder>
-      );
+      return <NewPage />;
     case 'oeffnen':
-      return (
-        <Placeholder title="Projekt öffnen">
-          Hier öffnest du künftig einen bestehenden Projektordner.
-        </Placeholder>
-      );
+      return <OpenPage />;
     case 'exportieren':
       return (
         <Placeholder title="Exportieren">
@@ -135,9 +129,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
         </Placeholder>
       );
     case 'einstellungen':
-      return (
-        <Placeholder title="Einstellungen">Profil, Speicherort, Word-Gestaltung und Backups.</Placeholder>
-      );
+      return <SettingsPage />;
     case 'info':
       return (
         <div className="max-w-2xl space-y-4 text-sm">
@@ -145,6 +137,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
           <p>
             <strong>Lernjournal</strong> {version && <>Version {version}</>}
           </p>
+          <ProjectLine />
           <p>
             Lernjournal hilft Lernenden Medientechnolog*innen EFZ, ihre Lerndokumentation (Lernberichte nach
             Art. 12 der Bildungsverordnung) zu führen und daraus ein persönliches Fachbuch aufzubauen.
@@ -171,6 +164,110 @@ function Placeholder({ title, children }: { title: string; children: React.React
       <h2 className="text-2xl font-semibold">{title}</h2>
       <p>{children}</p>
       <p className="text-ink-muted">Diese Funktion folgt in einem der nächsten Entwicklungsschritte.</p>
+    </div>
+  );
+}
+
+const primaryButton =
+  'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
+
+function ProjectLine() {
+  const { state } = useApp();
+  if (!state.project) return null;
+  return (
+    <p>
+      Geöffnetes Projekt: <strong>{state.project.title}</strong>
+      <br />
+      <span className="break-all text-ink-muted">{state.project.path}</span>
+    </p>
+  );
+}
+
+function NewPage() {
+  const { dispatch } = useApp();
+  return (
+    <div className="max-w-2xl space-y-3 text-sm">
+      <h2 className="text-2xl font-semibold">Neu</h2>
+      <p>
+        Ein neues Lernjournal ist ein eigener Ordner mit Datenbank, Bildern und Sicherungen. In der Regel
+        genügt ein Lernjournal für die ganze Lehre.
+      </p>
+      <button type="button" className={primaryButton} onClick={() => dispatch({ type: 'openWizard' })}>
+        Neues Lernjournal anlegen …
+      </button>
+    </div>
+  );
+}
+
+function OpenPage() {
+  const { state } = useApp();
+  const actions = useProjectActions();
+  return (
+    <div className="max-w-2xl space-y-4 text-sm">
+      <h2 className="text-2xl font-semibold">Öffnen</h2>
+      <button
+        type="button"
+        className={primaryButton}
+        onClick={() => void actions.chooseAndOpen()}
+        disabled={actions.busy}
+      >
+        Anderes Lernjournal öffnen …
+      </button>
+      {actions.error && <ErrorMessage>{actions.error}</ErrorMessage>}
+      {actions.confirmForce && (
+        <ConfirmForce
+          message={actions.confirmForce.message}
+          onConfirm={() => void actions.open(actions.confirmForce!.path, true)}
+          onCancel={() => actions.setConfirmForce(null)}
+        />
+      )}
+      {state.recent.length > 0 && (
+        <section aria-labelledby="bs-recent">
+          <h3 id="bs-recent" className="mb-2 font-semibold">
+            Zuletzt verwendet
+          </h3>
+          <ul className="divide-y divide-border-subtle rounded-md border border-border">
+            {state.recent.map((r) => {
+              const current = state.project?.path.toLowerCase() === r.path.toLowerCase();
+              return (
+                <li key={r.path}>
+                  <button
+                    type="button"
+                    onClick={() => void actions.open(r.path)}
+                    disabled={actions.busy}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-hover"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">
+                        {r.title} {current && <span className="font-normal text-ink-muted">(geöffnet)</span>}
+                      </span>
+                      <span className="block truncate text-xs text-ink-muted">{r.path}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-muted">{formatDateTime(r.lastOpened)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function SettingsPage() {
+  const { dispatch } = useApp();
+  return (
+    <div className="max-w-2xl space-y-3 text-sm">
+      <h2 className="text-2xl font-semibold">Einstellungen</h2>
+      <p>Profil, Fachrichtung, Lehrbeginn und Speicherort deines Lernjournals.</p>
+      <button
+        type="button"
+        className={primaryButton}
+        onClick={() => dispatch({ type: 'navigate', view: 'einstellungen' })}
+      >
+        Einstellungen öffnen
+      </button>
     </div>
   );
 }

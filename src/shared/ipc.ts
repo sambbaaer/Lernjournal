@@ -18,10 +18,112 @@ export const AppInfoSchema = z.object({
 });
 export type AppInfo = z.infer<typeof AppInfoSchema>;
 
+// --- Projekt und Profil (AJ-03) ---------------------------------------------
+
+export const SPECIALIZATIONS = ['print', 'printmediatechnik', 'siebdruck'] as const;
+export const SPECIALIZATION_LABELS: Record<(typeof SPECIALIZATIONS)[number], string> = {
+  print: 'Print',
+  printmediatechnik: 'Printmediatechnik',
+  siebdruck: 'Siebdruck',
+};
+
+// Ein ISO-Datum «JJJJ-MM-TT», das es auch wirklich gibt (kein 30. Februar)
+const IsoDate = z.string().refine((v) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}, 'Ungültiges Datum');
+
+// Pfade: nur Länge begrenzen – ob der Pfad erlaubt ist, entscheidet der
+// Hauptprozess (nur Ordner aus dem Dialog, der Zuletzt-Liste oder dem Vorschlag).
+const FolderPath = z.string().min(1).max(1024);
+
+export const ProfileSchema = z.object({
+  displayName: z.string().trim().max(100),
+  company: z.string().trim().max(150).nullable(),
+  apprenticeshipStart: IsoDate.nullable(),
+  specialization: z.enum(SPECIALIZATIONS),
+});
+export type Profile = z.infer<typeof ProfileSchema>;
+
+export const ProjectInfoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  path: z.string(),
+  createdAt: z.string(),
+  profile: ProfileSchema,
+  syncProvider: z.string().nullable(),
+  journalCount: z.number().int(),
+  // Wurde beim Öffnen auf ein neues Datenformat umgebaut? (Hinweis an Nutzer)
+  migratedFromVersion: z.number().int().nullable(),
+});
+export type ProjectInfo = z.infer<typeof ProjectInfoSchema>;
+
+export const RecentProjectSchema = z.object({ path: z.string(), title: z.string(), lastOpened: z.string() });
+
+export const FolderKindSchema = z.enum([
+  'new',
+  'empty',
+  'project',
+  'not-empty',
+  'not-allowed',
+  'not-a-folder',
+]);
+export type FolderKind = z.infer<typeof FolderKindSchema>;
+
+export const OpenResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('opened'), project: ProjectInfoSchema }),
+  z.object({ status: z.literal('locked-here') }),
+  z.object({
+    status: z.literal('locked-elsewhere'),
+    holder: z.object({ hostname: z.string(), startedAt: z.string() }).nullable(),
+  }),
+  z.object({ status: z.literal('newer-version'), message: z.string() }),
+  z.object({ status: z.literal('not-a-project') }),
+  z.object({ status: z.literal('not-allowed') }),
+  z.object({ status: z.literal('corrupt'), problems: z.array(z.string()) }),
+]);
+export type OpenResult = z.infer<typeof OpenResultSchema>;
+
 export const ipcContract = {
   // Liefert App-Version und Laufzeit – erster, harmloser Befehl, an dem
   // das ganze Sicherheitsmuster getestet wird.
   'app:getInfo': { request: z.undefined(), response: AppInfoSchema },
+
+  // Aktuelles Projekt (oder keines), Zuletzt-Liste und vorgeschlagener Speicherort
+  'project:getState': {
+    request: z.undefined(),
+    response: z.object({
+      project: ProjectInfoSchema.nullable(),
+      recent: z.array(RecentProjectSchema),
+      suggestedLocation: z.string(),
+    }),
+  },
+  // Nativer Windows-Ordnerdialog. null = abgebrochen.
+  'project:chooseFolder': {
+    request: z.object({ purpose: z.enum(['create', 'open']) }),
+    response: z.object({ path: z.string().nullable() }),
+  },
+  // Was ist in diesem Ordner? (leer, schon ein Projekt …) + Cloud-Warnung
+  'project:inspectFolder': {
+    request: z.object({ path: FolderPath }),
+    response: z.object({ kind: FolderKindSchema, syncProvider: z.string().nullable() }),
+  },
+  'project:create': {
+    request: z.object({
+      path: FolderPath,
+      title: z.string().trim().min(1).max(120),
+      profile: ProfileSchema,
+      seedCategories: z.boolean(),
+    }),
+    response: OpenResultSchema,
+  },
+  'project:open': {
+    request: z.object({ path: FolderPath, force: z.boolean().optional() }),
+    response: OpenResultSchema,
+  },
+  'project:close': { request: z.undefined(), response: z.object({ closed: z.boolean() }) },
+  'profile:update': { request: ProfileSchema, response: ProfileSchema },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;

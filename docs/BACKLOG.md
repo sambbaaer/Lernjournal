@@ -18,7 +18,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 |---|---|---|---|---|
 | AJ-01 ✔ | Electron/Vite/React/TS/Tailwind Setup, Lint, Vitest, CI auf `windows-latest` | Devstart auf Windows; sichere Preload-Bridge; Fuses gesetzt; CI grün → [ADR 0003](adr/0003-toolchain-und-sicherheitsrahmen.md), [ENTWICKLUNG.md](ENTWICKLUNG.md) | 00a | M |
 | AJ-02 ✔ | Office-nahe App-Shell | Datei-Menü (Alt+D, Esc), vereinfachtes Menüband mit 4 Registern, Navigation, Dokumentfläche, Statusleiste; Tastatur inkl. F6, Pfeiltasten, Strg+Umschalt+F; axe-Prüfung WCAG 2.2 AA ohne Verstösse; 1024 × 640 und 150 % Zoom | 01 | M |
-| AJ-03 | Projektanlage/Öffnen/Profil, Onboarding | Frei wählbarer lokaler Ordner; Profil mit Name, Fachrichtung (R-04, Standard Print), Lehrbeginn; Hinweis inoffizielles Hilfsmittel (R-14); OneDrive-Warnung | 02, 04 | M |
+| AJ-03 ✔ | Projektanlage/Öffnen/Profil, Onboarding | Startbildschirm, Assistent in 3 Schritten (Vorschlag Dokumente\Lernjournal, Profil mit Fachrichtung Print als Standard, Kategorien a–g), Zuletzt-Liste, automatisches Öffnen beim Start, Rückfrage bei Sperre auf anderem PC, Cloud-Warnung, Pfad-Freigabeliste, Profil in Einstellungen | 02, 04 | M |
 | AJ-04 ✔ | SQLite-Schema/Migrationen/Lock | Schema v1 mit Constraints (Status, Lernort, Datum, JSON, Pfade, keine Doppel-/Selbstlinks), Migrationen mit Backup vorher und Rollback, Schutz vor neueren Dateiformaten, Integritätsprüfung; Projektsperre mit Erkennung verwaister Sperren und Fremd-PC-Rückfrage | 00a | M |
 
 ## Phase 2 – Editor
