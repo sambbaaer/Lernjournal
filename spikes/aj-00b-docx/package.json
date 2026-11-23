@@ -1,0 +1,22 @@
+{
+  "name": "aj-00b-docx",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spike: Tiptap-JSON → echtes DOCX (Listen, Tabelle, Bild+Legende, TOC-Feld, Seitenzahlen)",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node src/build.ts",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.35.0",
+    "@tiptap/extension-table": "^3.35.0",
+    "@tiptap/pm": "^3.35.0",
+    "@tiptap/starter-kit": "^3.35.0",
+    "docx": "^9.16.0"
+  },
+  "devDependencies": {
+    "fflate": "^0.8.3"
+  }
+}

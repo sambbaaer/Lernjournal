@@ -14,8 +14,8 @@ jobs:
       run:
         working-directory: spikes/aj-00a-sqlite
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm ci
@@ -33,10 +33,30 @@ jobs:
           Get-Content $report
           Copy-Item $report dist/aj00a-report-windows.json
           if ($p.ExitCode -ne 0) { throw "Spike fehlgeschlagen (Exitcode $($p.ExitCode))" }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: aj-00a-windows
           path: |
             spikes/aj-00a-sqlite/dist/aj00a-report-windows.json
             spikes/aj-00a-sqlite/dist/*.exe
+
+  aj-00b-docx:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: spikes/aj-00b-docx
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      # XML-Prüfungen (LibreOffice-Test wird auf Windows-Runnern übersprungen)
+      - run: npm test
+      # Beispiel-DOCX erzeugen und als Artefakt anbieten → in Word öffnen
+      - run: npm run build
+      - uses: actions/upload-artifact@v5
+        with:
+          name: aj-00b-docx-beispiele
+          path: spikes/aj-00b-docx/out/*.docx
