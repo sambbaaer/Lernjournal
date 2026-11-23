@@ -1,6 +1,6 @@
 # Lernjournal – umsetzbares Backlog
 
-Stand: 2026-11-23. **P0:** AJ-00–AJ-17. **P1:** AJ-18–AJ-23 (erst nach bestandener P0-Abnahme). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
+Stand: 2026-11-23. **P0:** AJ-00–AJ-17. **P1:** AJ-18–AJ-23 (erst nach bestandener P0-Abnahme; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
 
 Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung für eine Person mit KI-Unterstützung).
 
@@ -18,7 +18,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 |---|---|---|---|---|
 | AJ-01 | Electron/Vite/React/TS/Tailwind Setup, Lint, Vitest, CI auf `windows-latest` | Devstart auf Windows; sichere Preload-Bridge; Fuses gesetzt; CI grün | 00a | M |
 | AJ-02 | Office-nahe App-Shell | Datei-Menü, Ribbon-Tabs, Navigation, Dokumentfläche, Statusleiste, Tastatur inkl. F6; Kontrast AA | 01 | M |
-| AJ-03 | Projektanlage/Öffnen/Profil, Onboarding | Frei wählbarer lokaler Ordner; Profil mit Name, Fachrichtung (R-04), Lehrbeginn; OneDrive-Warnung | 02, 04 | M |
+| AJ-03 | Projektanlage/Öffnen/Profil, Onboarding | Frei wählbarer lokaler Ordner; Profil mit Name, Fachrichtung (R-04, Standard Print), Lehrbeginn; Hinweis inoffizielles Hilfsmittel (R-14); OneDrive-Warnung | 02, 04 | M |
 | AJ-04 | SQLite-Schema/Migrationen/Lock | DB und P0-Tabellen aus SPEC; Integritätstests; verwaister Lock erkannt | 00a | M |
 
 ## Phase 2 – Editor
@@ -52,17 +52,17 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 | AJ-14 | .ajournal Import/Export | versioniertes ZIP mit Prüfsummen; Import in neues Projekt; Angriffstests (ZIP-Slip, Zip-Bombe, falsche Hashes) | 07 | M |
 | AJ-15 | Backup/Restore | konsistent, Rotation, Wiederherstellung mit Vorschau; Export-Erinnerung nach 30 Tagen | 04, 14 | M |
 | AJ-16 | electron-builder Windows | Installer ohne Adminrechte + portable EXE; Code-Signing vorbereitet; IT-Merkblatt; Offline-Test | 01 | M |
-| AJ-17 | Ende-zu-Ende-Abnahme | alle 11 P0-Tests aus SPEC bestanden, Pilot mit 3–5 Lernenden | alle | M |
+| AJ-17 | Ende-zu-Ende-Abnahme | alle 11 P0-Tests aus SPEC bestanden, Pilot mit 3–5 Lernenden der Fachrichtung Print (Fokus: Wird das Journalführen einfacher?) | alle | M |
 
-## P1 – nach MVP (Reihenfolge nach Pilot-Feedback)
+## P1 – nach MVP
 
 | ID | Umsetzung | Abnahme | Grundlage |
 |---|---|---|---|
-| AJ-18 | PDF-Export | Einzel- und Sammel-PDF offline via `printToPDF`; Layout entspricht DOCX sinngemäss | R-08 |
+| AJ-18 | PDF-Export (zuerst) | Einzel- und Sammel-PDF offline via `printToPDF`; Schriften eingebettet, Text durchsuchbar, Bilder moderat komprimiert, Dateigrösse angezeigt; Layout entspricht DOCX sinngemäss | R-08 |
 | AJ-19 | Semesterbesprechung | Zeitraum wählen, Visumsblatt DOCX/PDF, «besprochen am» erfassen, Snapshot + Änderungsanzeige | R-06, R-07 |
-| AJ-20 | QV-Mappe | Auswahl + Reihenfolge, Zähler mit konfigurierbarer Empfehlung (Standard 12), Titelseite, TOC, DOCX + PDF | R-08 |
-| AJ-21 | Kompetenzkatalog | versionierter Katalog 34200 offline, Zuordnung Journal ↔ Handlungskompetenz/Leistungsziel, Filter nach Fachrichtung und Lernort | R-09 |
+| AJ-20 | QV-Mappe | Auswahl + Reihenfolge, Zähler «x von mindestens 12» (Print/Printmediatechnik, konfigurierbar), Titelseite, TOC; **PDF für PkOrg**, DOCX optional | R-08 |
+| AJ-21 | Kompetenzkatalog | versionierter Katalog 34200 offline inkl. Wortlaut, freiwillige Zuordnung Journal ↔ Handlungskompetenz/Leistungsziel, Standardfilter Print + Betrieb | R-09 |
 | AJ-22 | Abdeckungsübersicht | Matrix Bereiche a–g × Lehrjahr, Hinweis «Orientierung, keine amtliche Zuordnung» | R-09 |
 | AJ-23 | Qualitätshinweise und Vorlagen | nicht blockierende Hinweise (leere Reflexion, Bild ohne Legende); 2–3 Vorlagen (z. B. Maschine einrichten, Kundenauftrag, Störung beheben) | Bildungsplan |
 
-**Definition of Done:** offline ohne Anmeldung; sichere IPC; persistente Daten; Tests für Fehler und Normalfall; UI Schweizer Hochdeutsch, Office-vertraut, zugänglich (WCAG 2.2 AA sinngemäss); Dokumentation (SPEC/README/ADR) nachgeführt; keine vorgezogenen Funktionen aus späteren Prioritäten.
+**Definition of Done:** besteht das Leitprinzip «Einfachheit vor Vollständigkeit» (SPEC); offline ohne Anmeldung; sichere IPC; persistente Daten; Tests für Fehler und Normalfall; UI Schweizer Hochdeutsch, Office-vertraut, zugänglich (WCAG 2.2 AA sinngemäss); Dokumentation (SPEC/README/ADR) nachgeführt; keine vorgezogenen Funktionen aus späteren Prioritäten.

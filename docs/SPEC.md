@@ -1,13 +1,16 @@
-# Lernjournal – MVP-Spezifikation v1.1
+# Lernjournal – MVP-Spezifikation v1.2
 
-Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md)). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
+Stand: 2026-11-23 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
 
 ## Ziel und Scope
-Einzelplatz-Windows-App für Lerndokumentation über die vier Lehrjahre. Journal = unabhängiges, nach Word exportierbares Dokument und entspricht einer **Lerndokumentation nach BiVo Art. 12** (R-01). Fachbuch = dynamische Sicht auf dieselben Journale mit Kategorien, Tags, Links und Suche. Keine inhaltliche Doppelerfassung. Offline, keine Registrierung oder externe Verarbeitung. Abgeschlossene Journale sind nicht automatisch vom Lehrbetrieb freigegeben; kein offizielles Bewertungssystem (R-02).
+Einzelplatz-Windows-App für Lerndokumentation über die vier Lehrjahre. Journal = unabhängiges, nach Word exportierbares Dokument und entspricht einer **Lerndokumentation nach BiVo Art. 12** (R-01). Fachbuch = dynamische Sicht auf dieselben Journale mit Kategorien, Tags, Links und Suche. Keine inhaltliche Doppelerfassung. Offline, keine Registrierung oder externe Verarbeitung. Abgeschlossene Journale sind nicht automatisch vom Lehrbetrieb freigegeben; kein offizielles Bewertungssystem (R-02). Lernjournal ist ein **inoffizielles Hilfsmittel** (R-14). **Fachlicher Fokus: Fachrichtung Print**; Printmediatechnik und Siebdruck werden unterstützt, aber nicht priorisiert.
+
+### Leitprinzip: Einfachheit vor Vollständigkeit
+Die App soll Lernenden das Führen des Journals **erleichtern**, nicht zusätzliche Pflichten schaffen. Darum: sinnvolle Standardwerte (Fachrichtung Print, Lernort Betrieb, Arbeitsdatum heute), alle Zuordnungen (Kategorien, Tags, Kompetenzen) freiwillig, kein Feld blockiert das Speichern, ein neues Journal ist mit einem Klick und einem Titel angelegt. Jede neue Funktion muss diesen Grundsatz bestehen.
 
 ### Warum die App (offizieller Nutzen)
 1. **Pflicht erfüllen:** Lerndokumentation laufend führen, mind. einmal pro Semester mit der Berufsbildnerin/dem Berufsbildner besprechen und unterzeichnen lassen.
-2. **QV vorbereiten:** Bei der IPA (Print/Printmediatechnik) werden Lerndokumentationen eingereicht und dienen als Grundlage für das Fachgespräch und als Hilfsmittel (QUELLEN 2.3).
+2. **QV vorbereiten:** Bei der IPA (Print/Printmediatechnik) werden **mindestens 12 Lerndokumentationen** als **PDF in PkOrg** eingereicht; sie sind Grundlage für das Fachgespräch und Hilfsmittel während der IPA (QUELLEN 2.3, 4).
 3. **Fachbuch:** Über vier Jahre entsteht ein persönliches, durchsuchbares Nachschlagewerk.
 
 ### Zielgruppen
@@ -17,7 +20,7 @@ Einzelplatz-Windows-App für Lerndokumentation über die vier Lehrjahre. Journal
 
 ### Prioritäten
 **P0:** Journal erstellen/bearbeiten/duplizieren/archivieren/löschen; strukturierter Editor mit Bildern; Entwurf/Abgeschlossen; Lernort (R-03); Fachrichtung im Profil (R-04); Vorschlag-Kategorien a–g (R-05); Themen, Tags, Links, Volltextsuche; Word-Einzel-/Sammelexport mit Exporthinweis (R-10); Autosave, Projektimport/-export, Backup/Restore; Windows-Installer + portable EXE.
-**P1:** Semesterbesprechung mit Visumsblatt und Snapshot (R-06, R-07); QV-Mappe inkl. PDF (R-08); Kompetenzkatalog und Abdeckungsübersicht (R-09); weitere Vorlagen; Qualitätshinweise; konfigurierbare Word-Layouts.
+**P1:** PDF-Export (erstes P1-Ticket, Voraussetzung für die QV-Mappe); QV-Mappe als PDF für PkOrg (R-08); Semesterbesprechung mit Visumsblatt und Snapshot (R-06, R-07); Kompetenzkatalog und Abdeckungsübersicht (R-09); weitere Vorlagen; Qualitätshinweise; konfigurierbare Word-Layouts.
 **P2:** Berufsbildner-Feedback in der App, KI-Reflexion, Cloud-Sync, eigenständige Wissensseiten, frei importierbare DOCX-Templates, weitere Berufe (z. B. Polygraf EFZ) über Katalog, macOS-Build.
 
 ### Nicht-Ziele
@@ -40,7 +43,7 @@ Bildungsbericht (R-12), Notenberechnung, Prüfungsbewertung, Klassen- und Benutz
 5. **Einstellungen:** Profil, Speicherort, Word-Design, Backups und Wiederherstellung, Datenschutzhinweis.
 
 ## Journal
-Minimale Metadaten: UUID, Titel, Arbeitsdatum, Status, Lernort (`betrieb|uek|schule`, Standard `betrieb`), Erstell-/Änderungszeit. Profil: Name, Fachrichtung (`print|printmediatechnik|siebdruck`), optional Lehrbetrieb, Lehrbeginn.
+Minimale Metadaten: UUID, Titel, Arbeitsdatum, Status, Lernort (`betrieb|uek|schule`, Standard `betrieb`), Erstell-/Änderungszeit. Profil: Name, Fachrichtung (`print|printmediatechnik|siebdruck`, Standard `print`), optional Lehrbetrieb, Lehrbeginn.
 
 **Lehrjahr/Semester:** aus Lehrbeginn und Arbeitsdatum abgeleitet: Lehrjahr = volle Jahre seit Lehrbeginn + 1 (begrenzt auf 1–4), Semester = 1 in den ersten 6 Monaten des Lehrjahres, sonst 2. Pro Journal manuell überschreibbar (`school_year_override`). Ohne Lehrbeginn: keine Ableitung, Feld leer.
 
@@ -58,7 +61,7 @@ Office als **Interaktionsvorbild**, nicht als Markenkopie. Desktop-Titelleiste, 
 
 Tastatur: Ctrl+S (sofort speichern), Ctrl+N, Ctrl+F (im Journal), Ctrl+Shift+F (Fachbuch-Suche), Ctrl+B/I/U, Ctrl+Z/Y, F6 (zwischen Navigation, Ribbon, Dokument wechseln), Alt (Ribbon-Tastentipps, P1). Sichtbarer Tastaturfokus, Tooltips mit Tastenkürzel, kontrastreiche Zustände (WCAG 2.2 AA, R-13), Windows-Kontrastdesigns respektieren, Klickziele ≥ 24 px, brauchbare Skalierung 100–200 %, Fenster ab 1024 × 640 px. Texte in Schweizer Hochdeutsch («…», ss). Status «Speichert…», «Gespeichert», «Speichern fehlgeschlagen» nur bei zutreffendem Zustand.
 
-**Erster Start (Onboarding):** 3 Schritte – Projektordner wählen (Empfehlung: lokaler Ordner, nicht OneDrive-Root), Profil (Name, Fachrichtung, Lehrbeginn), Vorschlag-Kategorien übernehmen. Danach Beispieljournal anbieten (abwählbar).
+**Erster Start (Onboarding):** Hinweis «inoffizielles Hilfsmittel» (R-14), dann 3 Schritte – Projektordner wählen (Empfehlung: lokaler Ordner, nicht OneDrive-Root), Profil (Name, Fachrichtung, Lehrbeginn), Vorschlag-Kategorien übernehmen. Danach Beispieljournal anbieten (abwählbar).
 
 ## Architektur
 - **Electron Main:** Fenster, Dateioperationen, SQLite, Export, Backups. Einziger Ort mit FS-/DB-Rechten.
@@ -96,7 +99,7 @@ qv_selection(id,title,created_at), qv_selection_item(selection_id,journal_id,pos
 ```
 Integrität: keine doppelten Beziehungen oder Selbstlinks, referenzielle Integrität, Links in beide Richtungen anzeigen, Bilder nicht verwaisen lassen (Aufräumen beim Löschen und Prüfung «verwaiste Medien»). Fachbuch speichert keine Kopien. Snapshot einer Besprechung ist die einzige erlaubte Kopie und dient nur der Nachvollziehbarkeit (R-07).
 
-Kompetenzkatalog: als versionierte JSON-Datei mit der App ausgeliefert (Bildungsplan 34200, Stand 12.10.2018), beim Projektstart importiert; mehrere Versionen parallel möglich. Ob der volle Wortlaut der Leistungsziele mitgeliefert werden darf, ist offen (QUELLEN 4.3) – Fallback: Kennung + Kompetenztitel.
+Kompetenzkatalog: als versionierte JSON-Datei mit der App ausgeliefert (Bildungsplan 34200, Stand 12.10.2018, inkl. Wortlaut der Leistungsziele – Mitlieferung zulässig), beim Projektstart importiert; mehrere Versionen parallel möglich. Standardfilter Fachrichtung Print und Lernort Betrieb. Zuordnung immer freiwillig.
 
 ### Projektordner
 ```
@@ -117,11 +120,11 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 ## Word-Export
 `docx` erzeugt echte Word-Absätze, Überschriften, Listen, Tabellen, Bilder und Bildlegenden statt HTML-Pseudoexport. Abbildung: Abschnittstitel → Formatvorlage «Überschrift 1/2», Absatz → «Standard», Listen → Word-Nummerierung, Bild + Legende → Bild + Formatvorlage «Beschriftung» (mit `SEQ Abbildung`-Feld), Tabelle → Word-Tabelle mit Kopfzeile, interner Link → Text mit Journal-Titel (bzw. Textmarke im Sammel-DOCX). Metadaten-Kopfblock (Titel, Name, Datum, Lehrjahr, Lernort, Kategorien), optional Kopf-/Fusszeilen mit Seitenzahlen. Sammel-DOCX mit ausgewählter Reihenfolge, Titelseite, klaren Journal-Grenzen (Seitenumbruch) und aktualisierbarem Inhaltsverzeichnis-Feld (Hinweis: in Word «Felder aktualisieren»). Einfache konfigurierbare Standardgestaltung (Schrift, Grösse, Rand); beliebiger Word-Template-Import nicht P0. Export mit sicherem Dateidialog, ohne stilles Überschreiben. Änderungen in Word gehen **nicht** zurück in die App. Kein Word als Laufzeitvoraussetzung; Ergebnis zusätzlich mit LibreOffice prüfen.
 
-**PDF (P1):** für QV-Mappe und Besprechung aus derselben Dokumentstruktur über ein HTML-Druckbild und Electron `printToPDF` (offline, ohne Word). PDF ist Ausgabe, nicht Datenformat.
+**PDF (P1, erstes P1-Ticket):** Hauptformat für die QV-Einreichung in PkOrg (keine Maximalgrösse bekannt). Aus derselben Dokumentstruktur über ein HTML-Druckbild und Electron `printToPDF` (offline, ohne Word). Schriften einbetten, Bilder für Druck/Bildschirm moderat komprimieren (Ziel ca. 150–200 ppi), Dateigrösse nach Export anzeigen, durchsuchbarer Text, Lesezeichen je Journal wenn technisch möglich. PDF ist Ausgabe, nicht Datenformat.
 
 **Besprechung (P1, R-06):** DOCX/PDF mit Liste der Journale des Zeitraums, den Journalen selbst und einem Abschlussblatt «Besprochen am / Berufsbildner/in / Unterschrift / Bemerkungen».
 
-**QV-Mappe (P1, R-08):** Auswahl mit Reihenfolge, Zähler «x von empfohlen 12» (konfigurierbar, keine harte Sperre), Titelseite, Inhaltsverzeichnis, DOCX und PDF.
+**QV-Mappe (P1, R-08):** Auswahl mit Reihenfolge, Zähler «x von mindestens 12» (Standard für Print/Printmediatechnik, in den Einstellungen änderbar, keine harte Sperre), Titelseite, Inhaltsverzeichnis; **PDF als Hauptausgabe**, DOCX optional.
 
 ## Betrieb unter Windows
 - Installer per Benutzer **ohne Adminrechte** (NSIS, `perMachine: false`) plus portable EXE.
@@ -138,7 +141,7 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 - **CI:** GitHub Actions auf `windows-latest` (Build, Tests, Packaging).
 
 ## P0-Abnahme
-1. Projekt offline anlegen (inkl. Profil mit Fachrichtung und Lehrbeginn) und nach Neustart öffnen.
+1. Projekt offline anlegen (inkl. Profil mit Fachrichtung, Standard Print, und Lehrbeginn) und nach Neustart öffnen; neues Journal mit einem Klick und Titel anlegbar.
 2. Journal mit drei Abschnitten, mehreren Bildern/Legenden, Lernort und Metadaten dauerhaft speichern; Lehrjahr korrekt abgeleitet.
 3. Status, Duplizieren, Archivieren, Löschen funktionieren sicher (Löschen mit Bestätigung, Medien werden mit aufgeräumt).
 4. Mehrfachkategorien/Tags/Links ohne Inhaltsduplikation; Vorschlag-Kategorien a–g vorhanden und änderbar.
@@ -158,7 +161,8 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 | Projekt im OneDrive-Ordner | DB-Korruption, Konflikte | Warnung, Lock, Backups, Empfehlung lokaler Ordner |
 | Lernende verlieren Gerät/wechseln Betrieb | Datenverlust über 4 Jahre | Export-Erinnerung, `.ajournal` auf USB/NAS |
 | QV-Vorgaben ändern sich | falsche Hinweise | Zahlen konfigurierbar, Quellen mit Stand, keine harten Regeln |
-| Lizenz Bildungsplan-Wortlaut | Katalog nicht auslieferbar | Anfrage dpsuisse, Fallback Kennung + Titel |
+| App wird für offiziell gehalten | falsche Erwartungen | Hinweis «inoffizielles Hilfsmittel» (R-14), keine Verbandslogos |
+| Zu viele Felder/Funktionen | Lernende brechen ab | Leitprinzip Einfachheit, Pilot-Feedback vor P1 |
 | DOCX-TOC/Felder | Inhaltsverzeichnis leer | Hinweis in Word aktualisieren; Spike AJ-00b |
 | Nur Windows | Lernende mit Mac ausgeschlossen | Electron erlaubt später macOS-Build (P2) |
 

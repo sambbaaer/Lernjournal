@@ -21,7 +21,7 @@ Stand: 2026-11-23. Dieses Dokument trennt strikt zwischen **offiziellen Vorgaben
 | Q8 | Bundesgesetz über den Datenschutz (DSG), SR 235.1 | Bund | in Kraft 1.9.2023 | fedlex.admin.ch | ✔ (allgemein bekannt) |
 | Q9 | Web Content Accessibility Guidelines (WCAG) 2.2 | W3C | 2023 | w3.org | ✔ |
 
-Hinweis: fedlex.admin.ch und dpsuisse.ch waren aus der Planungsumgebung nicht direkt abrufbar. Die Inhalte stammen aus Suchauszügen und der BiPla-Datenbank «Lern mit Ben». **Vor Implementierung von AJ-18 bis AJ-21 sind Q1 und Q3 im Original gegenzulesen** (Ticket AJ-00c).
+Hinweis: fedlex.admin.ch und dpsuisse.ch waren aus der Planungsumgebung nicht direkt abrufbar. Die Inhalte stammen aus Suchauszügen und der BiPla-Datenbank «Lern mit Ben». **Vor Implementierung von AJ-18 bis AJ-21 sind Q1 und Q3 im Original gegenzulesen** (Ticket AJ-00c). Die QV-Eckwerte (12 Lerndokumentationen, PDF-Upload) sind fachlich bestätigt, siehe Abschnitt 4.
 
 ## 2. Was die Vorgaben sagen
 
@@ -37,9 +37,9 @@ Die Berufsbildnerin oder der Berufsbildner hält den Bildungsstand am Ende jedes
 
 ### 2.3 Qualifikationsverfahren (QV) – Q3/Q4/Q5 ◐
 - Fachrichtungen **Print** und **Printmediatechnik**: individuelle praktische Arbeit (**IPA**) mit Ausführung/Resultat, Dokumentation und Fachgespräch. Gewichtungen laut Ausführungsbestimmungen (Werte im Original prüfen).
-- Laut COPYPRINTSUISSE werden **mindestens 12 Lerndokumentationen mit der Aufgabenstellung eingereicht**; sie bilden die **Grundlage für das Fachgespräch** am Schluss der IPA.
+- Laut COPYPRINTSUISSE werden **mindestens 12 Lerndokumentationen mit der Aufgabenstellung eingereicht**; sie bilden die **Grundlage für das Fachgespräch** am Schluss der IPA. **Fachlich bestätigt (2026-11-23) für Print und Printmediatechnik.** ✔
 - Die Lerndokumentationen **dürfen während der praktischen Arbeit als Hilfsmittel** verwendet werden.
-- dpsuisse: Die IPA-Dokumentation wird in **PkOrg hochgeladen**; Fachkraft/Expertinnen können zusätzlich eine gedruckte Fassung verlangen.
+- dpsuisse: Die IPA-Dokumentation wird in **PkOrg hochgeladen**; Fachkraft/Expertinnen können zusätzlich eine gedruckte Fassung verlangen. Upload-Format **PDF** (fachlich bestätigt), keine Maximalgrösse bekannt. ✔
 - Fachrichtung **Siebdruck**: vorgegebene praktische Arbeit (**VPA**, ca. 20 Stunden im Lehrbetrieb, Q5). Ob dort Lerndokumentationen eingereicht werden: **?**
 - Widerspruch klären **?**: Eine dpsuisse-Information hält fest, das Fachgespräch beziehe sich «ausschliesslich auf die Projektarbeit». Ob das für Medientechnologe EFZ oder nur für andere Berufe gilt, ist offen.
 
@@ -71,21 +71,25 @@ Die App verarbeitet Personendaten (Name der lernenden Person, evtl. Fotos von Mi
 | R-01 | Ein Journaleintrag entspricht einer «Lerndokumentation» im Sinne der BiVo; App-Begriffe und Hilfetexte nennen den offiziellen Begriff mindestens einmal. | 2.1 | P0 |
 | R-02 | Die Inhalte bleiben **Eigentum und Werk der lernenden Person**; die App bewertet nicht und erzeugt keine Noten. | 2.1, AGENTS | P0 |
 | R-03 | Einträge sind einem Lernort zuordenbar (Betrieb, üK, Berufsfachschule); Standard «Betrieb». | 2.1, 2.4 | P0 |
-| R-04 | Profil enthält Fachrichtung (Print, Printmediatechnik, Siebdruck); Hilfetexte zum QV richten sich danach. | 2.3, 2.4 | P0 |
+| R-04 | Profil enthält Fachrichtung (Print, Printmediatechnik, Siebdruck), **Standard Print**; Hilfetexte zum QV richten sich danach. Fokus und Tests auf Print. | 2.3, 2.4 | P0 |
 | R-05 | Die 7 Handlungskompetenzbereiche a–g werden bei Projektanlage als **Vorschlag-Kategorien** angeboten (abwählbar, umbenennbar). | 2.4 | P0 |
 | R-06 | **Semesterbesprechung:** Journale eines Zeitraums als Übersicht/DOCX mit Feldern für Datum, Name und Unterschrift der Berufsbildnerin/des Berufsbildners ausgeben. In der App lässt sich «besprochen am …» festhalten (Selbstauskunft, keine digitale Signatur). | 2.1 | P1 |
 | R-07 | Nach einer Besprechung ist der besprochene Stand nachvollziehbar (Snapshot/Version); spätere Änderungen sind als solche erkennbar. | 2.1 | P1 |
-| R-08 | **QV-Mappe:** Auswahl von Journalen (Hinweis, wenn weniger als die geforderte Anzahl, z. B. 12), Sammel-DOCX **und PDF** für den Upload in PkOrg und für den Ausdruck. Die Zahl ist konfigurierbar, nicht fest codiert. | 2.3 | P1 |
-| R-09 | Handlungskompetenzen/Leistungsziele aus einem **versionierten, offline mitgelieferten Katalog** einem Journal zuordnen; Abdeckungsübersicht als Orientierung, **nicht** als amtliche Zuordnung oder Bewertung. | 2.4 | P1 |
+| R-08 | **QV-Mappe:** Auswahl von Journalen (Hinweis, wenn weniger als 12 – Standard für Print/Printmediatechnik, konfigurierbar), **PDF als Hauptformat** für den Upload in PkOrg, zusätzlich DOCX zum Weiterbearbeiten und Ausdruck. Dateigrösse nach Export anzeigen; Bilder für PDF moderat komprimieren. | 2.3 | P1 |
+| R-09 | Handlungskompetenzen/Leistungsziele (inkl. Wortlaut, Mitlieferung zulässig) aus einem **versionierten, offline mitgelieferten Katalog** einem Journal zuordnen – **freiwillig**, nie Pflicht beim Schreiben; Abdeckungsübersicht als Orientierung, **nicht** als amtliche Zuordnung oder Bewertung. | 2.4 | P1 |
 | R-10 | Vor jedem Export: Hinweis auf Geschäftsgeheimnisse, Kundendaten und Personen auf Bildern; einmalig pro Export bestätigbar. | 2.5 | P0 |
 | R-11 | Keine Übermittlung von Daten an Dritte; keine Telemetrie. Datenschutzhinweis in der App. | 2.5 | P0 |
 | R-12 | Der Bildungsbericht wird **nicht** in der App geführt (Aufgabe des Betriebs). | 2.2 | Nicht-Ziel |
 | R-13 | Bedienung nach WCAG 2.2 AA sinngemäss (Kontrast, Fokus, Tastatur, Skalierung). | Q9 | P0 |
+| R-14 | Lernjournal ist ein **inoffizielles Hilfsmittel** (nicht von SBFI, dpsuisse oder Prüfungsorganen herausgegeben). Hinweis in «Über» und Onboarding; keine Logos der Verbände; Quellen mit Stand verlinken. | Produktentscheid | P0 |
 
-## 4. Offene Fragen an Fachpersonen (vor P1)
-1. Gilt die Mindestzahl von 12 Lerndokumentationen weiterhin, und für welche Fachrichtungen? (Prüfungskommission/dpsuisse)
-2. Welches Dateiformat und welche Maximalgrösse akzeptiert PkOrg für Uploads?
-3. Darf die App den Wortlaut der Leistungsziele mitliefern? (Nutzungsrechte Bildungsplan bei dpsuisse anfragen; alternativ nur Kennung + Kurztitel.)
-4. Ist eine Revision der BiVo/des Bildungsplans Medientechnologe angekündigt? (Katalog muss dann mehrere Versionen parallel führen.)
-5. Bevorzugen Lehrbetriebe eine Unterschrift auf Papier, auf PDF oder genügt ein Gesprächsvermerk?
-6. Wie sieht die ZIP-Vorlage von COPYPRINTSUISSE (10 Register) aus – lohnt sich eine Exportvorlage, die diese Gliederung nachbildet?
+## 4. Geklärte Fragen (2026-11-23, Rückmeldung Projektleitung)
+1. **Mindestzahl 12** gilt weiterhin für Print und Printmediatechnik. **Fokus der App ist Print.**
+2. **Wortlaut der Leistungsziele** darf mitgeliefert werden, muss aber nicht. Die App ist **keine offizielle Anwendung**; Ziel ist, Lernenden das Führen des Journals zu vereinfachen (→ R-14, R-09 freiwillig).
+3. **PkOrg-Upload: PDF**, keine Maximalgrösse bekannt (→ R-08).
+
+## 5. Offene Fragen
+1. Ist eine Revision der BiVo/des Bildungsplans Medientechnologe angekündigt? (Katalog muss dann mehrere Versionen parallel führen.)
+2. Bevorzugen Lehrbetriebe eine Unterschrift auf Papier, auf PDF oder genügt ein Gesprächsvermerk?
+3. Wie sieht die ZIP-Vorlage von COPYPRINTSUISSE (10 Register) aus – lohnt sich eine Exportvorlage, die diese Gliederung nachbildet?
+4. Siebdruck (VPA): Werden Lerndokumentationen eingereicht? (niedrige Priorität, Fokus Print)
