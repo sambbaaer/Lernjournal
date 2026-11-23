@@ -26,12 +26,23 @@ const lockEnv = (pid = 100): Env => ({
   isProcessAlive: () => true,
   now: () => new Date(),
 });
-const service = (pid = 100) => new ProjectService({ appVersion: '0.1.0', lockEnv: lockEnv(pid), env: {} });
+// Alle im Test erzeugten Dienste merken und am Ende schliessen: Unter Windows
+// lässt sich ein Ordner mit geöffneter Datenbank nicht löschen (EPERM).
+let opened: ProjectService[] = [];
+const service = (pid = 100) => {
+  const s = new ProjectService({ appVersion: '0.1.0', lockEnv: lockEnv(pid), env: {} });
+  opened.push(s);
+  return s;
+};
 
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'lj-proj-'));
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() => {
+  opened.forEach((s) => s.close());
+  opened = [];
+  rmSync(root, { recursive: true, force: true });
+});
 
 describe('Projekt anlegen', () => {
   it('legt Ordnerstruktur, Datenbank, Profil und Vorschlag-Kategorien an', async () => {
