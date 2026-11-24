@@ -126,3 +126,44 @@ export function contentOf(db: Db) {
     media: all('SELECT * FROM media ORDER BY id'),
   };
 }
+
+// Zeitlimit für Tests, die viele echte Projekte, Sicherungen oder Übergaben
+// auf die Platte schreiben. Begründung: Die Datenbank läuft wie im Programm
+// mit synchronous=FULL – jedes COMMIT wartet, bis der Datenträger bestätigt.
+// Unter Windows (CI: virtuelle Platte, Virenscanner prüft jede neue Datei)
+// ist das 20- bis 30-mal langsamer als unter Linux; Tests, die lokal 0,5 s
+// brauchen, liegen dort bei 5–15 s. Nur für solche Tests verwenden, nicht
+// als Pauschale (Vitest-Standard bleibt 5 s).
+export const HEAVY_TIMEOUT = 60_000;
+
+// Schreibt mit `write(n)` (n = 1, 2, …) immer wieder in die Datenbank,
+// solange `task` läuft – nachgestellt wird Speichern während einer Sicherung
+// oder Übergabe im Hintergrund. Zwischen zwei Schreibvorgängen gibt die
+// Schleife die Ereignisschleife frei (setImmediate), damit `task`
+// weiterkommt und Schreibvorgänge mitten in dessen Kopierschritte fallen.
+// Endet sicher, sobald `task` fertig ist oder fehlschlägt – auch wenn ein
+// Test vorher abbricht, schreibt sie nie in eine bereits geschlossene
+// Datenbank (sonst «database is not open» als unbehandelter Fehler).
+export async function whileWriting<T>(
+  db: Db,
+  write: (n: number) => void,
+  task: () => Promise<T>,
+): Promise<{ result: T; writes: number }> {
+  let done = false;
+  let writes = 0;
+  const writer = (async () => {
+    while (!done && db.isOpen) {
+      await new Promise((r) => setImmediate(r));
+      if (done || !db.isOpen) break;
+      writes++;
+      write(writes);
+    }
+  })();
+  try {
+    const result = await task();
+    return { result, writes };
+  } finally {
+    done = true;
+    await writer;
+  }
+}

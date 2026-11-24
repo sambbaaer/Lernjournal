@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ipcContract } from '@shared/ipc';
 import type { Sections } from '@shared/journal';
 import { MAX_QUERY_WORDS, queryWords, searchableWords, stripMarks } from '@shared/search';
-import { checkIntegrity, openDatabase } from '../db/connection';
+import { checkIntegrity, openDatabase, transaction } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, migrate, MIGRATIONS } from '../db/migrations';
 import { JournalService } from '../journal/journal-service';
 import { LinkService } from '../links/link-service';
@@ -304,7 +304,11 @@ describe('Suchindex', () => {
     const ins = projects.db.prepare(
       "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, 'Bogen', '2026-01-01', '{}', ?, ?)",
     );
-    for (let i = 0; i < 205; i++) ins.run(`j${i}`, clock.toISOString(), clock.toISOString());
+    // In einer Transaktion: einzeln wäre jedes Einfügen ein eigenes COMMIT mit
+    // synchronous=FULL – unter Windows über 5 s für diesen einen Test.
+    transaction(projects.db, () => {
+      for (let i = 0; i < 205; i++) ins.run(`j${i}`, clock.toISOString(), clock.toISOString());
+    });
     search.rebuild();
     const r = search.search('bogen', { includeArchived: false });
     expect(r.hits).toHaveLength(200);

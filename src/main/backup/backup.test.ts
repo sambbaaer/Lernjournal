@@ -17,7 +17,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BACKUP_TEXTS, EXPORT_REMINDER } from '@shared/backup';
 import { ipcContract } from '@shared/ipc';
 import { EMPTY_SECTIONS } from '@shared/journal';
@@ -30,16 +30,23 @@ import {
   contentOf,
   createSampleProject,
   doc,
+  HEAVY_TIMEOUT,
   newProjectService,
   paragraph,
   PNG,
   projectServices,
   sha,
+  whileWriting,
 } from '../test-project';
 import { BackupError, type BackupErrorCode, type BackupManifest } from './backup-format';
 import { createBackupHandlers } from './backup-handlers';
 import { BackupService } from './backup-service';
 import { backupFile, listBackups, poolDir } from './backup-store';
+
+// Jeder Test legt echte Projekte (Datenbank mit synchronous=FULL, Bilder)
+// und Sicherungen bzw. Übergaben auf der Platte an – unter Windows dauert
+// das ein Vielfaches (Begründung bei HEAVY_TIMEOUT). Gilt nur für diese Datei.
+vi.setConfig({ testTimeout: HEAVY_TIMEOUT });
 
 const START = new Date(2026, 10, 24, 9, 30); // 24.11.2026, 09:30 Ortszeit
 const HOUR = 60 * 60 * 1000;
@@ -192,13 +199,15 @@ describe('Sicherung anlegen', () => {
   it('bleibt konsistent, während gleichzeitig gespeichert wird', async () => {
     const w = await sample();
     const db = w.projects.db;
-    // Grössere Datenbank, damit die Backup-API in mehreren Schritten kopiert
+    // Grössere Datenbank (rund 2,4 MB), damit die Kopie lange genug dauert,
+    // dass mehrere Speichervorgänge hineinfallen – aber nicht grösser, weil
+    // unter Windows jedes COMMIT (synchronous=FULL) auf den Datenträger wartet
     const filler = JSON.stringify({ ...EMPTY_SECTIONS, durchfuehrung: doc(paragraph('x'.repeat(4000))) });
     const ins = db.prepare(
       "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, ?, '2026-01-01', ?, ?, ?)",
     );
     transaction(db, () => {
-      for (let i = 0; i < 1500; i++) {
+      for (let i = 0; i < 600; i++) {
         const id = `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
         ins.run(id, `Füller ${i}`, filler, START.toISOString(), START.toISOString());
       }
@@ -206,29 +215,26 @@ describe('Sicherung anlegen', () => {
     // Jede Transaktion setzt zwei Journale auf denselben Stand und legt eines an:
     // In einer konsistenten Kopie sind die beiden Titel immer gleich.
     const pair = db.prepare('UPDATE journal SET title = ? WHERE id = ?');
-    let writes = 0;
-    let done = false;
-    const writer = (async () => {
-      while (!done) {
-        await new Promise((r) => setImmediate(r));
-        writes++;
+    transaction(db, () => {
+      pair.run('Stand 0', w.ids.a); // Ausgangsstand: beide Titel gleich
+      pair.run('Stand 0', w.ids.b);
+    });
+    const { result: r, writes } = await whileWriting(
+      db,
+      (n) =>
         transaction(db, () => {
-          pair.run(`Stand ${writes}`, w.ids.a);
-          pair.run(`Stand ${writes}`, w.ids.b);
+          pair.run(`Stand ${n}`, w.ids.a);
+          pair.run(`Stand ${n}`, w.ids.b);
           ins.run(
-            `11111111-0000-4000-8000-${String(writes).padStart(12, '0')}`,
-            `Neu ${writes}`,
+            `11111111-0000-4000-8000-${String(n).padStart(12, '0')}`,
+            `Neu ${n}`,
             JSON.stringify(EMPTY_SECTIONS),
             START.toISOString(),
             START.toISOString(),
           );
-        });
-      }
-    })();
-    const r = await w.backups.backupNow().finally(async () => {
-      done = true;
-      await writer;
-    });
+        }),
+      () => w.backups.backupNow(),
+    );
     expect(writes).toBeGreaterThan(0);
 
     const copy = openBackupDb(backupFile(w.dir, r.backup.id));
@@ -239,8 +245,8 @@ describe('Sicherung anlegen', () => {
     const added = (
       copy.prepare("SELECT count(*) AS n FROM journal WHERE title LIKE 'Neu %'").get() as { n: number }
     ).n;
-    // Stand N gehört zu genau N neuen Journalen (oder Ausgangsstand ohne Änderung)
-    expect(t(w.ids.a)).toBe(added === 0 ? 'Farbmessung am Druckbogen' : `Stand ${added}`);
+    // Stand N gehört zu genau N neuen Journalen (Stand 0 = vor dem ersten Speichern)
+    expect(t(w.ids.a)).toBe(`Stand ${added}`);
     copy.close();
   });
 
@@ -280,9 +286,14 @@ describe('Sicherung anlegen', () => {
 });
 
 describe('Rotation', () => {
-  it('behält die letzten 10 und je Monat die neueste Sicherung; Bilder ohne Verweis verschwinden aus dem Vorrat', async () => {
+  // Mit kleinerer Aufbewahrung (die letzten 4 statt 10), damit der Test mit
+  // echten Sicherungen auch unter Windows nur wenige Sekunden braucht. Die
+  // Regel selbst mit den echten Zahlen (BACKUP_POLICY) prüft rotation.test.ts.
+  const SMALL = { keepLatest: 4, keepMonths: 48 };
+
+  it('behält die letzten n und je Monat die neueste Sicherung; Bilder ohne Verweis verschwinden aus dem Vorrat', async () => {
     clock = new Date(2026, 8, 3, 10); // September
-    const w = await sample();
+    const w = await sample('quelle', SMALL);
     const extra = w.journals.create({ title: 'Mit eigenem Bild', workDate: '2026-09-03' });
     const img = w.media.add({ journalId: extra.id, data: PNG, originalName: 'Extra.png' });
     const sept1 = (await w.backups.backupNow()).backup.id;
@@ -294,10 +305,10 @@ describe('Rotation', () => {
     const oct2 = await changeAndBackup(w, 'Oktober 2');
     clock = new Date(2026, 10, 1, 10); // November
     const nov: string[] = [];
-    for (let i = 1; i <= 12; i++) nov.push(await changeAndBackup(w, `November ${i}`));
+    for (let i = 1; i <= 6; i++) nov.push(await changeAndBackup(w, `November ${i}`));
 
     const kept = await ids(w.dir);
-    expect(kept).toHaveLength(12);
+    expect(kept).toHaveLength(6);
     expect(kept).toEqual([...nov.slice(2).reverse(), oct2, sept3]);
     for (const gone of [sept1, sept2, oct1, nov[0], nov[1]]) expect(kept).not.toContain(gone);
     // Bild nur noch in gelöschten Sicherungen → aus dem Vorrat entfernt
@@ -321,16 +332,17 @@ describe('Rotation', () => {
   });
 
   it('räumt den Bildvorrat nicht auf, solange eine Sicherung unlesbar ist', async () => {
-    const w = await sample();
+    const w = await sample('quelle', SMALL);
     const extra = w.journals.create({ title: 'Mit Bild', workDate: '2026-11-24' });
     const img = w.media.add({ journalId: extra.id, data: PNG, originalName: 'x.png' });
-    await changeAndBackup(w, 'Eins');
+    const first = await changeAndBackup(w, 'Eins'); // einzige Sicherung mit dem Bild
     w.journals.delete(extra.id);
-    for (let i = 0; i < 9; i++) await changeAndBackup(w, `Stand ${i}`);
+    for (let i = 0; i < 3; i++) await changeAndBackup(w, `Stand ${i}`);
     const all = await ids(w.dir);
-    writeFileSync(backupFile(w.dir, all[3]!), 'kaputt'); // eine der verbleibenden
-    for (let i = 0; i < 3; i++) await changeAndBackup(w, `Mehr ${i}`);
-    expect(existsSync(path.join(poolDir(w.dir), `${img.id}.png`))).toBe(true);
+    writeFileSync(backupFile(w.dir, all[0]!), 'kaputt'); // bleibt auch nach zwei weiteren
+    for (let i = 0; i < 2; i++) await changeAndBackup(w, `Mehr ${i}`);
+    expect(await ids(w.dir)).not.toContain(first); // weggefallen …
+    expect(existsSync(path.join(poolDir(w.dir), `${img.id}.png`))).toBe(true); // … Bild bleibt
   });
 });
 

@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipcContract } from '@shared/ipc';
 import { EMPTY_SECTIONS } from '@shared/journal';
 import { openDatabase } from '../db/connection';
@@ -25,19 +25,29 @@ import { OpenedProjects } from '../project/project-handlers';
 import { DB_FILE, ProjectService } from '../project/project-service';
 import { ARCHIVE_FORMAT_VERSION, type ArchiveErrorCode, type Manifest } from './archive-format';
 import { writeProjectArchive } from './archive-export';
+import { snapshotDatabase } from './archive-db';
 import { createArchiveHandlers } from './archive-handlers';
 import { inspectArchive, verifyArchive } from './archive-import';
 import {
   contentOf,
   createSampleProject,
+  HEAVY_TIMEOUT,
   newProjectService,
   PNG,
   projectServices,
   sha,
   type ProjectServices,
+  whileWriting,
 } from '../test-project';
 
+// Jeder Test legt echte Projekte (Datenbank mit synchronous=FULL, Bilder)
+// und Sicherungen bzw. Übergaben auf der Platte an – unter Windows dauert
+// das ein Vielfaches (Begründung bei HEAVY_TIMEOUT). Gilt nur für diese Datei.
+vi.setConfig({ testTimeout: HEAVY_TIMEOUT });
+
 const NOW = new Date(2026, 10, 24, 9, 30);
+// Füller-Journale zu je 4000 Zeichen für den Konsistenztest (rund 2,4 MB)
+const FILLER_ROWS = 600;
 
 let root: string;
 let opened: ProjectService[] = [];
@@ -183,6 +193,10 @@ describe('Export: versioniertes ZIP mit Prüfsummen', () => {
     // Früher: Backup-API direkt aus der Verbindung des Programms → schrieb
     // diese während eines Kopierschritts, brach SQLite mit SQLITE_LOCKED ab.
     // Jetzt: eigene, nur lesende Verbindung, ein Schritt (archive-db.ts).
+    // Zuerst die Kopie selbst, viele Male (schnell, ohne ZIP): Die alte
+    // Umsetzung scheitert hier zuverlässig nach wenigen Runden. Dann eine
+    // ganze Übergabe als Integrationsprobe. Bewusst knapp bemessen, weil
+    // unter Windows jedes COMMIT (synchronous=FULL) auf den Datenträger wartet.
     const src = await sampleProject();
     const db = src.projects.db;
     const big = JSON.stringify({ ...EMPTY_SECTIONS, reflexion: { type: 'doc', content: [] } });
@@ -190,40 +204,47 @@ describe('Export: versioniertes ZIP mit Prüfsummen', () => {
       "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, ?, '2026-01-01', ?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
     );
     db.exec('BEGIN');
-    for (let i = 0; i < 1500; i++)
+    for (let i = 0; i < FILLER_ROWS; i++)
       ins.run(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, 'x'.repeat(4000), big);
     db.exec('COMMIT');
-    for (let round = 0; round < 8; round++) {
-      let done = false;
-      let writes = 0;
-      const writer = (async () => {
-        while (!done) {
-          await new Promise((r) => setImmediate(r));
-          writes++;
-          db.exec('BEGIN IMMEDIATE');
-          db.prepare('UPDATE journal SET title = ? WHERE id IN (?, ?)').run(
-            `Stand ${writes}`,
-            src.ids.a,
-            src.ids.b,
-          );
-          db.exec('COMMIT');
-        }
-      })();
-      const file = path.join(root, `laufend-${round}.ajournal`);
-      await src.archive.exportTo(file).finally(async () => {
-        done = true;
-        await writer;
-      });
-      const files = unzipSync(readFileSync(file));
-      const tmp = path.join(root, `laufend-${round}.sqlite`);
-      writeFileSync(tmp, files['journal.sqlite']!);
-      const copy = openDatabase(tmp, { readOnly: true });
-      const t = copy.prepare('SELECT title FROM journal WHERE id IN (?, ?)').all(src.ids.a, src.ids.b) as {
-        title: string;
-      }[];
-      expect(t[0]!.title).toBe(t[1]!.title);
-      copy.close();
+    const update = db.prepare('UPDATE journal SET title = ? WHERE id IN (?, ?)');
+    const save = (n: number) => {
+      db.exec('BEGIN IMMEDIATE');
+      update.run(`Stand ${n}`, src.ids.a, src.ids.b);
+      db.exec('COMMIT');
+    };
+    save(0); // Ausgangsstand: beide Titel gleich
+    const sameTitles = (dbFile: string) => {
+      const copy = openDatabase(dbFile, { readOnly: true });
+      try {
+        const t = copy.prepare('SELECT title FROM journal WHERE id IN (?, ?)').all(src.ids.a, src.ids.b) as {
+          title: string;
+        }[];
+        expect(t[0]!.title).toBe(t[1]!.title);
+      } finally {
+        copy.close();
+      }
+    };
+
+    // Die Kopie wiederholt sich bei «gesperrt» bis zu dreimal (archive-db.ts) –
+    // das darf beim Speichern während der Kopie nie nötig sein.
+    const retried = vi.spyOn(console, 'warn');
+    let total = 0;
+    for (let round = 0; round < 20; round++) {
+      const file = path.join(root, `kopie-${round}.sqlite`);
+      const { writes } = await whileWriting(db, save, () => snapshotDatabase(db, file));
+      total += writes;
+      sameTitles(file);
     }
+    expect(total).toBeGreaterThan(0); // es wurde wirklich währenddessen gespeichert
+    expect(retried).not.toHaveBeenCalled();
+    retried.mockRestore();
+
+    const file = path.join(root, 'laufend.ajournal');
+    await whileWriting(db, save, () => src.archive.exportTo(file));
+    const tmp = path.join(root, 'laufend.sqlite');
+    writeFileSync(tmp, unzipSync(readFileSync(file))['journal.sqlite']!);
+    sameTitles(tmp);
   });
 
   it('schreibt atomar: bei einem Fehler bleibt keine halbe Datei zurück', async () => {
