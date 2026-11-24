@@ -1,5 +1,6 @@
 // Electron-Hauptprozess: startet die App, erstellt das Fenster und ist der
 // einzige Teil mit Zugriff auf Dateien (später auch auf die Datenbank).
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -36,6 +37,17 @@ import { ProjectService } from './project/project-service';
 import { createSearchHandlers } from './search/search-handlers';
 import { SearchIndex } from './search/search-index';
 import {
+  buildReport,
+  checkDocxFile,
+  findArchive,
+  readSelfTestConfig,
+  rendererScript,
+  reportFile,
+  SELF_TEST_TIMEOUT_MS,
+  SelfTestRun,
+  type FlowResult,
+} from './self-test';
+import {
   APP_ORIGIN,
   APP_SCHEME,
   contentSecurityPolicy,
@@ -59,6 +71,22 @@ const e2eDir = !app.isPackaged ? process.env['LERNJOURNAL_E2E_DIR'] : undefined;
 if (e2eDir) {
   app.setPath('userData', path.join(e2eDir, 'userData'));
   app.setPath('documents', path.join(e2eDir, 'Dokumente'));
+}
+
+// Selbsttest (self-test.ts, AJ-16): nur mit LERNJOURNAL_SMOKE_TEST, auch im
+// gepackten Programm – dort kann sich kein Testwerkzeug verbinden. Benutzerdaten
+// und «Dokumente» liegen dann im angegebenen Arbeitsordner.
+let selfTest: SelfTestRun | null = null;
+try {
+  const config = readSelfTestConfig(process.env);
+  if (config) selfTest = new SelfTestRun(config);
+} catch (err) {
+  console.error(`[selbsttest] ${(err as Error).message}`);
+  process.exit(2);
+}
+if (selfTest?.config.dir) {
+  app.setPath('userData', path.join(selfTest.config.dir, 'userData'));
+  app.setPath('documents', path.join(selfTest.config.dir, 'Dokumente'));
 }
 
 // Sicheres Schliessen des Hauptfensters (siehe close-guard.ts)
@@ -221,8 +249,44 @@ function lockDownSession() {
       u.startsWith('blob:') ||
       (devServerUrl !== undefined &&
         (u.startsWith(devServerUrl) || u.startsWith(devServerUrl.replace(/^http/, 'ws'))));
+    if (!allowed) selfTest?.blockedRequests.push(u);
     callback({ cancel: !allowed });
   });
+  // Rechtschreibprüfung: Wo Chromium Hunspell-Wörterbücher verwendet, lädt es
+  // sie sonst von einem Google-Server – an session.webRequest vorbei (gefunden
+  // mit dem Netzwerkprotokoll des Selbsttests, AJ-16). Die Adresse zeigt darum
+  // auf das eigene Protokoll; dort gibt es keine Wörterbücher, es entsteht
+  // keine Verbindung ins Netz. Was unter Windows geschieht, steht im Bericht
+  // des Selbsttests (Feld «spellcheck»).
+  ses.setSpellCheckerDictionaryDownloadURL(`${APP_ORIGIN}/spellcheck/`);
+  if (selfTest) {
+    const note = (what: string) => (_e: unknown, lang: string) =>
+      selfTest?.spellcheck.push(`${what} ${lang}`);
+    ses.on('spellcheck-dictionary-download-begin', note('download-begin'));
+    ses.on('spellcheck-dictionary-download-success', note('download-success'));
+    ses.on('spellcheck-dictionary-download-failure', note('download-failure'));
+    ses.on('spellcheck-dictionary-initialized', note('initialized'));
+  }
+}
+
+// Native Dialoge. Im Selbsttest bestätigt ein Speichern-Dialog den Vorschlag,
+// ohne sich zu zeigen, und ein Öffnen-Dialog gilt als abgebrochen.
+async function chooseSavePath(options: Electron.SaveDialogOptions): Promise<string | null> {
+  if (selfTest) {
+    const chosen = options.defaultPath ?? null;
+    if (chosen) selfTest.saved.push(chosen);
+    return chosen;
+  }
+  const win = mainWindow();
+  const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+  return r.canceled || !r.filePath ? null : r.filePath;
+}
+
+async function chooseOpenPath(options: Electron.OpenDialogOptions): Promise<string | null> {
+  if (selfTest) return null;
+  const win = mainWindow();
+  const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  return r.canceled ? null : (r.filePaths[0] ?? null);
 }
 
 // Hauptfenster (es gibt nur eines) – Ziel für Dialoge und Fortschrittsmeldungen
@@ -251,18 +315,14 @@ function registerIpc() {
         recentFile: path.join(app.getPath('userData'), 'recent-projects.json'),
         documentsDir: app.getPath('documents'),
         // Nativer Windows-Dialog (SPEC). Der gewählte Pfad wird freigegeben.
-        chooseFolder: async (purpose) => {
-          const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-          const options: Electron.OpenDialogOptions = {
+        chooseFolder: (purpose) =>
+          chooseOpenPath({
             title:
               purpose === 'create' ? 'Ordner für das neue Lernjournal wählen' : 'Lernjournal-Projekt öffnen',
             buttonLabel: purpose === 'create' ? 'Ordner wählen' : 'Öffnen',
             defaultPath: app.getPath('documents'),
             properties: ['openDirectory', 'createDirectory'],
-          };
-          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-          return r.canceled ? null : (r.filePaths[0] ?? null);
-        },
+          }),
       }),
       'app:closeReady': async ({ saved }) => {
         await closeGuard?.onFlushResult(saved);
@@ -277,18 +337,14 @@ function registerIpc() {
         service: exporter,
         // Nativer Speichern-Dialog, Vorschlag im Ordner «exports» des Projekts.
         // showOverwriteConfirmation: bestehende Datei nie still überschreiben.
-        chooseSavePath: async (suggested) => {
-          const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-          const options: Electron.SaveDialogOptions = {
+        chooseSavePath: (suggested) =>
+          chooseSavePath({
             title: 'Als Word-Dokument speichern',
             buttonLabel: 'Speichern',
             defaultPath: path.join(projects.dir, 'exports', suggested),
             filters: [{ name: 'Word-Dokument', extensions: ['docx'] }],
             properties: ['showOverwriteConfirmation', 'createDirectory'],
-          };
-          const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
-          return r.canceled || !r.filePath ? null : r.filePath;
-        },
+          }),
         showInFolder: (file) => shell.showItemInFolder(file),
       }),
       ...createArchiveHandlers({
@@ -298,41 +354,29 @@ function registerIpc() {
         documentsDir: app.getPath('documents'),
         // Vorschlag «Dokumente»: Lernende wählen dort meist den USB-Stick o. Ä.
         // Eine Kopie im Projektordner selbst würde vor Geräteverlust nicht schützen.
-        chooseExportPath: async (suggested) => {
-          const win = mainWindow();
-          const options: Electron.SaveDialogOptions = {
+        chooseExportPath: (suggested) =>
+          chooseSavePath({
             title: 'Projekt übergeben (.ajournal)',
             buttonLabel: 'Speichern',
             defaultPath: path.join(app.getPath('documents'), suggested),
             filters: [{ name: 'Lernjournal-Projekt', extensions: ['ajournal'] }],
             properties: ['showOverwriteConfirmation', 'createDirectory'],
-          };
-          const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
-          return r.canceled || !r.filePath ? null : r.filePath;
-        },
-        chooseArchiveFile: async () => {
-          const win = mainWindow();
-          const options: Electron.OpenDialogOptions = {
+          }),
+        chooseArchiveFile: () =>
+          chooseOpenPath({
             title: 'Projekt importieren (.ajournal)',
             buttonLabel: 'Prüfen',
             defaultPath: app.getPath('documents'),
             filters: [{ name: 'Lernjournal-Projekt', extensions: ['ajournal'] }],
             properties: ['openFile'],
-          };
-          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-          return r.canceled ? null : (r.filePaths[0] ?? null);
-        },
-        chooseImportFolder: async () => {
-          const win = mainWindow();
-          const options: Electron.OpenDialogOptions = {
+          }),
+        chooseImportFolder: () =>
+          chooseOpenPath({
             title: 'Ordner für das importierte Lernjournal wählen',
             buttonLabel: 'Ordner wählen',
             defaultPath: app.getPath('documents'),
             properties: ['openDirectory', 'createDirectory'],
-          };
-          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-          return r.canceled ? null : (r.filePaths[0] ?? null);
-        },
+          }),
         showInFolder: (file) => shell.showItemInFolder(file),
         progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
       }),
@@ -341,17 +385,13 @@ function registerIpc() {
         projects,
         opened,
         documentsDir: app.getPath('documents'),
-        chooseRestoreFolder: async () => {
-          const win = mainWindow();
-          const options: Electron.OpenDialogOptions = {
+        chooseRestoreFolder: () =>
+          chooseOpenPath({
             title: 'Ordner für die wiederhergestellte Sicherung wählen',
             buttonLabel: 'Ordner wählen',
             defaultPath: app.getPath('documents'),
             properties: ['openDirectory', 'createDirectory'],
-          };
-          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-          return r.canceled ? null : (r.filePaths[0] ?? null);
-        },
+          }),
         // Gleicher Fortschritts-Kanal wie die Projektübergabe (archive.onProgress)
         progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
       }),
@@ -393,7 +433,7 @@ function createMainWindow() {
   });
 
   win.once('ready-to-show', () => {
-    if (process.env['LERNJOURNAL_SMOKE_TEST'] !== '1') win.show();
+    if (!selfTest) win.show();
   });
 
   // Vor dem Schliessen: Oberfläche speichern lassen, bei Fehler nachfragen
@@ -427,24 +467,69 @@ function createMainWindow() {
     void win.loadURL(`${APP_ORIGIN}/index.html`);
   }
 
-  // Rauchtest für das gepackte Programm (CI): prüft die Brücke und beendet sich.
-  // Nötig, weil Testwerkzeuge sich wegen der abgeschalteten Debug-Fuses nicht
-  // mit dem gepackten Programm verbinden können. Tut sonst nichts.
-  if (process.env['LERNJOURNAL_SMOKE_TEST'] === '1') {
-    win.webContents.once('did-finish-load', async () => {
-      const result = await win.webContents
-        .executeJavaScript(
-          `(async () => {
-             const info = await window.lernjournal.app.getInfo();
-             return { noRequire: typeof require === 'undefined', noProcess: typeof process === 'undefined', ok: info.ok };
-           })()`,
-        )
-        .catch(() => null);
-      const pass = Boolean(result && result.noRequire && result.noProcess && result.ok);
-      console.log(`[smoke] ${pass ? 'OK' : 'FEHLER'} ${JSON.stringify(result)}`);
-      app.exit(pass ? 0 : 1);
-    });
+  // Selbsttest (self-test.ts): läuft nach dem Laden der Oberfläche und beendet
+  // das Programm. Tut ohne LERNJOURNAL_SMOKE_TEST nichts.
+  if (selfTest) {
+    const run = selfTest;
+    win.webContents.once('did-finish-load', () => void runSelfTest(win, run));
   }
+}
+
+async function runSelfTest(win: BrowserWindow, run: SelfTestRun) {
+  const { mode, dir } = run.config;
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<null>(
+    (resolve) => (timer = setTimeout(() => resolve(null), SELF_TEST_TIMEOUT_MS)),
+  );
+  const flow = await Promise.race([
+    win.webContents.executeJavaScript(rendererScript(mode)).catch((err: unknown): FlowResult => ({
+      steps: {},
+      problems: [`Skriptfehler: ${(err as Error).message}`],
+    })) as Promise<FlowResult>,
+    timeout,
+  ]);
+  clearTimeout(timer);
+  const extra: string[] = [];
+  try {
+    if (mode === 'create') {
+      extra.push(...checkDocxFile(run.saved.find((f) => f.endsWith('.docx'))));
+    }
+    if (mode === 'reopen' && dir) {
+      // Projektübergabe auf einen «zweiten Computer»: .ajournal aus dem ersten
+      // Durchgang vollständig prüfen und in einen neuen Ordner importieren
+      const file = findArchive(app.getPath('documents'));
+      if (!file) extra.push('.ajournal-Datei aus dem ersten Durchgang fehlt');
+      else {
+        const imported = await archives.importTo(file, path.join(dir, 'Import'));
+        if (imported.journals !== 1 || imported.media !== 1) extra.push('Import: nicht 1 Journal und 1 Bild');
+      }
+    }
+  } catch (err) {
+    extra.push(`Prüfung im Hauptprozess: ${(err as Error).message}`);
+  }
+  const ses = session.defaultSession;
+  const report = buildReport(run, flow, extra, {
+    packaged: app.isPackaged,
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    platform: process.platform,
+    arch: process.arch,
+    locale: app.getLocale(),
+    portable: Boolean(process.env['PORTABLE_EXECUTABLE_DIR']),
+    execPath: process.execPath,
+    userData: app.getPath('userData'),
+    spellcheckerLanguages: ses.getSpellCheckerLanguages(),
+  });
+  if (dir) {
+    try {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(reportFile(dir, mode), JSON.stringify(report, null, 2));
+    } catch (err) {
+      console.error('[selbsttest] Bericht nicht geschrieben:', err);
+    }
+  }
+  console.log(`[smoke] ${report.pass ? 'OK' : 'FEHLER'} ${mode} ${JSON.stringify(report.problems)}`);
+  app.exit(report.pass ? 0 : 1);
 }
 
 app.on('window-all-closed', () => app.quit());

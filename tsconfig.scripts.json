@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    // Node führt diese Dateien direkt aus (Typen werden nur entfernt)
+    "erasableSyntaxOnly": true
+  },
+  "include": ["scripts/**/*.ts", "electron-builder.ts"]
+}
