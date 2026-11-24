@@ -5,7 +5,7 @@
 // 'journal' = ein einzelnes Journal ist geöffnet (Dokumentansicht)
 export type View = 'start' | 'journale' | 'journal' | 'fachbuch' | 'export' | 'einstellungen';
 export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren' | 'tabelle';
-export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' | 'info';
+export type BackstagePage = 'neu' | 'oeffnen' | 'importieren' | 'exportieren' | 'einstellungen' | 'info';
 
 import type { ProjectInfo } from '@shared/ipc';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
@@ -61,7 +61,13 @@ export type AppState = {
   // damit die Auswahl erhalten bleibt, wenn man zwischendurch ein Journal
   // öffnet und zur Ansicht «Export» zurückkehrt.
   collection: CollectionState;
+  // Projektübergabe .ajournal (AJ-14): offener Dialog «Projekt übergeben»
+  // bzw. «Projekt importieren». Bleibt beim Projektwechsel bestehen – der
+  // Import öffnet das neue Projekt und zeigt danach im selben Dialog das Ergebnis.
+  archiveDialog: ArchiveDialogMode | null;
 };
+
+export type ArchiveDialogMode = 'export' | 'import';
 
 export type ExportDialogState = { journalIds: string[]; collection?: { title: string } };
 export type CollectionState = { ids: string[]; title: string };
@@ -88,6 +94,7 @@ export const initialState: AppState = {
   fachbuch: INITIAL_FACHBUCH,
   exportDialog: null,
   collection: INITIAL_COLLECTION,
+  archiveDialog: null,
 };
 
 export type Action =
@@ -115,7 +122,9 @@ export type Action =
   | { type: 'fachbuchChanged'; change: Partial<FachbuchState> }
   | { type: 'openExport'; journalIds: string[]; collection?: { title: string } }
   | { type: 'closeExport' }
-  | { type: 'collectionChanged'; change: Partial<CollectionState> };
+  | { type: 'collectionChanged'; change: Partial<CollectionState> }
+  | { type: 'openArchive'; mode: ArchiveDialogMode }
+  | { type: 'closeArchive' };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -258,6 +267,11 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, exportDialog: null };
     case 'collectionChanged':
       return { ...state, collection: { ...state.collection, ...action.change } };
+    case 'openArchive':
+      // Das Datei-Menü schliesst; ein offener Word-Exportdialog ebenso (nur ein Dialog zugleich)
+      return { ...state, archiveDialog: action.mode, backstage: null, exportDialog: null };
+    case 'closeArchive':
+      return { ...state, archiveDialog: null };
   }
 }
 

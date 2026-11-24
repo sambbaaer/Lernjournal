@@ -121,6 +121,12 @@ export function createArchiveHandlers(deps: ArchiveHandlerDeps): Pick<Handlers, 
         if (!dir) return { target: null };
         const { kind } = deps.projects.inspectFolder(dir);
         if (kind === 'not-a-folder') throw new ArchiveError('target', 'Das ist kein Ordner.');
+        // Nicht in einen bestehenden Projektordner verschachteln
+        if (kind === 'project')
+          throw new ArchiveError(
+            'target',
+            'Dieser Ordner ist bereits ein Lernjournal. Bitte einen anderen Ordner wählen – ein Import überschreibt nie ein bestehendes Projekt.',
+          );
         const target =
           kind === 'new' || kind === 'empty'
             ? dir

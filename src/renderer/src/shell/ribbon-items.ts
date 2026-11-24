@@ -17,6 +17,7 @@ import {
   Columns2,
   FileDown,
   Files,
+  PackageOpen,
   FolderTree,
   Globe,
   Heading2,
@@ -309,6 +310,21 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           iconOnly: false,
           disabledReason: () => null,
           run: ({ dispatch }) => dispatch({ type: 'navigate', view: 'export' }),
+        },
+      ],
+    },
+    {
+      id: 'projekt',
+      label: 'Projekt',
+      items: [
+        {
+          // Ganzes Projekt als .ajournal (AJ-14), z. B. für einen neuen Computer
+          id: 'export-archive',
+          label: 'Projekt übergeben (.ajournal)',
+          icon: PackageOpen,
+          iconOnly: false,
+          disabledReason: () => null,
+          run: ({ dispatch }) => dispatch({ type: 'openArchive', mode: 'export' }),
         },
       ],
     },

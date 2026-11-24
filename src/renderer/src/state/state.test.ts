@@ -205,3 +205,24 @@ describe('Exportdialog im Zustand (AJ-12)', () => {
     expect(reducer(s, { type: 'projectClosed' }).collection).toEqual({ ids: [], title: '' });
   });
 });
+
+describe('Projektübergabe .ajournal im Zustand (AJ-14)', () => {
+  it('öffnet Export oder Import, schliesst Datei-Menü und Word-Exportdialog', () => {
+    let s = reducer(initialState, { type: 'openBackstage', page: 'exportieren' });
+    s = reducer(s, { type: 'openExport', journalIds: ['a'] });
+    s = reducer(s, { type: 'openArchive', mode: 'export' });
+    expect(s).toMatchObject({ archiveDialog: 'export', backstage: null, exportDialog: null });
+    s = reducer(s, { type: 'closeArchive' });
+    expect(s.archiveDialog).toBeNull();
+  });
+
+  it('der Import-Dialog bleibt offen, wenn das importierte Projekt geöffnet wird (Ergebnis anzeigen)', () => {
+    let s = reducer(initialState, { type: 'openArchive', mode: 'import' });
+    s = reducer(s, {
+      type: 'projectOpened',
+      project: { path: 'D:\\Neu', title: 'Neu', journalCount: 3 } as ProjectInfo,
+    });
+    expect(s.archiveDialog).toBe('import');
+    expect(s.project?.title).toBe('Neu');
+  });
+});

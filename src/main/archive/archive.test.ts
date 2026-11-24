@@ -648,6 +648,9 @@ describe('IPC: Handler und Vertrag', () => {
     expect(await handlers['archive:chooseImportTarget'](undefined)).toEqual({
       target: path.join(root, 'Lehre 2025–2029'),
     });
+    // Bestehendes Projekt als Ziel: abgelehnt, Wahl bleibt
+    answers.folder = src.projects.dir;
+    await expect(handlers['archive:chooseImportTarget'](undefined)).rejects.toMatchObject({ code: 'target' });
     answers.folder = null; // abgebrochen: Wahl bleibt
     expect(await handlers['archive:chooseImportTarget'](undefined)).toEqual({ target: null });
 

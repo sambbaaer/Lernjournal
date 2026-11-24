@@ -1,7 +1,17 @@
 // Datei-Menü im Stil der Office-«Backstage»-Ansicht: Projekt- und
 // Programmfunktionen getrennt vom Schreiben. Esc oder «Zurück» schliesst.
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import { ArrowLeft, FileDown, FilePlus, FolderOpen, Info, Settings, type LucideIcon } from 'lucide-react';
+import {
+  ArrowLeft,
+  FileDown,
+  FileInput,
+  FilePlus,
+  FolderOpen,
+  Info,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
+import { ARCHIVE_TEXTS } from '@shared/archive';
 import { useApp } from '../state/AppContext';
 import type { BackstagePage } from '../state/app-state';
 import { formatDateTime } from '../project/messages';
@@ -12,6 +22,7 @@ import { handleRovingKeys } from './roving';
 const PAGES: { id: BackstagePage; label: string; icon: LucideIcon }[] = [
   { id: 'neu', label: 'Neu', icon: FilePlus },
   { id: 'oeffnen', label: 'Öffnen', icon: FolderOpen },
+  { id: 'importieren', label: 'Importieren', icon: FileInput },
   { id: 'exportieren', label: 'Exportieren', icon: FileDown },
   { id: 'einstellungen', label: 'Einstellungen', icon: Settings },
   { id: 'info', label: 'Info', icon: Info },
@@ -122,6 +133,8 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
       return <NewPage />;
     case 'oeffnen':
       return <OpenPage />;
+    case 'importieren':
+      return <ImportPage />;
     case 'exportieren':
       return <ExportPage />;
     case 'einstellungen':
@@ -156,7 +169,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
 
 // Exportieren (AJ-12/13): geöffnetes Journal direkt als Word, sonst zur Ansicht
 // «Export» mit Auswahl eines Journals oder mehrerer Journale (Sammel-DOCX).
-// Die Projektsicherung (.ajournal, AJ-14) folgt – ohne Scheinknöpfe.
+// Darunter die Übergabe des ganzen Projekts als .ajournal (AJ-14).
 function ExportPage() {
   const { state, dispatch } = useApp();
   const open = state.openJournal;
@@ -187,8 +200,43 @@ function ExportPage() {
       </div>
       <p className="text-ink-muted">
         Mehrere Journale ergeben ein Dokument mit Titelseite, Inhaltsverzeichnis und jedem Journal auf einer
-        neuen Seite. Die vollständige Projektsicherung (.ajournal) folgt in einem der nächsten
-        Entwicklungsschritte.
+        neuen Seite.
+      </p>
+      <section aria-labelledby="bs-archive" className="space-y-3 border-t border-border-subtle pt-5">
+        <h3 id="bs-archive" className="text-base font-semibold">
+          {ARCHIVE_TEXTS.exportTitle}
+        </h3>
+        <p>{ARCHIVE_TEXTS.exportIntro}</p>
+        <button
+          type="button"
+          className={secondaryButton}
+          onClick={() => dispatch({ type: 'openArchive', mode: 'export' })}
+        >
+          Projekt übergeben …
+        </button>
+        <p className="text-ink-muted">{ARCHIVE_TEXTS.exportStorage}</p>
+      </section>
+    </div>
+  );
+}
+
+// Importieren (AJ-14): .ajournal-Datei als neues Lernjournal übernehmen
+function ImportPage() {
+  const { dispatch } = useApp();
+  return (
+    <div className="max-w-2xl space-y-3 text-sm">
+      <h2 className="text-2xl font-semibold">Importieren</h2>
+      <p>{ARCHIVE_TEXTS.importIntro}</p>
+      <button
+        type="button"
+        className={primaryButton}
+        onClick={() => dispatch({ type: 'openArchive', mode: 'import' })}
+      >
+        Projekt importieren (.ajournal) …
+      </button>
+      <p className="text-ink-muted">
+        Eine .ajournal-Datei erstellst du auf dem bisherigen Computer unter Datei → Exportieren → «Projekt
+        übergeben».
       </p>
     </div>
   );

@@ -12,6 +12,7 @@ import { matchesShortcut } from '../state/shortcuts';
 import { FachbuchView } from '../fachbuch/FachbuchView';
 import { EinstellungenView, ExportView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
+import { ArchiveDialog } from '../archive/ArchiveDialog';
 import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
@@ -106,13 +107,15 @@ export function AppShell({ version }: { version: string | null }) {
     [],
   );
 
-  // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu)
-  const projectId = state.project?.id;
+  // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu).
+  // Schlüssel mit Pfad: Eine importierte Kopie (AJ-14) hat dieselbe Projekt-ID
+  // wie das Original, liegt aber in einem anderen Ordner.
+  const projectKey = state.project ? `${state.project.id}|${state.project.path}` : null;
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectKey) return;
     void loadJournals(dispatch);
     void loadTaxonomy(dispatch);
-  }, [projectId, dispatch]);
+  }, [projectKey, dispatch]);
 
   // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»
   const wasOpen = useRef(false);
@@ -196,6 +199,8 @@ export function AppShell({ version }: { version: string | null }) {
           </>
         )}
         <StatusBar version={version} />
+        {/* Projektübergabe .ajournal (AJ-14): auch auf dem Startbildschirm (Import) */}
+        {state.archiveDialog && <ArchiveDialog mode={state.archiveDialog} />}
       </div>
     </EditorProvider>
   );

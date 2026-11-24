@@ -22,12 +22,11 @@ export type RawEntry = {
 
 export function rawZip(
   entries: RawEntry[],
-  options: { prefix?: Buffer; zip64Locator?: boolean; gapBeforeEnd?: Buffer } = {},
+  options: { zip64Locator?: boolean; gapBeforeEnd?: Buffer } = {},
 ): Buffer {
   const parts: Buffer[] = [];
   const central: Buffer[] = [];
-  let offset = options.prefix?.length ?? 0;
-  if (options.prefix) parts.push(options.prefix);
+  let offset = 0;
   for (const e of entries) {
     const data = Buffer.from(e.data);
     const packed = e.compress ? deflateRawSync(data) : data;
