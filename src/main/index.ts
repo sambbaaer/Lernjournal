@@ -21,6 +21,7 @@ import { ArchiveService } from './archive/archive-service';
 import { createBackupHandlers } from './backup/backup-handlers';
 import { BackupService } from './backup/backup-service';
 import { createCloseGuard } from './close-guard';
+import { detectDistribution } from './distribution';
 import { createExportHandlers } from './export/export-handlers';
 import { ExportService } from './export/export-service';
 import { convertWebpToPng } from './export/image-convert';
@@ -63,6 +64,12 @@ const devServerUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : un
 const rendererDir = path.join(import.meta.dirname, '../renderer');
 const preloadPath = path.join(import.meta.dirname, '../preload/index.cjs');
 const trusted = (url: string) => isTrustedUrl(url, devServerUrl);
+// Microsoft Store, portable, installiert oder Entwicklung (nur Anzeige, ADR 0008)
+const distribution = detectDistribution({
+  isPackaged: app.isPackaged,
+  windowsStore: process.windowsStore,
+  portableExecutableDir: process.env['PORTABLE_EXECUTABLE_DIR'],
+});
 
 // Nur für automatische Tests der ungepackten App: eigene Verzeichnisse für
 // Benutzerdaten und «Dokumente», damit Tests nie echte Daten berühren.
@@ -309,6 +316,7 @@ function registerIpc() {
         name: app.getName(),
         version: app.getVersion(),
         platform: process.platform,
+        distribution,
         versions: {
           electron: process.versions.electron,
           chrome: process.versions.chrome,
@@ -522,6 +530,9 @@ async function runSelfTest(win: BrowserWindow, run: SelfTestRun) {
     arch: process.arch,
     locale: app.getLocale(),
     portable: Boolean(process.env['PORTABLE_EXECUTABLE_DIR']),
+    // «store», wenn das Programm aus dem installierten MSIX läuft (CI prüft das)
+    distribution,
+    windowsStore: process.windowsStore === true,
     execPath: process.execPath,
     userData: app.getPath('userData'),
     spellcheckerLanguages: ses.getSpellCheckerLanguages(),

@@ -46,7 +46,7 @@ function currentRegion(): Region | null {
   return REGIONS.includes(r as Region) ? (r as Region) : null;
 }
 
-export function AppShell({ version }: { version: string | null }) {
+export function AppShell({ version, variant = null }: { version: string | null; variant?: string | null }) {
   const { state, dispatch } = useApp();
   const fileButtonRef = useRef<HTMLButtonElement>(null);
   // Aktueller Zustand für den Tastatur-Listener (ohne ihn ständig neu anzumelden)
@@ -169,6 +169,7 @@ export function AppShell({ version }: { version: string | null }) {
           <Backstage
             page={state.backstage}
             version={version}
+            variant={variant}
             onClose={() => dispatch({ type: 'closeBackstage' })}
           />
         ) : (

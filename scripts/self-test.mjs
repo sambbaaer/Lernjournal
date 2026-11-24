@@ -5,6 +5,13 @@
 // aufgebaut wurde.
 //
 //   node scripts/self-test.mjs <Programm> [--app <Ordner>] [--dir <Arbeitsordner>] [--phases create,reopen]
+//                              [--expect-distribution store|portable|installiert|entwicklung]
+//
+// --expect-distribution prüft, als was sich das Programm erkennt (Bericht, Feld
+// environment.distribution) – z. B. «store», wenn es aus dem installierten MSIX
+// läuft (AJ-16b). Das MSIX startet die CI über den Befehlszeilen-Aufruf
+// %LOCALAPPDATA%\Microsoft\WindowsApps\lernjournal.exe: nur so läuft es mit
+// Paketidentität und bekommt trotzdem Umgebungsvariablen und Argumente.
 //
 // Beispiele:
 //   node scripts/self-test.mjs dist/win-unpacked/Lernjournal.exe --phases fuses,create,reopen
@@ -79,6 +86,7 @@ export async function runSelfTest({
   phases = ['create', 'reopen'],
   timeoutMs = 180_000,
   netLog = true,
+  expectDistribution = null,
 }) {
   mkdirSync(dir, { recursive: true });
   const extraArgs = process.env.E2E_EXTRA_ARGS ? process.env.E2E_EXTRA_ARGS.split(' ').filter(Boolean) : [];
@@ -117,6 +125,9 @@ export async function runSelfTest({
     if (existsSync(reportPath)) {
       report = JSON.parse(readFileSync(reportPath, 'utf8'));
       if (!report.pass) problems.push(...report.problems);
+      const distribution = report.environment?.distribution;
+      if (expectDistribution && distribution !== expectDistribution)
+        problems.push(`Programm erkennt sich als «${distribution}», erwartet «${expectDistribution}»`);
     } else problems.push('Kein Bericht geschrieben');
     let network = [];
     if (netLogFile) {
@@ -143,6 +154,7 @@ async function main() {
       dir: { type: 'string' },
       phases: { type: 'string', default: 'create,reopen' },
       'timeout-s': { type: 'string', default: '180' },
+      'expect-distribution': { type: 'string' },
     },
   });
   const exe = positionals[0];
@@ -163,6 +175,7 @@ async function main() {
     dir,
     phases: values.phases.split(',').map((p) => p.trim()),
     timeoutMs: Number(values['timeout-s']) * 1000,
+    expectDistribution: values['expect-distribution'] ?? null,
   });
   for (const r of results) {
     console.log(`${r.problems.length ? 'FEHLER' : 'OK    '} ${r.phase}`);

@@ -4,16 +4,25 @@
 //     keine Quellen, Tests, Spikes, Golden Files, Dokumentation, Dev-Pakete
 //   - nichts ausgepackt, keine Update-Konfiguration, nur die gewählten Sprachen
 //   - Installer und portable EXE verlangen keine Adminrechte (Manifest asInvoker)
-// Optional: SHA-256-Prüfsummen der EXE-Dateien nach dist/SHA256SUMS.txt (IT-Merkblatt).
+//   - MSIX (Microsoft Store, AJ-16b): AppxManifest.xml mit Identität, Version
+//     (vierteilig, letzte Stelle 0), Sprachen, nur runFullTrust, nur der
+//     Befehlszeilen-Aufruf; eigene Logos statt Beispielbilder; Programm darin mit
+//     denselben Fuses und genau derselben app.asar wie win-unpacked
+// Optional: SHA-256-Prüfsummen der EXE- und MSIX-Dateien nach dist/SHA256SUMS.txt (IT-Merkblatt).
 //
 //   node scripts/verify-package.mjs [--dist dist] [--require-installers] [--checksums]
+// --require-installers verlangt Testinstaller, portable EXE und MSIX.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import config from '../electron-builder.ts';
+import { unzipSync } from 'fflate';
+import config, { storeVersion } from '../electron-builder.ts';
+import { APPX_LOGOS } from './appx-assets.ts';
 import {
   checkAppFiles,
+  checkAppxAssets,
+  checkAppxManifest,
   checkExecutionLevel,
   checkFuses,
   listAsarFiles,
@@ -103,7 +112,7 @@ for (const u of unpacked) {
   );
 }
 
-// Windows-Artefakte: Installer und portable EXE
+// Windows-Artefakte: Testinstaller (NSIS) und portable EXE
 const artifacts = [
   { label: 'Installer', file: path.join(dist, `${productName}-Setup-${version}.exe`) },
   { label: 'Portable EXE', file: path.join(dist, `${productName}-Portable-${version}.exe`) },
@@ -121,8 +130,69 @@ for (const a of artifacts) {
   );
 }
 
+// MSIX für den Microsoft Store
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const msixFile = path.join(dist, `${productName}-Store-${version}.msix`);
+if (existsSync(msixFile)) {
+  console.log(`\nMSIX (${path.basename(msixFile)}, ${mb(statSync(msixFile).size)})`);
+  const exeEntry = `app/${productName}.exe`;
+  const asarEntry = 'app/resources/app.asar';
+  // Nur die Dateien entpacken, die wir prüfen (das Paket ist gross)
+  const names = [];
+  const files = unzipSync(readFileSync(msixFile), {
+    filter: (f) => {
+      names.push(f.name);
+      return ['AppxManifest.xml', exeEntry, asarEntry].includes(f.name);
+    },
+  });
+  const appx = config.appx ?? {};
+  const manifest = files['AppxManifest.xml'] ? Buffer.from(files['AppxManifest.xml']).toString('utf8') : '';
+  report(
+    'AppxManifest.xml (Identität, Version, Sprachen, nur runFullTrust)',
+    manifest
+      ? checkAppxManifest(manifest, {
+          identityName: appx.identityName,
+          publisher: appx.publisher,
+          publisherDisplayName: appx.publisherDisplayName,
+          displayName: appx.displayName,
+          applicationId: appx.applicationId,
+          version: storeVersion(version),
+          languages: [appx.languages ?? []].flat(),
+          executable: `app\\${productName}.exe`,
+          minVersion: appx.minVersion,
+        })
+      : ['AppxManifest.xml fehlt'],
+  );
+  if (/PLATZHALTER/.test(manifest))
+    console.log('HINWEIS Identität mit Platzhaltern – nur zum Testen, nicht für den Store (docs/STORE.md)');
+  report(
+    'Logos (eigene, alle Standardgrössen)',
+    checkAppxAssets(
+      names,
+      APPX_LOGOS.filter((l) => l.required).map((l) => l.name),
+    ),
+  );
+  if (files[exeEntry]) {
+    report(
+      'Programm im MSIX: Electron-Fuses',
+      checkFuses(readFuseWire(files[exeEntry]), config.electronFuses ?? {}),
+    );
+  } else report('Programm im MSIX', [`Fehlt: ${exeEntry}`]);
+  const unpackedAsar = path.join(dist, 'win-unpacked', 'resources', 'app.asar');
+  report(
+    'app.asar im MSIX gleich wie in win-unpacked',
+    !files[asarEntry]
+      ? [`Fehlt: ${asarEntry}`]
+      : existsSync(unpackedAsar) && sha256(files[asarEntry]) !== sha256(readFileSync(unpackedAsar))
+        ? ['app.asar im MSIX weicht von win-unpacked ab']
+        : [],
+  );
+} else if (values['require-installers']) {
+  report('MSIX', [`Fehlt: ${path.basename(msixFile)}`]);
+}
+
 if (values.checksums) {
-  const exes = readdirSync(dist).filter((f) => f.endsWith('.exe'));
+  const exes = readdirSync(dist).filter((f) => f.endsWith('.exe') || f.endsWith('.msix'));
   const lines = exes.map(
     (f) =>
       `${createHash('sha256')

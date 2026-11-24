@@ -7,8 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Zwei unabhängige Jobs: Tests und Paket. So zeigt die CI auch dann, ob
-# Installer und portable EXE funktionieren, wenn ein Test rot ist (und umgekehrt).
+# Zwei unabhängige Jobs: Tests und Paket. So zeigt die CI auch dann, ob MSIX,
+# portable EXE und Testinstaller funktionieren, wenn ein Test rot ist (und
+# umgekehrt). Danach, nur als Hinweis: Zertifizierung des MSIX (WACK).
 jobs:
   windows:
     runs-on: windows-latest
@@ -27,10 +28,13 @@ jobs:
       # 2) App bauen und Ende-zu-Ende-Test mit Playwright (Sicherheitsgrenzen, Abläufe)
       - run: npm run test:e2e
 
-  # Paketierung (AJ-16): bauen, prüfen, gepackt starten, installieren, deinstallieren
+  # Paketierung (AJ-16, AJ-16b, ADR 0007/0008): alle Windows-Ziele bauen und
+  # prüfen, gepackt starten; MSIX (Store) mit Testzertifikat installieren,
+  # Selbsttest mit Paketidentität, deinstallieren; NSIS-Testinstaller installieren
+  # und deinstallieren; portable EXE starten.
   paket:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -39,22 +43,52 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # 3) Installer + portable EXE bauen (Fuses, Symbol). Unsigniert, solange kein
-      #    Zertifikat hinterlegt ist – siehe docs/ENTWICKLUNG.md «Code-Signing».
-      - name: Installer und portable EXE bauen
+      # 3) MSIX (Microsoft Store), portable EXE und NSIS-Testinstaller bauen (Fuses,
+      #    Symbol, Logos). Unsigniert; das MSIX trägt die Platzhalter-Identität,
+      #    solange keine LERNJOURNAL_STORE_* gesetzt sind (docs/STORE.md).
+      - name: MSIX, portable EXE und Testinstaller bauen
         run: npm run dist:win
 
-      # 4) Paket prüfen: Fuses wie konfiguriert, app.asar ohne Quellen/Tests/Spikes,
-      #    Installer, portable EXE und Programm verlangen keine Adminrechte
+      # 4) MSIX mit einem Testzertifikat signieren, das nur in diesem Lauf entsteht:
+      #    selbstsigniert, Antragsteller = Publisher-Platzhalter aus electron-builder.ts.
+      #    Der private Schlüssel verlässt den Runner nie (kein Export, danach gelöscht);
+      #    als Artefakt nur das öffentliche Zertifikat (.cer) zum Testen. Für den
+      #    Store ist keine eigene Signatur nötig – der Store signiert selbst.
+      - name: MSIX mit Testzertifikat signieren
+        id: msix
+        shell: pwsh
+        run: |
+          $id = node scripts/store-identity.mjs | Out-String | ConvertFrom-Json
+          if (-not $id.placeholder) { throw 'Die CI erwartet die Platzhalter-Identität (keine LERNJOURNAL_STORE_* setzen)' }
+          $msix = (Get-Item dist\Lernjournal-Store-*.msix).FullName
+          $cert = New-SelfSignedCertificate -Type Custom -Subject $id.publisher -KeyUsage DigitalSignature `
+            -FriendlyName 'Lernjournal Testzertifikat (nur CI)' -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}') -NotAfter (Get-Date).AddDays(14)
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe (Windows SDK) nicht gefunden' }
+          Write-Host "signtool: $($signtool.FullName)"
+          & $signtool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /s My $msix
+          if ($LASTEXITCODE -ne 0) { throw "signtool: Exitcode $LASTEXITCODE" }
+          Export-Certificate -Cert $cert -FilePath dist\Lernjournal-Testzertifikat.cer | Out-Null
+          Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey
+          Write-Host "Signiert: $msix mit $($id.publisher) (Fingerabdruck $($cert.Thumbprint))"
+          "identity=$($id.identityName)" >> $env:GITHUB_OUTPUT
+
+      # 5) Paket prüfen: Fuses wie konfiguriert, app.asar ohne Quellen/Tests/Spikes,
+      #    Testinstaller, portable EXE und Programm verlangen keine Adminrechte;
+      #    MSIX: Manifest (Identität, Version x.y.z.0, de-CH/de, nur runFullTrust,
+      #    nur Befehlszeilen-Aufruf), eigene Logos, gleiche app.asar; SHA-256 aller Dateien
       - name: Paket prüfen
         run: node scripts/verify-package.mjs --require-installers --checksums
 
       - name: Fuses anzeigen (@electron/fuses)
         run: npx electron-fuses read --app dist/win-unpacked/Lernjournal.exe
 
-      # 5) Offline-Test: ausgehende Verbindungen der App sperren. Der eigentliche
+      # 6) Offline-Test: ausgehende Verbindungen der App sperren. Der eigentliche
       #    Nachweis ist das Netzwerkprotokoll (--log-net-log), das der Selbsttest
       #    auswertet – es muss leer sein, auch wenn die Firewall aus ist.
+      #    (Regel für das installierte MSIX folgt bei der Installation.)
       - name: Ausgehende Verbindungen der App sperren (Windows-Firewall)
         shell: pwsh
         run: |
@@ -70,14 +104,83 @@ jobs:
             Write-Host "Gesperrt: $p"
           }
 
-      # 6) Gepackte App starten: Fuse-Angriff (RunAsNode, NODE_OPTIONS, --inspect)
+      # 7) Gepackte App starten: Fuse-Angriff (RunAsNode, NODE_OPTIONS, --inspect)
       #    wirkungslos, Projekt anlegen, Journal mit Bild, Suche, Word- und
       #    .ajournal-Export, Neustart, Import – ohne Verbindung ins Netz
       - name: Selbsttest entpackte App
-        run: node scripts/self-test.mjs dist/win-unpacked/Lernjournal.exe --dir "${{ runner.temp }}\selbsttest-entpackt" --phases fuses,create,reopen
+        run: node scripts/self-test.mjs dist/win-unpacked/Lernjournal.exe --dir "${{ runner.temp }}\selbsttest-entpackt" --phases fuses,create,reopen --expect-distribution installiert
 
-      # 7) Installer pro Benutzer: Ziel %LOCALAPPDATA%\Programs, Einträge nur unter HKCU
-      - name: Installer ohne Adminrechte installieren
+      # 8) MSIX wie aus dem Store: Testzertifikat als vertrauenswürdig eintragen
+      #    (LocalMachine\TrustedPeople, nur auf diesem Runner), installieren, Ort
+      #    und Schreibschutz prüfen, Befehlszeilen-Aufruf abwarten
+      - name: MSIX installieren (Add-AppxPackage)
+        id: install
+        shell: pwsh
+        run: |
+          Import-Certificate -FilePath dist\Lernjournal-Testzertifikat.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          $msix = (Get-Item dist\Lernjournal-Store-*.msix).FullName
+          Add-AppxPackage -Path $msix
+          $pkg = Get-AppxPackage -Name '${{ steps.msix.outputs.identity }}'
+          if (-not $pkg) { throw 'Paket nach Add-AppxPackage nicht installiert' }
+          $pkg | Format-List Name, PackageFullName, PackageFamilyName, Version, Publisher, InstallLocation, SignatureKind
+          if ($pkg.InstallLocation -notlike '*\WindowsApps\*') { throw "Unerwarteter Installationsort: $($pkg.InstallLocation)" }
+          $exe = Join-Path $pkg.InstallLocation 'app\Lernjournal.exe'
+          if (-not (Test-Path $exe)) { throw "Programm fehlt: $exe" }
+          # Programmordner schreibgeschützt (auch für Administratoren)
+          $writable = $true
+          try { [IO.File]::WriteAllText((Join-Path $pkg.InstallLocation 'schreibtest.txt'), 'x') } catch { $writable = $false; Write-Host "Programmordner schreibgeschützt: $($_.Exception.Message)" }
+          if ($writable) { throw "Programmordner des MSIX ist beschreibbar: $($pkg.InstallLocation)" }
+          New-NetFirewallRule -DisplayName "Lernjournal offline: MSIX" -Direction Outbound -Program $exe -Action Block | Out-Null
+          Write-Host "Gesperrt: $exe"
+          $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\lernjournal.exe'
+          for ($i = 0; $i -lt 30 -and -not (Test-Path $alias); $i++) { Start-Sleep -Seconds 1 }
+          if (-not (Test-Path $alias)) { throw "Befehlszeilen-Aufruf fehlt: $alias" }
+          "pfn=$($pkg.PackageFamilyName)" >> $env:GITHUB_OUTPUT
+          "alias=$alias" >> $env:GITHUB_OUTPUT
+
+      # 9) Selbsttest der installierten Store-App über den Befehlszeilen-Aufruf:
+      #    läuft mit Paketidentität (Programm erkennt sich als «store») wie nach
+      #    einem Klick im Startmenü, bekommt aber Umgebungsvariablen und Argumente
+      - name: Selbsttest Store-App (MSIX)
+        run: node scripts/self-test.mjs "${{ steps.install.outputs.alias }}" --dir "${{ runner.temp }}\selbsttest-msix" --phases fuses,create,reopen --expect-distribution store
+
+      # 10) Ohne Arbeitsordner (echte App-Daten): Windows leitet %APPDATA%\Lernjournal
+      #     in den Paketordner um (LocalCache) – Nachweis der Paketidentität und
+      #     Grundlage für die Angaben zu Speicherorten im IT-Merkblatt
+      - name: MSIX – App-Daten landen im Paketordner
+        shell: pwsh
+        run: |
+          $env:LERNJOURNAL_SMOKE_TEST = '1'
+          & '${{ steps.install.outputs.alias }}' | Out-Null
+          $code = $LASTEXITCODE
+          Remove-Item Env:LERNJOURNAL_SMOKE_TEST
+          if ($code -ne 0) { throw "Rauchtest ohne Arbeitsordner: Exitcode $code" }
+          $cache = Join-Path $env:LOCALAPPDATA 'Packages\${{ steps.install.outputs.pfn }}\LocalCache\Roaming\Lernjournal'
+          if (-not (Test-Path $cache)) { throw "Keine umgeleiteten App-Daten unter $cache" }
+          Get-ChildItem $cache | Format-Table Name, Length
+          Write-Host "Umgeleitet nach $cache"
+          Write-Host "Echter Ordner $env:APPDATA\Lernjournal vorhanden: $(Test-Path (Join-Path $env:APPDATA 'Lernjournal'))"
+
+      # 11) Deinstallieren: Paket und Paketordner (Zuletzt-Liste) weg, Projektordner
+      #     samt Sicherungen bleibt – er liegt unter «Dokumente», nicht im Paket
+      - name: MSIX deinstallieren – Projektordner bleibt
+        shell: pwsh
+        run: |
+          $projectDir = Join-Path '${{ runner.temp }}' 'selbsttest-msix\Dokumente\Lernjournal'
+          $project = Join-Path $projectDir 'journal.sqlite'
+          if (-not (Test-Path $project)) { throw "Projekt fehlt vor dem Deinstallieren: $project" }
+          Get-AppxPackage -Name '${{ steps.msix.outputs.identity }}' | Remove-AppxPackage
+          if (Get-AppxPackage -Name '${{ steps.msix.outputs.identity }}') { throw 'Paket nach Remove-AppxPackage noch installiert' }
+          $pkgData = Join-Path $env:LOCALAPPDATA 'Packages\${{ steps.install.outputs.pfn }}'
+          for ($i = 0; $i -lt 30 -and (Test-Path $pkgData); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path $pkgData) { throw "Paketordner nach dem Deinstallieren noch vorhanden: $pkgData" }
+          if (Test-Path '${{ steps.install.outputs.alias }}') { throw 'Befehlszeilen-Aufruf nach dem Deinstallieren noch vorhanden' }
+          if (-not (Test-Path $project)) { throw 'Projektordner wurde beim Deinstallieren gelöscht' }
+          if (-not (Test-Path (Join-Path $projectDir 'backups'))) { throw 'Sicherungen wurden beim Deinstallieren gelöscht' }
+          Write-Host 'Deinstallation OK – Paketordner entfernt, Projektordner samt Sicherungen unberührt'
+
+      # 12) Testinstaller pro Benutzer: Ziel %LOCALAPPDATA%\Programs, Einträge nur unter HKCU
+      - name: Testinstaller ohne Adminrechte installieren
         shell: pwsh
         run: |
           $setup = (Get-Item dist\Lernjournal-Setup-*.exe).FullName
@@ -97,18 +200,18 @@ jobs:
           $user | ForEach-Object { Get-ItemProperty $_.PSPath } | Format-List DisplayName, DisplayVersion, Publisher, InstallLocation, UninstallString
           Write-Host "Installiert: $exe"
 
-      - name: Selbsttest installierte App
-        run: node scripts/self-test.mjs "$env:LOCALAPPDATA\Programs\Lernjournal\Lernjournal.exe" --dir "${{ runner.temp }}\selbsttest-installiert" --phases fuses,create,reopen
+      - name: Selbsttest installierte App (Testinstaller)
+        run: node scripts/self-test.mjs "$env:LOCALAPPDATA\Programs\Lernjournal\Lernjournal.exe" --dir "${{ runner.temp }}\selbsttest-installiert" --phases fuses,create,reopen --expect-distribution installiert
 
       - name: Selbsttest portable EXE
         shell: pwsh
         run: |
           $portable = (Get-Item dist\Lernjournal-Portable-*.exe).FullName
-          node scripts/self-test.mjs $portable --dir "${{ runner.temp }}\selbsttest-portabel" --phases create,reopen
+          node scripts/self-test.mjs $portable --dir "${{ runner.temp }}\selbsttest-portabel" --phases create,reopen --expect-distribution portable
           if ($LASTEXITCODE -ne 0) { throw 'Selbsttest portable EXE fehlgeschlagen' }
 
-      # 8) Deinstallieren entfernt nur das Programm: Projektordner und App-Daten bleiben
-      - name: Deinstallieren – Daten der Lernenden bleiben
+      # 13) Testinstaller deinstallieren entfernt nur das Programm: Projektordner und App-Daten bleiben
+      - name: Testinstaller deinstallieren – Daten der Lernenden bleiben
         shell: pwsh
         run: |
           $appData = Join-Path $env:APPDATA 'Lernjournal'
@@ -139,10 +242,69 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      # Portable EXE (Release-Ziel) und NSIS-Testinstaller
       - uses: actions/upload-artifact@v5
         with:
           name: lernjournal-windows
           path: |
             dist/*.exe
             dist/SHA256SUMS.txt
+          retention-days: 14
+
+      # MSIX mit Testzertifikat – nur zum Testen, nicht für den Store (docs/STORE.md)
+      - uses: actions/upload-artifact@v5
+        with:
+          name: lernjournal-msix-testsigniert
+          path: |
+            dist/*.msix
+            dist/Lernjournal-Testzertifikat.cer
+            dist/SHA256SUMS.txt
+          retention-days: 14
+
+  # Windows App Certification Kit (WACK): dieselben Prüfungen wie Partner Center
+  # bei der Einreichung – sofern appcert.exe auf dem Runner installiert ist.
+  # Nur Hinweis: ein Befund macht die CI nicht rot (continue-on-error); der
+  # Bericht liegt als Artefakt beim Lauf.
+  zertifizierung:
+    needs: paket
+    runs-on: windows-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: lernjournal-msix-testsigniert
+          path: msix
+      - name: Windows App Certification Kit
+        shell: pwsh
+        run: |
+          $appcert = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit\appcert.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $appcert) {
+            Write-Host '::notice title=WACK::appcert.exe ist auf diesem Runner nicht installiert – Zertifizierung erst bei der Einreichung in Partner Center (docs/STORE.md)'
+            exit 0
+          }
+          Import-Certificate -FilePath msix\Lernjournal-Testzertifikat.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          $msix = (Get-Item msix\*.msix).FullName
+          $dir = Join-Path $env:RUNNER_TEMP 'wack'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $report = Join-Path $dir 'wack-bericht.xml'
+          & $appcert.FullName reset
+          & $appcert.FullName test -appxpackagepath $msix -reportoutputpath $report
+          Write-Host "appcert: Exitcode $LASTEXITCODE"
+          if (-not (Test-Path $report)) { throw 'Kein WACK-Bericht geschrieben' }
+          [xml]$xml = Get-Content -Raw $report
+          $overall = $xml.REPORT.OVERALL_RESULT
+          foreach ($test in $xml.SelectNodes('//TEST')) {
+            $result = $test.SelectSingleNode('RESULT').InnerText
+            Write-Host ('{0,-10} {1}' -f $result, $test.NAME)
+          }
+          Write-Host "Gesamtergebnis: $overall"
+          if ($overall -ne 'PASS') { throw "WACK-Gesamtergebnis: $overall" }
+      - name: WACK-Bericht hochladen
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: lernjournal-wack-bericht
+          path: ${{ runner.temp }}/wack/
+          if-no-files-found: ignore
           retention-days: 14

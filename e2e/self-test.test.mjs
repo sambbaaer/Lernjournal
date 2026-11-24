@@ -19,6 +19,7 @@ test('Selbsttest: anlegen, Neustart, ohne Verbindung ins Netz', async () => {
     app: '.',
     dir,
     phases: ['create', 'reopen'],
+    expectDistribution: 'entwicklung',
   });
   for (const r of results) {
     assert.deepEqual(r.problems, [], `${r.phase}: ${r.problems.join('; ')}\n${r.output}`);

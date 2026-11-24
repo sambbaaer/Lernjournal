@@ -6,6 +6,7 @@ const info = {
   name: 'Lernjournal',
   version: '0.1.0',
   platform: 'win32',
+  distribution: 'store',
   versions: { electron: '45', chrome: '140', node: '24' },
 };
 const trustedEvent = { senderFrame: { url: 'app://lernjournal/index.html' } };

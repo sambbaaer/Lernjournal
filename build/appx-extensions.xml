@@ -1,0 +1,11 @@
+<!-- Erweiterungen im MSIX-Manifest (eingefügt in <Extensions>, siehe build/appxmanifest.xml).
+     Einzige Erweiterung: Befehlszeilen-Aufruf «lernjournal» (App Execution Alias).
+     Er startet die App mit Paketidentität, so wie ein Klick im Startmenü – aber mit
+     Umgebungsvariablen und Argumenten des Aufrufers. Die CI nutzt das für den
+     Selbsttest der installierten Store-App (LERNJOURNAL_SMOKE_TEST). Bewusst keine
+     Dateizuordnung, kein Protokoll, kein Autostart (ADR 0007/0008). -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="app\Lernjournal.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="lernjournal.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
