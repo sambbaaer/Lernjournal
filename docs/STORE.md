@@ -11,7 +11,7 @@ Stand: 2026-11-24, Version 0.1.0 (AJ-16b, [ADR 0008](adr/0008-microsoft-store-un
 | Identität aus Partner Center | Umgebungsvariablen `LERNJOURNAL_STORE_*` (unten) |
 | Signatur | keine eigene nötig – der Store signiert das Paket bei der Einreichung |
 | Testpaket der CI | Artefakt `lernjournal-msix-testsigniert` (Platzhalter-Identität, Testzertifikat) – **nicht** einreichen |
-| Datenschutzerklärung | Entwurf [DATENSCHUTZ.md](DATENSCHUTZ.md) – muss unter einer öffentlichen Adresse stehen |
+| Datenschutzerklärung | [docs/DATENSCHUTZ.md](DATENSCHUTZ.md) – öffentlich erreichbar unter `https://sambbaaer.github.io/Lernjournal/DATENSCHUTZ` bzw. `https://github.com/sambbaaer/Lernjournal/blob/main/docs/DATENSCHUTZ.md` |
 | Alternative ohne Store | portable EXE (`npm run dist:exe`), Testinstaller (NSIS), siehe [IT-MERKBLATT.md](IT-MERKBLATT.md) |
 
 ## 1. Konto in Partner Center

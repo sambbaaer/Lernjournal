@@ -1,6 +1,6 @@
 # Datenschutzerklärung – Lernjournal
 
-> **Entwurf** (Stand 2026-11-24, Version 0.1.0). Vor der Veröffentlichung Verantwortliche Person und Kontakt einsetzen und die Erklärung unter einer öffentlich erreichbaren Adresse ablegen (der Microsoft Store verlangt eine Adresse). Die Aussagen beschreiben das Programm, wie es umgesetzt und in der automatischen Prüfung nachgewiesen ist ([IT-MERKBLATT.md](IT-MERKBLATT.md)).
+Stand: 24.11.2026 (Version 0.1.0)
 
 ## Verantwortlich
 Samuel Baer, Luzern, Schweiz, <git@samuelbaer.ch>
@@ -20,6 +20,9 @@ Weder die Entwicklerin bzw. der Entwickler noch dein Lehrbetrieb oder deine Schu
 - Lernjournal hat **keine Konten**, **keine Cloud-Funktion**, **keine Werbung**, **keine Nutzungsstatistik (Telemetrie)** und sendet **keine Absturzberichte**.
 - Das Programm baut **keine Netzwerkverbindungen** auf; Anfragen ins Internet sind im Programm gesperrt. Das wird bei jeder Programmversion automatisch geprüft.
 - Es gibt keine Weitergabe an Dritte, weil keine Daten das Gerät über das Programm verlassen.
+
+## Optionaler lokaler MCP-Zugang
+Wenn du in den Einstellungen den lokalen MCP-Zugang (`127.0.0.1`) ausdrücklich für die aktuelle Sitzung freischaltest, kann ein auf deinem Computer verbundener MCP-Client die Journale des geöffneten Projekts lesen und Änderungsvorschläge einreichen. Ob und wie dieser verbundene Client Daten weiterverarbeitet, richtet sich nach dem von dir eingesetzten Client. Standardmässig ist der MCP-Zugang ausgeschaltet.
 
 ## Microsoft Store und Windows
 Wenn du Lernjournal über den Microsoft Store beziehst, verarbeitet Microsoft für Kauf/Download, Installation und Updates Daten nach den eigenen Bestimmungen (Datenschutzerklärung von Microsoft). Ebenso richten sich Funktionen von Windows (z. B. Fehlerberichterstattung, Synchronisation von Ordnern wie «Dokumente» mit OneDrive) nach den Windows-Einstellungen deines Geräts. Liegt dein Projektordner in einem synchronisierten Ordner, werden die Daten vom jeweiligen Dienst übertragen – nicht von Lernjournal. Das Programm warnt, wenn es einen solchen Ordner erkennt.
