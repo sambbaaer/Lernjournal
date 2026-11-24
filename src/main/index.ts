@@ -2,9 +2,22 @@
 // einzige Teil mit Zugriff auf Dateien (später auch auf die Datenbank).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, session, type WebContents } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  protocol,
+  session,
+  shell,
+  type WebContents,
+} from 'electron';
 import { ipcContract } from '@shared/ipc';
 import { createCloseGuard } from './close-guard';
+import { createExportHandlers } from './export/export-handlers';
+import { ExportService } from './export/export-service';
+import { convertWebpToPng } from './export/image-convert';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
@@ -76,6 +89,8 @@ const taxonomy = new TaxonomyService(
   () => new Date(),
   search,
 );
+// Word-Export (AJ-12): WebP-Bilder wandelt ein verborgenes Fenster in PNG um
+const exporter = new ExportService(() => projects.db, journals, media, convertWebpToPng);
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
 // weitere Fenster und <webview> sind blockiert (hardenWebContents). Auf das
@@ -229,6 +244,24 @@ function registerIpc() {
       ...createLinkHandlers(links, journals),
       ...createSearchHandlers(search),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
+      ...createExportHandlers({
+        service: exporter,
+        // Nativer Speichern-Dialog, Vorschlag im Ordner «exports» des Projekts.
+        // showOverwriteConfirmation: bestehende Datei nie still überschreiben.
+        chooseSavePath: async (suggested) => {
+          const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+          const options: Electron.SaveDialogOptions = {
+            title: 'Als Word-Dokument speichern',
+            buttonLabel: 'Speichern',
+            defaultPath: path.join(projects.dir, 'exports', suggested),
+            filters: [{ name: 'Word-Dokument', extensions: ['docx'] }],
+            properties: ['showOverwriteConfirmation', 'createDirectory'],
+          };
+          const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+          return r.canceled || !r.filePath ? null : r.filePath;
+        },
+        showInFolder: (file) => shell.showItemInFolder(file),
+      }),
     },
     trusted,
   );

@@ -50,6 +50,10 @@ const api: LernjournalApi = {
     query: (req) => ipcRenderer.invoke('search:query', req),
     rebuild: () => ipcRenderer.invoke('search:rebuild'),
   },
+  export: {
+    journalDocx: (req) => ipcRenderer.invoke('export:journalDocx', req),
+    showFile: () => ipcRenderer.invoke('export:showFile'),
+  },
   taxonomy: {
     list: () => ipcRenderer.invoke('taxonomy:list'),
     createCategory: (req) => ipcRenderer.invoke('category:create', req),

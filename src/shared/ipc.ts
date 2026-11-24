@@ -16,6 +16,7 @@ import {
   JournalSummarySchema,
   SectionsSchema,
 } from './journal';
+import { ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
 import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
@@ -229,6 +230,17 @@ export const ipcContract = {
   'search:query': { request: SearchRequestSchema, response: SearchResultSchema },
   // «Suchindex neu aufbauen»: liefert die Anzahl neu indexierter Journale
   'search:rebuild': { request: z.undefined(), response: z.object({ journals: z.number().int() }) },
+
+  // --- Word-Export (AJ-12) ---
+  // Ein Journal als Word-Dokument. Der Hauptprozess zeigt selbst den
+  // Speichern-Dialog; der Renderer schickt nur die Journal-ID und bestätigt,
+  // dass der Exporthinweis (R-10) angezeigt und angenommen wurde.
+  'export:journalDocx': {
+    request: z.object({ id: JournalId, noticeAccepted: z.literal(true) }),
+    response: ExportResultSchema,
+  },
+  // Zuletzt exportierte Datei im Explorer zeigen (kein Pfad vom Renderer)
+  'export:showFile': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;
