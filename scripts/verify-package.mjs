@@ -172,6 +172,9 @@ if (existsSync(msixFile)) {
       APPX_LOGOS.filter((l) => l.required).map((l) => l.name),
     ),
   );
+  // Gleiche Ausnahme wie bei win-unpacked (siehe oben): nur melden
+  if (names.includes('app/resources/elevate.exe'))
+    console.log('HINWEIS elevate.exe im MSIX (aus dem gemeinsamen Build, wird nie aufgerufen)');
   if (files[exeEntry]) {
     report(
       'Programm im MSIX: Electron-Fuses',

@@ -22,11 +22,14 @@ npm run dev
 | `npm run format` | Code automatisch formatieren (Prettier) |
 | `npm test` | Unit-Tests (Vitest) |
 | `npm run test:e2e` | App bauen und Ende-zu-Ende-Test (Playwright) |
-| `npm run dist:win` | Installer + portable EXE nach `dist/` (nur unter Windows, siehe «Paketierung») |
+| `npm run dist:win` | MSIX (Testpaket mit Platzhaltern), portable EXE und NSIS-Testinstaller nach `dist/` (nur unter Windows, siehe «Paketierung») |
+| `npm run dist:store` | Store-Paket (MSIX) mit Identität aus Partner Center, unsigniert ([STORE.md](STORE.md)) |
+| `npm run dist:exe` | nur portable EXE + Testinstaller (z. B. signierter Release) |
+| `npm run store:identity` | Zeigt die Store-Identität, mit der gebaut würde (Platzhalter oder `LERNJOURNAL_STORE_*`) |
 | `npm run dist:dir` | Nur entpackter Build (schneller, zum Ausprobieren) |
-| `npm run verify:package` | Fertiges Paket in `dist/` prüfen (Fuses, Inhalt, Adminrechte) |
+| `npm run verify:package` | Fertiges Paket in `dist/` prüfen (Fuses, Inhalt, Adminrechte, MSIX-Manifest und Logos) |
 | `npm run test:packaged -- <Programm>` | Selbsttest des gepackten Programms inkl. Netzwerkprotokoll |
-| `npm run icon` | Programmsymbol aus `build/icon.svg` neu erzeugen |
+| `npm run icon` | Programmsymbol und MSIX-Logos aus `build/icon.svg` neu erzeugen |
 
 ## Ordnerstruktur
 ```
@@ -254,32 +257,52 @@ src/renderer/src/
 
 Der Rahmen (`src/main/ipc-handler.ts`) prüft automatisch Absender, Kanal und Daten und liefert immer `{ ok, data }` oder `{ ok: false, error }`.
 
-## Paketierung, Release und Code-Signing (AJ-16)
+## Paketierung, Release und Code-Signing (AJ-16, AJ-16b)
+Verteilung ([ADR 0008](adr/0008-microsoft-store-und-portable.md)): **Microsoft Store (MSIX)** als Hauptweg, **portable EXE** als Release ohne Store, **NSIS-Installer** als Testinstaller/Alternative (lokale Tests, Schul-IT ohne Store).
 ```
-electron-builder.ts          Konfiguration (Installer pro Benutzer, portable EXE, Fuses, Signing)
+electron-builder.ts          Konfiguration (MSIX + Store-Identität, portable EXE, Testinstaller, Fuses, Signing)
+build/appxmanifest.xml       Manifest-Vorlage des MSIX (wie electron-builder, plus Namensraum uap3)
+build/appx-extensions.xml    einzige Manifest-Erweiterung: Befehlszeilen-Aufruf «lernjournal»
+build/appx/                  Logos/Kacheln des MSIX (erzeugt, Liste in scripts/appx-assets.ts)
+src/main/distribution.ts     Verteilungsart (Store/portable/installiert) für «Info» und Selbsttest
+scripts/dist-store.mjs       Store-Paket: verlangt echte Identität, prüft Version, baut unsigniert
+scripts/store-identity.mjs   gibt die Store-Identität als JSON aus (CI: Subject des Testzertifikats)
 src/main/self-test.ts        Selbsttest im Programm (LERNJOURNAL_SMOKE_TEST, Bericht, Exitcode)
 scripts/self-test.mjs        Selbsttest von aussen: Phasen fuses/create/reopen + Netzwerkprotokoll
-scripts/verify-package.mjs   Paket prüfen: Fuses, app.asar, Manifest asInvoker, SHA256SUMS.txt
+scripts/verify-package.mjs   Paket prüfen: Fuses, app.asar, Manifest asInvoker, MSIX, SHA256SUMS.txt
 scripts/package-checks.ts    reine Prüffunktionen (Vitest: scripts/packaging.test.ts)
-scripts/render-icon.mjs      build/icon.svg → icon.png + icon.ico (Electron zeichnet, scripts/icon.ts schreibt ICO)
+scripts/render-icon.mjs      build/icon.svg → icon.png + icon.ico + build/appx/*.png (Electron zeichnet)
 docs/IT-MERKBLATT.md         Merkblatt für Schul-IT und Lehrbetriebe
+docs/STORE.md                Store-Einreichung Schritt für Schritt, Entwurf Store-Eintrag
+docs/DATENSCHUTZ.md          Entwurf Datenschutzerklärung (für den Store öffentlich ablegen)
 ```
-Gründe und Abwägungen: [ADR 0007](adr/0007-paketierung-und-signing.md).
+Gründe und Abwägungen: [ADR 0007](adr/0007-paketierung-und-signing.md), [ADR 0008](adr/0008-microsoft-store-und-portable.md).
 
-**Release-Build (unter Windows):**
+**Release-Builds (unter Windows), Version = `version` in `package.json` (`Major.Minor.Patch`, keine Vorabversion – im MSIX wird daraus `x.y.z.0`):**
 ```bash
 npm ci
 npm run check
-npm run dist:win
-npm run verify:package -- --require-installers --checksums
+# 1) Store-Paket – Identität aus Partner Center, siehe docs/STORE.md
+#    (PowerShell: $env:LERNJOURNAL_STORE_IDENTITY_NAME = '…' usw.)
+npm run dist:store
+npm run verify:package
+# 2) Portable EXE und Testinstaller (optional signiert, siehe «Code-Signing»)
+npm run dist:exe
+npm run verify:package -- --checksums
 npm run test:packaged -- dist/win-unpacked/Lernjournal.exe --phases fuses,create,reopen
 ```
-Ergebnis in `dist/`: `Lernjournal-Setup-<Version>.exe`, `Lernjournal-Portable-<Version>.exe`, `SHA256SUMS.txt` (für Hash-Regeln der Schul-IT). Version = `version` in `package.json`. Vor der Weitergabe `docs/IT-MERKBLATT.md` (Stand, Signaturstatus) nachführen. Die CI (Job `paket`) macht dasselbe und zusätzlich stille Installation, Selbsttest der installierten und der portablen App und Deinstallation; die EXE-Dateien liegen als Artefakt `lernjournal-windows` beim Lauf.
+Ergebnis in `dist/`: `Lernjournal-Store-<Version>.msix` (unsigniert, für Partner Center), `Lernjournal-Portable-<Version>.exe`, `Lernjournal-Setup-<Version>.exe`, `SHA256SUMS.txt` (für Hash-Regeln der Schul-IT). Vor der Weitergabe `docs/IT-MERKBLATT.md` (Stand, Signaturstatus) nachführen. Zum Ausprobieren baut `npm run dist:win` alle drei auf einmal (MSIX mit Platzhalter-Identität).
 
-**Unter Linux** lässt sich der Windows-Installer nicht bauen (NSIS braucht Wine). Prüfbar sind: `npx electron-builder --linux dir` bzw. `--win dir` (Inhalt von `app.asar`, Fuses der Windows-EXE) mit `npm run verify:package`, und der Selbsttest der Linux-Fassung: `E2E_EXTRA_ARGS=--no-sandbox xvfb-run -a npm run test:packaged -- dist/linux-unpacked/lernjournal --phases fuses,create,reopen`. `dist/` danach löschen (gross).
+**Store-Identität** – nur über Umgebungsvariablen, nie ins Repository: `LERNJOURNAL_STORE_IDENTITY_NAME`, `LERNJOURNAL_STORE_PUBLISHER` («CN=…»), `LERNJOURNAL_STORE_PUBLISHER_DISPLAY_NAME` (alle drei oder keine), optional `LERNJOURNAL_STORE_DISPLAY_NAME`. Ohne sie gelten Platzhalter mit «PLATZHALTER» im Namen; `LERNJOURNAL_REQUIRE_STORE_IDENTITY=1` (setzt `dist:store` selbst) bricht dann ab. Application-Id `Lernjournal` ist fest. Das Store-Paket wird nicht signiert – der Store signiert es.
 
-**Code-Signing** – nur über Umgebungsvariablen, nie Zertifikate oder Passwörter ins Repository:
-- **Zertifikat (OV/EV, `.pfx`):** `CSC_LINK` (Pfad, `https://`-URL oder Base64 der `.pfx`) und `CSC_KEY_PASSWORD` setzen, dann `npm run dist:win`. Signiert werden Programm, Installer, portable EXE und Deinstallationsprogramm mit SHA-256 und Zeitstempel (`http://timestamp.digicert.com`; die Signatur bleibt nach Ablauf des Zertifikats gültig). EV-Zertifikate auf Hardware-Token brauchen stattdessen `win.signtoolOptions.certificateSubjectName` bzw. `certificateSha1` – dann in `signingOptions()` ergänzen.
+**CI (Job `paket`):** baut alle drei Ziele, signiert das MSIX mit einem pro Lauf erzeugten, selbstsignierten Testzertifikat (`New-SelfSignedCertificate`, Subject = Publisher-Platzhalter, signiert mit `signtool` direkt aus dem Zertifikatsspeicher – kein `.pfx`, kein Passwort), prüft das Paket, vertraut dem Zertifikat (`LocalMachine\TrustedPeople`), installiert mit `Add-AppxPackage`, startet den Selbsttest über den Befehlszeilen-Aufruf `%LOCALAPPDATA%\Microsoft\WindowsApps\lernjournal.exe` (nur so mit Paketidentität und trotzdem mit Umgebungsvariablen; `--expect-distribution store`), prüft die Umleitung der App-Daten in den Paketordner und deinstalliert mit `Remove-AppxPackage` (Paketordner weg, Projektordner samt Sicherungen da). Danach Testinstaller (stille Installation, Selbsttest, Deinstallation) und portable EXE. Artefakte: `lernjournal-msix-testsigniert` (MSIX, `Lernjournal-Testzertifikat.cer`, `SHA256SUMS.txt` – nur zum Testen), `lernjournal-windows` (portable EXE, Testinstaller, `SHA256SUMS.txt`), `lernjournal-pruefberichte`. Job `zertifizierung` (nach `paket`, macht die CI nicht rot): Windows App Certification Kit, falls auf dem Runner installiert, Bericht als `lernjournal-wack-bericht`.
+
+**MSIX-Besonderheiten** (geprüft, ADR 0008): Programmordner schreibgeschützt (Lernjournal schreibt nie neben das Programm – so lassen); `%APPDATA%` wird in den Paketordner umgeleitet und beim Deinstallieren gelöscht (nur Zuletzt-Liste und Zwischenspeicher); Projektordner, Sicherungen, Exporte und Sperrdatei liegen ausserhalb. **Neue Funktion, die Dateien schreibt:** nie in AppData oder den Programmordner, wenn die Daten eine Deinstallation überleben müssen – sie gehören in den Projektordner.
+
+**Unter Linux** lassen sich weder der Testinstaller (NSIS braucht Wine) noch das MSIX (electron-builder verlangt Windows) bauen; die MSIX-Konfiguration, Identität, Version, Manifest-Vorlage und alle Logos sichern Unit-Tests ab (`scripts/packaging.test.ts`). Prüfbar sind: `npx electron-builder --linux dir` bzw. `--win dir` (Inhalt von `app.asar`, Fuses der Windows-EXE) mit `npm run verify:package`, und der Selbsttest der Linux-Fassung: `E2E_EXTRA_ARGS=--no-sandbox xvfb-run -a npm run test:packaged -- dist/linux-unpacked/lernjournal --phases fuses,create,reopen`. `dist/` danach löschen (gross).
+
+**Code-Signing** (portable EXE und Testinstaller; das Store-Paket signiert der Store) – nur über Umgebungsvariablen, nie Zertifikate oder Passwörter ins Repository. Signierte Builds mit `npm run dist:exe`, **nicht** mit `dist:win`: electron-builder würde sonst auch das MSIX mit dem eigenen Zertifikat signieren wollen, dessen Antragsteller nie zum Store-Publisher passt (Abbruch).
+- **Zertifikat (OV/EV, `.pfx`):** `CSC_LINK` (Pfad, `https://`-URL oder Base64 der `.pfx`) und `CSC_KEY_PASSWORD` setzen, dann `npm run dist:exe`. Signiert werden Programm, Installer, portable EXE und Deinstallationsprogramm mit SHA-256 und Zeitstempel (`http://timestamp.digicert.com`; die Signatur bleibt nach Ablauf des Zertifikats gültig). EV-Zertifikate auf Hardware-Token brauchen stattdessen `win.signtoolOptions.certificateSubjectName` bzw. `certificateSha1` – dann in `signingOptions()` ergänzen.
 - **Azure Trusted Signing:** `LERNJOURNAL_AZURE_SIGN_ENDPOINT` (z. B. `https://weu.codesigning.azure.net`), `LERNJOURNAL_AZURE_SIGN_ACCOUNT`, `LERNJOURNAL_AZURE_SIGN_PROFILE`, `LERNJOURNAL_AZURE_SIGN_PUBLISHER` (genau wie im Zertifikat) sowie die Anmeldung `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`. electron-builder installiert dafür das PowerShell-Modul `TrustedSigning` (nur Windows).
 - **Release erzwingen:** `LERNJOURNAL_REQUIRE_SIGNING=1` – ohne gültige Signatur bricht der Build ab, statt unsigniert zu entstehen.
 - **In GitHub Actions:** Zertifikat als Base64 in einem Repository-Secret ablegen und nur im Release-Schritt als `env` übergeben (`CSC_LINK: ${{ secrets.WIN_CSC_LINK }}`, `CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}`, `LERNJOURNAL_REQUIRE_SIGNING: '1'`). Die normale CI baut bewusst unsigniert.
@@ -292,7 +315,7 @@ Ergebnis in `dist/`: `Lernjournal-Setup-<Version>.exe`, `Lernjournal-Portable-<V
 
 **Paketinhalt:** Neue Laufzeitabhängigkeit → in `dependencies`, `npm run verify:package` prüft, dass sie (samt ihren Abhängigkeiten) in `app.asar` liegt und nichts aus `devDependencies`. Ballast einer Abhängigkeit (Browser-Fassungen, Quellen) über `files` in `electron-builder.ts` ausschliessen – der Selbsttest zeigt, ob das Programm danach noch läuft.
 
-**Programmsymbol:** `build/icon.svg` bearbeiten, dann `npm run icon` (unter Linux ohne Bildschirm: `xvfb-run -a npx electron --no-sandbox scripts/render-icon.mjs`) und die erzeugten `build/icon.ico` und `build/icon.png` committen.
+**Programmsymbol:** `build/icon.svg` bearbeiten, dann `npm run icon` (unter Linux ohne Bildschirm: `xvfb-run -a npx electron --no-sandbox scripts/render-icon.mjs`) und die erzeugten `build/icon.ico`, `build/icon.png` und `build/appx/*.png` committen. Neue Logo-Grösse für das MSIX: in `scripts/appx-assets.ts` ergänzen (Test prüft Dateien und Grössen).
 
 ## Sicherheitsregeln (Kurzfassung, Details SPEC)
 - Renderer importiert nie `electron` oder `node:*` – ESLint verhindert das.
