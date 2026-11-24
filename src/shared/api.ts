@@ -51,9 +51,10 @@ export interface LernjournalApi {
     query: Call<'search:query'>;
     rebuild: Call<'search:rebuild'>;
   };
-  // Word-Export (AJ-12)
+  // Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX)
   export: {
     journalDocx: Call<'export:journalDocx'>;
+    collectionDocx: Call<'export:collectionDocx'>;
     showFile: Call<'export:showFile'>;
   };
   taxonomy: {

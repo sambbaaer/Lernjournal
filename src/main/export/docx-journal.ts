@@ -83,10 +83,22 @@ export function metaBlocks(j: ExportJournal, author: ExportAuthor): Paragraph[] 
 
 // Das ganze Journal. Titel = «Überschrift 1» mit Textmarke (Sprungziel für
 // Links im Sammel-DOCX), Abschnitte = «Überschrift 2» (für das Inhaltsverzeichnis).
-export function journalBlocks(j: ExportJournal, author: ExportAuthor, ctx: ContentContext): Block[] {
+//
+// pageBreakBefore (Sammel-DOCX, AJ-13): Das Journal beginnt auf einer neuen
+// Seite. Als Absatzeigenschaft «Seitenumbruch oberhalb» der Überschrift statt
+// eines eigenen Absatzes mit Umbruch – so entsteht oben auf der neuen Seite
+// keine leere Zeile, und die Journal-Grenze bleibt auch beim Weiterbearbeiten
+// in Word erhalten (die Eigenschaft wandert mit der Überschrift).
+export function journalBlocks(
+  j: ExportJournal,
+  author: ExportAuthor,
+  ctx: ContentContext,
+  options: { pageBreakBefore?: boolean } = {},
+): Block[] {
   const out: Block[] = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
+      pageBreakBefore: options.pageBreakBefore || undefined,
       children: [
         new Bookmark({ id: bookmarkFor(j.id), children: [new TextRun(cleanText(displayTitle(j.title)))] }),
       ],

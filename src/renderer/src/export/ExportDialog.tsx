@@ -1,4 +1,6 @@
-// Dialog «Als Word exportieren» (AJ-12).
+// Dialog «Als Word exportieren» (AJ-12) – auch für das Sammel-DOCX (AJ-13,
+// «Mehrere Journale als Word exportieren»): gleicher Ablauf, dazu der Hinweis,
+// dass Word das Inhaltsverzeichnis beim Öffnen aktualisiert.
 //
 // Ablauf in einem Fenster, damit nichts übersehen wird:
 //   1. Hinweis vor dem Weitergeben (R-10) – bei JEDEM Export, einmal bestätigen
@@ -10,18 +12,24 @@
 // Esc bricht ab (ausser während das Dokument erstellt wird).
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { CircleAlert, FileCheck2, LoaderCircle, ShieldAlert } from 'lucide-react';
-import { EXPORT_NOTICE } from '@shared/export';
+import { COLLECTION_TOC_HINT, DEFAULT_COLLECTION_TITLE, EXPORT_NOTICE } from '@shared/export';
 import { saveIfNeeded } from '../editor/save-registry';
 import { displayTitle } from '../journal/actions';
 import { useApp } from '../state/AppContext';
-import { exportJournalDocx, type ExportOutcome } from './export-actions';
+import { exportCollectionDocx, exportJournalDocx, type ExportOutcome } from './export-actions';
 
 type Step = { kind: 'notice' } | { kind: 'working' } | Exclude<ExportOutcome, { kind: 'canceled' }>;
 
 const primary = 'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
 const secondary = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
 
-export function ExportDialog({ journalIds }: { journalIds: string[] }) {
+export function ExportDialog({
+  journalIds,
+  collection,
+}: {
+  journalIds: string[];
+  collection?: { title: string }; // gesetzt = Sammel-DOCX in der Reihenfolge von journalIds
+}) {
   const { state, dispatch } = useApp();
   const [step, setStep] = useState<Step>({ kind: 'notice' });
   const baseId = useId();
@@ -29,7 +37,13 @@ export function ExportDialog({ journalIds }: { journalIds: string[] }) {
   const primaryRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<Element | null>(null);
   const journalId = journalIds[0]!;
-  const title = displayTitle(state.journals.find((j) => j.id === journalId)?.title ?? '');
+  const heading = collection ? 'Mehrere Journale als Word exportieren' : 'Als Word exportieren';
+  // Unter der Überschrift: Journaltitel bzw. Titel der Sammlung mit Anzahl
+  const subtitle = collection
+    ? `«${collection.title.trim() || DEFAULT_COLLECTION_TITLE}» · ${journalIds.length} ${
+        journalIds.length === 1 ? 'Journal' : 'Journale'
+      }`
+    : `«${displayTitle(state.journals.find((j) => j.id === journalId)?.title ?? '')}»`;
 
   const close = () => dispatch({ type: 'closeExport' });
 
@@ -45,7 +59,9 @@ export function ExportDialog({ journalIds }: { journalIds: string[] }) {
 
   async function run() {
     setStep({ kind: 'working' });
-    const outcome = await exportJournalDocx(journalId, saveIfNeeded);
+    const outcome = collection
+      ? await exportCollectionDocx(journalIds, collection.title, saveIfNeeded)
+      : await exportJournalDocx(journalId, saveIfNeeded);
     if (outcome.kind === 'canceled') return close();
     setStep(outcome);
     if (outcome.kind === 'saved') dispatch({ type: 'notice', text: `Gespeichert: ${outcome.fileName}` });
@@ -80,9 +96,9 @@ export function ExportDialog({ journalIds }: { journalIds: string[] }) {
         className="max-h-[calc(100vh-4rem)] w-full max-w-lg overflow-auto rounded-md bg-surface p-6 shadow-xl"
       >
         <h2 id={`${baseId}-title`} className="text-lg font-semibold">
-          Als Word exportieren
+          {heading}
         </h2>
-        <p className="mt-1 truncate text-sm text-ink-muted">«{title}»</p>
+        <p className="mt-1 truncate text-sm text-ink-muted">{subtitle}</p>
 
         {step.kind === 'notice' && (
           <>
@@ -100,6 +116,7 @@ export function ExportDialog({ journalIds }: { journalIds: string[] }) {
                 ))}
               </ul>
               <p className="rounded-sm border-l-4 border-accent bg-selected p-3">{EXPORT_NOTICE.oneWay}</p>
+              {collection && <p className="text-ink-muted">{COLLECTION_TOC_HINT}</p>}
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={close} className={secondary}>
@@ -138,6 +155,7 @@ export function ExportDialog({ journalIds }: { journalIds: string[] }) {
                   </ul>
                 </div>
               )}
+              {collection && <p>{COLLECTION_TOC_HINT}</p>}
               <p className="text-ink-muted">{EXPORT_NOTICE.oneWay}</p>
             </div>
             <div className="mt-6 flex justify-end gap-2">

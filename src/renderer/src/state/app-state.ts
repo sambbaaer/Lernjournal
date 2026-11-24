@@ -52,11 +52,20 @@ export type AppState = {
   // zentralen Zustand, damit die Suche erhalten bleibt, wenn man ein Journal
   // aus den Treffern öffnet und wieder zum Fachbuch zurückkehrt.
   fachbuch: FachbuchState;
-  // Word-Export (AJ-12): offener Exportdialog mit den gewählten Journalen.
-  // Eine Liste, damit der Sammel-Export (AJ-13) denselben Ablauf nutzen kann;
-  // im Moment immer genau ein Journal.
-  exportDialog: { journalIds: string[] } | null;
+  // Word-Export: offener Exportdialog mit den gewählten Journalen. Ohne
+  // `collection` ein Einzel-DOCX (AJ-12, genau ein Journal), mit `collection`
+  // ein Sammel-DOCX (AJ-13) in der Reihenfolge der Liste.
+  exportDialog: ExportDialogState | null;
+  // Zusammenstellung für das Sammel-DOCX (AJ-13): gewählte Journale in der
+  // Reihenfolge im Dokument und Titel der Titelseite. Im zentralen Zustand,
+  // damit die Auswahl erhalten bleibt, wenn man zwischendurch ein Journal
+  // öffnet und zur Ansicht «Export» zurückkehrt.
+  collection: CollectionState;
 };
+
+export type ExportDialogState = { journalIds: string[]; collection?: { title: string } };
+export type CollectionState = { ids: string[]; title: string };
+export const INITIAL_COLLECTION: CollectionState = { ids: [], title: '' };
 
 export const initialState: AppState = {
   view: 'start',
@@ -78,6 +87,7 @@ export const initialState: AppState = {
   taxonomy: EMPTY_TAXONOMY,
   fachbuch: INITIAL_FACHBUCH,
   exportDialog: null,
+  collection: INITIAL_COLLECTION,
 };
 
 export type Action =
@@ -103,8 +113,9 @@ export type Action =
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
   | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
   | { type: 'fachbuchChanged'; change: Partial<FachbuchState> }
-  | { type: 'openExport'; journalIds: string[] }
-  | { type: 'closeExport' };
+  | { type: 'openExport'; journalIds: string[]; collection?: { title: string } }
+  | { type: 'closeExport' }
+  | { type: 'collectionChanged'; change: Partial<CollectionState> };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -152,6 +163,7 @@ export function reducer(state: AppState, action: Action): AppState {
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
         exportDialog: null,
+        collection: INITIAL_COLLECTION,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
           : null,
@@ -171,6 +183,7 @@ export function reducer(state: AppState, action: Action): AppState {
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
         exportDialog: null,
+        collection: INITIAL_COLLECTION,
       };
     case 'profileUpdated':
       return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
@@ -201,6 +214,10 @@ export function reducer(state: AppState, action: Action): AppState {
           mentionedIn: drop(state.openJournalLinks.mentionedIn),
         },
         journals: state.journals.filter((x) => x.id !== action.id),
+        // Gelöschtes Journal auch aus der Zusammenstellung für das Sammel-DOCX
+        collection: state.collection.ids.includes(action.id)
+          ? { ...state.collection, ids: state.collection.ids.filter((x) => x !== action.id) }
+          : state.collection,
         openJournal: state.openJournal?.id === action.id ? null : state.openJournal,
         view: state.openJournal?.id === action.id ? 'journale' : state.view,
       };
@@ -229,10 +246,18 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'openExport':
       // Ohne Journal kein Dialog; das Datei-Menü schliesst (wie beim Navigieren)
       return action.journalIds.length
-        ? { ...state, exportDialog: { journalIds: action.journalIds }, backstage: null }
+        ? {
+            ...state,
+            exportDialog: action.collection
+              ? { journalIds: action.journalIds, collection: action.collection }
+              : { journalIds: action.journalIds },
+            backstage: null,
+          }
         : state;
     case 'closeExport':
       return { ...state, exportDialog: null };
+    case 'collectionChanged':
+      return { ...state, collection: { ...state.collection, ...action.change } };
   }
 }
 

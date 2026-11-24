@@ -1,5 +1,6 @@
-// Exportdienst (AJ-12): liest ein Journal aus der Projektdatenbank, lädt seine
-// Bilder, baut das Word-Dokument und schreibt die Datei sicher.
+// Exportdienst (AJ-12, AJ-13): liest Journale aus der Projektdatenbank, lädt
+// ihre Bilder, baut das Word-Dokument (ein Journal oder eine Sammlung) und
+// schreibt die Datei sicher.
 //
 // Kennt kein Electron (testbar mit Vitest). Der Speichern-Dialog und die
 // Umwandlung von WebP-Bildern werden von aussen hineingereicht (index.ts).
@@ -11,12 +12,14 @@ import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { SECTION_KEYS, type Sections } from '@shared/journal';
 import { journalLinkTargets } from '@shared/links';
-import { computeSchoolYear } from '@shared/school-year';
+import type { Profile } from '@shared/ipc';
+import { computeSchoolYear, localIsoDate } from '@shared/school-year';
 import type { Db } from '../db/connection';
-import type { JournalService } from '../journal/journal-service';
+import { JournalNotFoundError, type JournalService } from '../journal/journal-service';
 import { sniffImage } from '../media/image-info';
 import { referencedMediaIds, type MediaService } from '../media/media-service';
 import type { DocxImage, TiptapNode } from './docx-content';
+import { buildCollectionDocument, collectionTitle } from './docx-collection';
 import { buildJournalDocument, packDocx, type DocxDesign } from './docx-document';
 import { displayTitle, type ExportAuthor, type ExportJournal } from './docx-journal';
 
@@ -84,6 +87,8 @@ export class ExportService {
     private readonly journals: JournalService,
     private readonly media: MediaService,
     private readonly convertToPng: ImageConverter,
+    // Uhr für das Exportdatum (Titelseite, Dateiname des Sammel-DOCX); im Test fest
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   private get db() {
@@ -96,9 +101,24 @@ export class ExportService {
     return { displayName: r?.display_name ?? '', company: r?.company ?? null };
   }
 
+  private specialization(): Profile['specialization'] | null {
+    const r = this.db.prepare('SELECT specialization FROM profile').get() as
+      { specialization: Profile['specialization'] } | undefined;
+    return r?.specialization ?? null;
+  }
+
   // Journal so aufbereitet, wie es im Dokument erscheint (Namen statt IDs)
   loadJournal(id: string): ExportJournal {
-    const j = this.journals.get(id); // wirft, wenn es das Journal nicht gibt
+    let j;
+    try {
+      j = this.journals.get(id);
+    } catch (err) {
+      // z. B. in der Zwischenzeit gelöscht: verständliche Meldung statt «Interner Fehler»
+      if (err instanceof JournalNotFoundError) {
+        throw new ExportError('Ein ausgewähltes Journal gibt es nicht mehr. Bitte die Auswahl prüfen.');
+      }
+      throw err;
+    }
     const names = (sql: string) => (this.db.prepare(sql).all(id) as { name: string }[]).map((r) => r.name);
     const start = this.db.prepare('SELECT apprenticeship_start AS s FROM profile').get() as
       { s: string | null } | undefined;
@@ -185,6 +205,59 @@ export class ExportService {
       design,
     });
     return { data: await packDocx(doc), warnings };
+  }
+
+  // --- Sammel-DOCX (AJ-13) --------------------------------------------------
+
+  // Vor dem Speichern-Dialog prüfen, ob es alle Journale noch gibt – sonst
+  // würde erst nach der Wahl des Speicherorts ein Fehler erscheinen.
+  assertJournalsExist(ids: readonly string[]): void {
+    const has = this.db.prepare('SELECT 1 FROM journal WHERE id = ?');
+    if (ids.some((id) => !has.get(id))) {
+      throw new ExportError('Ein ausgewähltes Journal gibt es nicht mehr. Bitte die Auswahl prüfen.');
+    }
+  }
+
+  // Sammel-DOCX als Bytes + Hinweise. ids = Reihenfolge im Dokument (vom IPC
+  // bereits auf Anzahl und Doppelte geprüft).
+  async collectionDocx(
+    ids: readonly string[],
+    title: string,
+    design?: DocxDesign,
+  ): Promise<{ data: Uint8Array; warnings: string[] }> {
+    const journals = ids.map((id) => this.loadJournal(id));
+    // Bilder und Titel verlinkter Journale aller Journale zusammen; Bilder
+    // werden nacheinander geladen (WebP-Umwandlung braucht je ein Fenster).
+    const images = new Map<string, DocxImage>();
+    const linkTitles = new Map<string, string>();
+    for (const journal of journals) {
+      for (const [id, image] of await this.loadImages(journal)) images.set(id, image);
+      for (const [id, t] of this.linkTitles(journal)) linkTitles.set(id, t);
+    }
+    const { doc, warnings } = buildCollectionDocument({
+      journals,
+      author: this.author(),
+      media: (mediaId) => images.get(mediaId),
+      linkTitles,
+      info: { title, createdOn: localIsoDate(this.now()), specialization: this.specialization() },
+      design,
+    });
+    return { data: await packDocx(doc), warnings };
+  }
+
+  // Vorschlag «2026-11-24 Lerndokumentation.docx»: Exportdatum + Titel
+  suggestedCollectionName(title: string): string {
+    return suggestFileName(collectionTitle(title), localIsoDate(this.now()));
+  }
+
+  async exportCollectionDocx(
+    ids: readonly string[],
+    title: string,
+    target: string,
+  ): Promise<{ bytes: number; warnings: string[] }> {
+    const { data, warnings } = await this.collectionDocx(ids, title);
+    await writeFileAtomic(target, data);
+    return { bytes: data.byteLength, warnings };
   }
 
   suggestedName(id: string): string {

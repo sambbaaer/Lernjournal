@@ -154,9 +154,9 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
   }
 }
 
-// Exportieren (AJ-12): geöffnetes Journal direkt als Word, sonst zur Ansicht
-// «Export» mit Auswahl. Sammel-DOCX (AJ-13) und Projektsicherung (.ajournal,
-// AJ-14) folgen – ohne Scheinknöpfe.
+// Exportieren (AJ-12/13): geöffnetes Journal direkt als Word, sonst zur Ansicht
+// «Export» mit Auswahl eines Journals oder mehrerer Journale (Sammel-DOCX).
+// Die Projektsicherung (.ajournal, AJ-14) folgt – ohne Scheinknöpfe.
 function ExportPage() {
   const { state, dispatch } = useApp();
   const open = state.openJournal;
@@ -179,20 +179,22 @@ function ExportPage() {
         )}
         <button
           type="button"
-          className="rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover"
+          className={secondaryButton}
           onClick={() => dispatch({ type: 'navigate', view: 'export' })}
         >
-          Anderes Journal wählen …
+          {open ? 'Anderes Journal oder mehrere Journale …' : 'Journal oder mehrere Journale wählen …'}
         </button>
       </div>
       <p className="text-ink-muted">
-        Mehrere Journale in einem Dokument und die vollständige Projektsicherung (.ajournal) folgen in einem
-        der nächsten Entwicklungsschritte.
+        Mehrere Journale ergeben ein Dokument mit Titelseite, Inhaltsverzeichnis und jedem Journal auf einer
+        neuen Seite. Die vollständige Projektsicherung (.ajournal) folgt in einem der nächsten
+        Entwicklungsschritte.
       </p>
     </div>
   );
 }
 
+const secondaryButton = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
 const primaryButton =
   'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
 

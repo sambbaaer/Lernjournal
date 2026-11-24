@@ -10,7 +10,6 @@
 //  2. Gezielte Regeln (Listen, Bilder, Links, ungültige Zeichen …)
 //  3. Den Exportdienst mit echter Projektdatenbank und die IPC-Handler
 //  4. Gegenprobe mit LibreOffice, falls installiert
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -41,6 +40,7 @@ import { schoolYearText, type ExportJournal } from './docx-journal';
 import { createExportHandlers } from './export-handlers';
 import { ExportService, suggestFileName, withDocxExtension, writeFileAtomic } from './export-service';
 import { AUTHOR, IDS, JOURNAL, LINK_TITLES } from './fixtures';
+import { convertWithLibreOffice, count, normalize, soffice } from './test-utils';
 
 const fixture = (n: string) => new Uint8Array(readFileSync(path.resolve('e2e/fixtures', n)));
 const PNG = fixture('screenshot.png'); // 800 × 500
@@ -68,7 +68,6 @@ async function parts(
     core: get('docProps/core.xml'),
   };
 }
-const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
 const withSection = (key: keyof ExportJournal['sections'], doc: TiptapNode): ExportJournal => ({
   ...JOURNAL,
   sections: { ...JOURNAL.sections, [key]: doc },
@@ -77,28 +76,6 @@ const para = (text: string, marks?: TiptapNode['marks']): TiptapNode => ({
   type: 'doc',
   content: [{ type: 'paragraph', content: [{ type: 'text', text, ...(marks ? { marks } : {}) }] }],
 });
-
-// Golden-File-Vergleich: Werte, die `docx` zufällig oder prozessweit zählend
-// vergibt (Beziehungs-IDs, Textmarken-/Bild-IDs), werden in der Reihenfolge
-// ihres Auftretens durchnummeriert – die Struktur bleibt so vollständig
-// vergleichbar. Ein Tag pro Zeile macht Unterschiede im Diff lesbar.
-function normalize(xml: string): string {
-  const maps = new Map<string, Map<string, string>>();
-  const stable = (family: string, value: string) => {
-    let m = maps.get(family);
-    if (!m) maps.set(family, (m = new Map()));
-    if (!m.has(value)) m.set(value, `${family}${m.size + 1}`);
-    return m.get(value)!;
-  };
-  return xml
-    .replace(/\b(r:id|r:embed|Id)="([^"]+)"/g, (_, a: string, v: string) => `${a}="${stable('rel', v)}"`)
-    .replace(
-      /<(w:bookmark(?:Start|End))([^>]*?) w:id="(\d+)"/g,
-      (_, tag: string, rest: string, v: string) => `<${tag}${rest} w:id="${stable('bm', v)}"`,
-    )
-    .replace(/<wp:docPr id="(\d+)"/g, (_, v: string) => `<wp:docPr id="${stable('pr', v)}"`)
-    .replace(/></g, '>\n<');
-}
 
 describe('Golden Files: Einzel-DOCX', () => {
   it('Testdaten sind gültiger Editor-Inhalt (echtes Schema)', () => {
@@ -516,29 +493,9 @@ describe('Exportdienst mit echter Projektdatenbank', () => {
 
 // Gegenprobe mit einer zweiten Office-Software. Läuft nur, wenn LibreOffice
 // installiert ist (lokal unter Linux; in der Windows-CI übersprungen).
-const soffice = ['soffice', 'libreoffice'].find((cmd) => {
-  try {
-    execFileSync('which', [cmd], { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-});
 describe.skipIf(!soffice)('LibreOffice', () => {
   it('öffnet das Einzel-DOCX und erzeugt ein PDF', { timeout: 180_000 }, async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'lj-lo-'));
-    try {
-      const file = path.join(dir, 'einzel.docx');
-      writeFileSync(file, (await parts()).bytes);
-      execFileSync(soffice!, ['--headless', '--convert-to', 'pdf', '--outdir', dir, file], {
-        stdio: 'ignore',
-        timeout: 170_000,
-      });
-      const pdf = path.join(dir, 'einzel.pdf');
-      expect(existsSync(pdf) && statSync(pdf).size > 10_000).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    expect(convertWithLibreOffice((await parts()).bytes, 'einzel')).toBeGreaterThan(10_000);
   });
 });
 

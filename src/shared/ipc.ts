@@ -16,7 +16,7 @@ import {
   JournalSummarySchema,
   SectionsSchema,
 } from './journal';
-import { ExportResultSchema } from './export';
+import { COLLECTION_LIMITS, ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
 import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
@@ -237,6 +237,23 @@ export const ipcContract = {
   // dass der Exporthinweis (R-10) angezeigt und angenommen wurde.
   'export:journalDocx': {
     request: z.object({ id: JournalId, noticeAccepted: z.literal(true) }),
+    response: ExportResultSchema,
+  },
+  // Mehrere Journale als ein Word-Dokument (AJ-13) mit Titelseite,
+  // Inhaltsverzeichnis und je einem Seitenumbruch vor jedem Journal. Die
+  // Reihenfolge der IDs ist die Reihenfolge im Dokument. Geprüft: 1 bis
+  // COLLECTION_LIMITS.maxJournals gültige IDs ohne Doppelte, Titel begrenzt.
+  // Wie beim Einzel-DOCX bestimmt nur der Speichern-Dialog den Zielpfad.
+  'export:collectionDocx': {
+    request: z.object({
+      ids: z
+        .array(JournalId)
+        .min(1)
+        .max(COLLECTION_LIMITS.maxJournals)
+        .refine((ids) => new Set(ids).size === ids.length, 'Ein Journal ist doppelt ausgewählt'),
+      title: z.string().trim().max(COLLECTION_LIMITS.maxTitleLength),
+      noticeAccepted: z.literal(true),
+    }),
     response: ExportResultSchema,
   },
   // Zuletzt exportierte Datei im Explorer zeigen (kein Pfad vom Renderer)

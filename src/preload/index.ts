@@ -52,6 +52,7 @@ const api: LernjournalApi = {
   },
   export: {
     journalDocx: (req) => ipcRenderer.invoke('export:journalDocx', req),
+    collectionDocx: (req) => ipcRenderer.invoke('export:collectionDocx', req),
     showFile: () => ipcRenderer.invoke('export:showFile'),
   },
   taxonomy: {

@@ -186,8 +186,13 @@ export function AppShell({ version }: { version: string | null }) {
                 {views[state.view]}
               </main>
             </div>
-            {/* Word-Export (AJ-12): Hinweis R-10 → Speichern → Ergebnis */}
-            {state.exportDialog && <ExportDialog journalIds={state.exportDialog.journalIds} />}
+            {/* Word-Export (AJ-12/13): Hinweis R-10 → Speichern → Ergebnis */}
+            {state.exportDialog && (
+              <ExportDialog
+                journalIds={state.exportDialog.journalIds}
+                collection={state.exportDialog.collection}
+              />
+            )}
           </>
         )}
         <StatusBar version={version} />

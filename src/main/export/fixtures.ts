@@ -106,3 +106,68 @@ export const JOURNAL: ExportJournal = {
 };
 
 export const LINK_TITLES = new Map([[IDS.linked, 'ICC-Profile im Workflow']]);
+
+// --- Sammel-DOCX (AJ-13) ----------------------------------------------------
+// Zwei weitere Journale für ein Sammeldokument mit drei Journalen:
+//  - COLLECTION_2 verlinkt auf JOURNAL (steht im Dokument → interner Sprung)
+//    und hat ein eigenes Bild (Abbildungsnummer läuft weiter: «Abbildung 2»)
+//  - COLLECTION_3 verlinkt auf IDS.linked (nicht im Dokument → Hinweis im Text)
+//    und auf COLLECTION_2; ohne Kategorien, Schlagwörter und Lehrjahr
+export const COLLECTION_IDS = {
+  second: '6d0b8c2a-1e4f-4a7b-9c3d-2f5e8a1b0c94',
+  third: 'a47e2f19-8b3c-4d5e-b6a7-0c1d2e3f4a5b',
+  image2: '9e8d7c6b-5a49-4382-a716-05f4e3d2c1b0',
+};
+
+export const COLLECTION_2: ExportJournal = {
+  id: COLLECTION_IDS.second,
+  title: 'Druckplatte belichten (CtP)',
+  workDate: '2026-02-03',
+  schoolYear: 2,
+  semester: 1,
+  learningPlace: 'uek',
+  categories: ['d – Vorbereiten von Druckaufträgen'],
+  tags: ['CtP'],
+  sections: {
+    auftrag: doc(p(t('Platten für einen Auftrag mit vier Farben belichten.'))),
+    durchfuehrung: doc(
+      {
+        type: 'orderedList',
+        attrs: { start: 1, type: null },
+        content: [li(p(t('Daten im Workflow geprüft.'))), li(p(t('Platten belichtet und kontrolliert.')))],
+      },
+      { type: 'figure', attrs: { mediaId: COLLECTION_IDS.image2, caption: 'Belichtete Platte', alt: '' } },
+    ),
+    reflexion: doc(
+      p(
+        t('Die Messung danach beschreibt mein Journal '),
+        link('Farbmessung', `lernjournal://journal/${IDS.journal}`),
+        t('.'),
+      ),
+    ),
+  },
+};
+
+export const COLLECTION_3: ExportJournal = {
+  id: COLLECTION_IDS.third,
+  title: 'Papier und Laufrichtung',
+  workDate: '2026-06-20',
+  schoolYear: null,
+  semester: null,
+  learningPlace: 'schule',
+  categories: [],
+  tags: [],
+  sections: {
+    auftrag: doc(p(t('Laufrichtung verschiedener Papiere bestimmen.'))),
+    durchfuehrung: doc(
+      p(
+        t('Vergleich mit '),
+        link('Profilen', `lernjournal://journal/${IDS.linked}`),
+        t(' und '),
+        link('der Plattenbelichtung', `lernjournal://journal/${COLLECTION_IDS.second}`),
+        t('.'),
+      ),
+    ),
+    reflexion: doc({ type: 'paragraph' }),
+  },
+};

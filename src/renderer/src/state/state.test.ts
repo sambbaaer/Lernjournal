@@ -184,4 +184,24 @@ describe('Exportdialog im Zustand (AJ-12)', () => {
     const s = reducer(initialState, { type: 'openExport', journalIds: ['a'] });
     expect(reducer(s, { type: 'projectClosed' }).exportDialog).toBeNull();
   });
+
+  it('Sammel-DOCX (AJ-13): Dialog mit Reihenfolge und Titel', () => {
+    const s = reducer(initialState, {
+      type: 'openExport',
+      journalIds: ['c', 'a', 'b'],
+      collection: { title: 'Semester 3' },
+    });
+    expect(s.exportDialog).toEqual({ journalIds: ['c', 'a', 'b'], collection: { title: 'Semester 3' } });
+  });
+
+  it('Zusammenstellung bleibt erhalten, verliert gelöschte Journale, Projektwechsel leert sie', () => {
+    let s = reducer(initialState, { type: 'collectionChanged', change: { ids: ['a', 'b'], title: 'T' } });
+    s = reducer(s, { type: 'navigate', view: 'journale' });
+    expect(s.collection).toEqual({ ids: ['a', 'b'], title: 'T' });
+    s = reducer(s, { type: 'collectionChanged', change: { title: 'Neu' } });
+    expect(s.collection).toEqual({ ids: ['a', 'b'], title: 'Neu' });
+    s = reducer(s, { type: 'journalRemoved', id: 'a' });
+    expect(s.collection.ids).toEqual(['b']);
+    expect(reducer(s, { type: 'projectClosed' }).collection).toEqual({ ids: [], title: '' });
+  });
 });

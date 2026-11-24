@@ -1,4 +1,5 @@
-// Word-Export (AJ-12): gemeinsame Typen und Texte für Hauptprozess und Oberfläche.
+// Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX): gemeinsame Typen und
+// Texte für Hauptprozess und Oberfläche.
 //
 // Grundsätze (SPEC «Word-Export», QUELLEN R-10):
 //  - Word ist ein Einweg-Export. Was in Word geändert wird, fliesst NICHT
@@ -31,6 +32,24 @@ export const EXPORT_NOTICE = {
   oneWay: 'Die Word-Datei ist eine Kopie: Änderungen darin fliessen nicht in Lernjournal zurück.',
   confirm: 'Verstanden, weiter',
 } as const;
+
+// --- Sammel-DOCX (AJ-13) ----------------------------------------------------
+
+// Titel der Titelseite, wenn nichts eingegeben wurde. «Lerndokumentation» ist
+// der Begriff der BiVo (Art. 12) für die Journale – bewusst nicht «QV-Mappe»
+// o. Ä.: Die QV-Mappe ist ein eigenes, späteres Ticket (P1).
+export const DEFAULT_COLLECTION_TITLE = 'Lerndokumentation';
+
+// Technische Grenzen des Sammel-Exports (keine Zahlen aus offiziellen
+// Vorgaben): schützen den Hauptprozess vor unsinnig grossen Anfragen. Ein
+// Projekt über vier Lehrjahre hat typischerweise einige Dutzend Journale.
+export const COLLECTION_LIMITS = { maxJournals: 500, maxTitleLength: 150 } as const;
+
+// Hinweis zum Inhaltsverzeichnis. Die Seitenzahlen kennt erst Word (es
+// berechnet den Umbruch); Lernjournal schreibt das Verzeichnis als Feld mit
+// den Titeln vor, Word füllt die Seitenzahlen beim Aktualisieren ein.
+export const COLLECTION_TOC_HINT =
+  'Beim Öffnen fragt Word, ob die Felder des Dokuments aktualisiert werden sollen. Mit «Ja» erhält das Inhaltsverzeichnis seine Seitenzahlen. Später geht das jederzeit mit Rechtsklick ins Verzeichnis → «Felder aktualisieren».';
 
 // Ergebnis eines Exports. «canceled» = Speichern-Dialog abgebrochen (kein Fehler).
 // warnings: verständliche Hinweise, wenn etwas nicht wie im Editor übernommen

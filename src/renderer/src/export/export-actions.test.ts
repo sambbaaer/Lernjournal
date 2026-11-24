@@ -1,7 +1,7 @@
 // Ablauf des Word-Exports in der Oberfläche (AJ-12): zuerst speichern, dann
 // exportieren; Meldungen für Lernende. window.lernjournal wird ersetzt.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { exportJournalDocx, outcomeOf } from './export-actions';
+import { exportCollectionDocx, exportJournalDocx, outcomeOf } from './export-actions';
 
 const ID = '3f2a9c1e-6b7d-4e21-9a4f-0c5d8e7b1a23';
 
@@ -9,6 +9,11 @@ function fakeBridge(result: unknown) {
   const journalDocx = vi.fn(async () => result);
   vi.stubGlobal('window', { lernjournal: { export: { journalDocx } } });
   return journalDocx;
+}
+function fakeCollectionBridge(result: unknown) {
+  const collectionDocx = vi.fn(async () => result);
+  vi.stubGlobal('window', { lernjournal: { export: { collectionDocx } } });
+  return collectionDocx;
 }
 afterEach(() => vi.unstubAllGlobals());
 
@@ -50,5 +55,30 @@ describe('Word-Export aus der Oberfläche', () => {
       message: 'Das Word-Dokument konnte nicht erstellt werden.',
     });
     expect(outcomeOf(null).kind).toBe('error');
+  });
+
+  it('Sammel-DOCX: speichert zuerst, schickt IDs in gewählter Reihenfolge, Titel und Bestätigung', async () => {
+    const ids = ['b', 'a', 'c'];
+    const calls: string[] = [];
+    const bridge = fakeCollectionBridge({
+      ok: true,
+      data: { status: 'saved', fileName: 's.docx', bytes: 2.4 * 1024 * 1024, warnings: ['«A»: Bild fehlt'] },
+    });
+    const out = await exportCollectionDocx(ids, 'Semester 3', async () => {
+      calls.push('save');
+      return true;
+    });
+    expect(calls).toEqual(['save']);
+    expect(bridge).toHaveBeenCalledWith({ ids: ['b', 'a', 'c'], title: 'Semester 3', noticeAccepted: true });
+    expect(out).toEqual({ kind: 'saved', fileName: 's.docx', size: '2,4 MB', warnings: ['«A»: Bild fehlt'] });
+    // Nicht gespeichert → kein Export
+    bridge.mockClear();
+    expect((await exportCollectionDocx(ids, '', async () => false)).kind).toBe('error');
+    expect(bridge).not.toHaveBeenCalled();
+    // Bridge wirft → verständlicher Fehler statt Absturz
+    vi.stubGlobal('window', {
+      lernjournal: { export: { collectionDocx: () => Promise.reject(new Error('weg')) } },
+    });
+    expect((await exportCollectionDocx(ids, '', async () => true)).kind).toBe('error');
   });
 });

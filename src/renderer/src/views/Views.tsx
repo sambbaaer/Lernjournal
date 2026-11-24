@@ -2,7 +2,8 @@
 // (AJ-11) liegt in src/renderer/src/fachbuch/. Noch nicht umgesetzte
 // Ansichten zeigen leere Zustände mit klaren Hinweisen statt Scheinfunktionen.
 import { useState } from 'react';
-import { FileDown, FilePlus, Files, NotebookPen } from 'lucide-react';
+import { FileDown, FilePlus, NotebookPen } from 'lucide-react';
+import { CollectionPanel } from '../export/CollectionPanel';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
@@ -129,8 +130,8 @@ export function JournaleView() {
 
 const NO_IDS: string[] = []; // stabile Referenz (keine neue Liste bei jedem Rendern)
 
-// Export: Einzel-DOCX (AJ-12). Der Sammel-Export mit Titelseite und
-// Inhaltsverzeichnis folgt mit AJ-13 – bis dahin nur ein ehrlicher Hinweis.
+// Export: Einzel-DOCX (AJ-12) und Sammel-DOCX mit Titelseite und
+// Inhaltsverzeichnis (AJ-13, export/CollectionPanel.tsx).
 export function ExportView() {
   const { state, dispatch } = useApp();
   const [picking, setPicking] = useState(false);
@@ -161,10 +162,7 @@ export function ExportView() {
           </button>
         )}
       </section>
-      <EmptyState icon={Files} title="Mehrere Journale in einem Dokument">
-        Eine Sammlung mit Titelseite, Inhaltsverzeichnis und gewählter Reihenfolge folgt in einem der nächsten
-        Entwicklungsschritte.
-      </EmptyState>
+      <CollectionPanel />
       {picking && (
         <JournalPicker
           title="Journal als Word exportieren"

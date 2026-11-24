@@ -1,4 +1,5 @@
-// IPC-Handler für den Word-Export (AJ-12). Setzen ein geöffnetes Projekt voraus.
+// IPC-Handler für den Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX).
+// Setzen ein geöffnetes Projekt voraus.
 //
 // Ablauf «Journal als Word exportieren»:
 //   1. Oberfläche zeigt den Exporthinweis (R-10) und schickt die Bestätigung mit
@@ -21,7 +22,8 @@ export type ExportHandlerDeps = {
 
 export function createExportHandlers(
   deps: ExportHandlerDeps,
-): Pick<Handlers, 'export:journalDocx' | 'export:showFile'> {
+): Pick<Handlers, 'export:journalDocx' | 'export:collectionDocx' | 'export:showFile'> {
+  // Immer nur ein Export zugleich (gilt für Einzel- und Sammel-DOCX gemeinsam)
   let busy = false;
   // «Im Ordner anzeigen» darf nur die zuletzt hier exportierte Datei zeigen –
   // nie einen Pfad, den die Oberfläche schickt.
@@ -36,6 +38,23 @@ export function createExportHandlers(
         if (!chosen) return { status: 'canceled' as const };
         const target = withDocxExtension(chosen);
         const { bytes, warnings } = await deps.service.exportJournalDocx(id, target);
+        lastFile = target;
+        return { status: 'saved' as const, fileName: path.basename(target), bytes, warnings };
+      } finally {
+        busy = false;
+      }
+    },
+    // Sammel-DOCX: gleicher Ablauf; zuerst prüfen, ob es alle Journale noch
+    // gibt (Fehler VOR dem Speichern-Dialog), Reihenfolge = Reihenfolge der IDs
+    'export:collectionDocx': async ({ ids, title }) => {
+      if (busy) throw new ExportError('Ein Export läuft bereits. Bitte einen Moment warten.');
+      busy = true;
+      try {
+        deps.service.assertJournalsExist(ids);
+        const chosen = await deps.chooseSavePath(deps.service.suggestedCollectionName(title));
+        if (!chosen) return { status: 'canceled' as const };
+        const target = withDocxExtension(chosen);
+        const { bytes, warnings } = await deps.service.exportCollectionDocx(ids, title, target);
         lastFile = target;
         return { status: 'saved' as const, fileName: path.basename(target), bytes, warnings };
       } finally {

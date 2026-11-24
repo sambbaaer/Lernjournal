@@ -1,5 +1,5 @@
-// Word-Export aus Sicht der Oberfläche (AJ-12): Ausstehendes speichern, dann
-// den Hauptprozess exportieren lassen. Reine Ablauf-Logik ohne React, damit sie
+// Word-Export aus Sicht der Oberfläche (AJ-12 Einzel-, AJ-13 Sammel-DOCX):
+// Ausstehendes speichern, dann den Hauptprozess exportieren lassen. Reine Ablauf-Logik ohne React, damit sie
 // mit Vitest prüfbar ist (window.lernjournal wird im Test ersetzt).
 import { formatFileSize, type ExportResult } from '@shared/export';
 import type { IpcResult } from '@shared/ipc';
@@ -29,11 +29,11 @@ export function outcomeOf(res: IpcResult<ExportResult> | null): ExportOutcome {
   };
 }
 
-// Ein Journal exportieren. saveFirst = Ausstehendes im offenen Journal speichern,
-// sonst fehlten eben getippte Sätze im Dokument.
-export async function exportJournalDocx(
-  journalId: string,
+// Gemeinsamer Ablauf: saveFirst = Ausstehendes im offenen Journal speichern,
+// sonst fehlten eben getippte Sätze im Dokument; erst dann exportieren.
+async function runExport(
   saveFirst: () => Promise<boolean>,
+  call: () => Promise<IpcResult<ExportResult>>,
 ): Promise<ExportOutcome> {
   const saved = await saveFirst().catch(() => false);
   if (!saved) {
@@ -42,8 +42,26 @@ export async function exportJournalDocx(
       message: 'Die letzten Änderungen sind noch nicht gespeichert. Bitte zuerst speichern (Strg+S).',
     };
   }
-  const res = await window.lernjournal.export
-    .journalDocx({ id: journalId, noticeAccepted: true })
-    .catch(() => null);
-  return outcomeOf(res);
+  return outcomeOf(await call().catch(() => null));
+}
+
+// Ein Journal exportieren (Einzel-DOCX)
+export function exportJournalDocx(
+  journalId: string,
+  saveFirst: () => Promise<boolean>,
+): Promise<ExportOutcome> {
+  return runExport(saveFirst, () =>
+    window.lernjournal.export.journalDocx({ id: journalId, noticeAccepted: true }),
+  );
+}
+
+// Mehrere Journale in einem Dokument (Sammel-DOCX). ids = Reihenfolge im Dokument.
+export function exportCollectionDocx(
+  ids: string[],
+  title: string,
+  saveFirst: () => Promise<boolean>,
+): Promise<ExportOutcome> {
+  return runExport(saveFirst, () =>
+    window.lernjournal.export.collectionDocx({ ids, title, noticeAccepted: true }),
+  );
 }

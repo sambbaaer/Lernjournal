@@ -4,10 +4,22 @@
 // Aufbau für Wiederverwendung (ADR 0002):
 //   buildDocument()        – gemeinsame Hülle für Einzel- und Sammel-DOCX
 //   buildJournalDocument() – Einzel-DOCX (AJ-12): genau ein Journal
-// Das Sammel-DOCX (AJ-13) baut mit createContentContext() + journalBlocks()
-// je Journal (gemeinsamer Kontext) und reicht die Blöcke an buildDocument()
-// weiter – ergänzt um Titelseite, Inhaltsverzeichnis und Seitenumbrüche.
-import { BorderStyle, Document, Footer, Packer, PageNumber, Paragraph, TabStopType, TextRun } from 'docx';
+// Das Sammel-DOCX (AJ-13, docx-collection.ts) baut mit createContentContext()
+// + journalBlocks() je Journal (gemeinsamer Kontext) und reicht die Blöcke an
+// buildDocument() weiter – ergänzt um Titelseite, Inhaltsverzeichnis und
+// Seitenumbrüche.
+import {
+  BorderStyle,
+  Document,
+  Footer,
+  Packer,
+  PageNumber,
+  Paragraph,
+  TabStopType,
+  TextRun,
+  type FileChild,
+  type IParagraphStyleOptions,
+} from 'docx';
 import {
   cmToTwips,
   createContentContext,
@@ -37,10 +49,49 @@ export type DocumentInput = {
   author: ExportAuthor;
   design: DocxDesign;
   ctx: ContentContext; // für die Nummerierungsvorlagen der verwendeten Listen
-  children: Block[];
+  // Blöcke des Inhalts; im Sammel-DOCX auch das Inhaltsverzeichnis-Feld
+  children: readonly (Block | FileChild)[];
   // Word beim Öffnen Felder aktualisieren lassen (für das Inhaltsverzeichnis, AJ-13)
   updateFields?: boolean;
+  // Erste Seite ist eine Titelseite (Sammel-DOCX, AJ-13): ohne Fusszeile und
+  // mit den Formatvorlagen «Titel», «Untertitel» und «Inhaltsverzeichnisüberschrift».
+  titlePage?: boolean;
 };
+
+// Formatvorlagen nur für Titelseite und Inhaltsverzeichnis. Eingebaute Namen
+// («Title», «Subtitle», «TOC Heading»), damit deutsches Word sie als «Titel»,
+// «Untertitel» und «Inhaltsverzeichnisüberschrift» zeigt. Nur im Sammel-DOCX
+// eingebunden – das Einzel-DOCX bleibt unverändert (Golden File).
+function titlePageStyles(font: string): IParagraphStyleOptions[] {
+  return [
+    {
+      id: 'Title',
+      name: 'Title',
+      basedOn: 'Normal',
+      next: 'Normal',
+      // Abstand oben: Titel steht im oberen Drittel, nicht am Seitenrand
+      run: { font, size: 56, bold: true, color: COLOR_HEADING },
+      paragraph: { spacing: { before: 3600, after: 240 } },
+    },
+    {
+      id: 'Subtitle',
+      name: 'Subtitle',
+      basedOn: 'Normal',
+      next: 'Normal',
+      run: { font, size: 32, color: COLOR_SECTION },
+      paragraph: { spacing: { after: 120 } },
+    },
+    {
+      id: 'TOCHeading',
+      name: 'TOC Heading',
+      basedOn: 'Normal',
+      next: 'Normal',
+      // bewusst KEINE Überschrift 1: sonst stünde «Inhaltsverzeichnis» im eigenen Verzeichnis
+      run: { font, size: 32, bold: true, color: COLOR_HEADING },
+      paragraph: { spacing: { after: 240 } },
+    },
+  ];
+}
 
 // Fusszeile: «Lerndokumentation – Name» links, «Seite X von Y» rechts
 function footer(author: ExportAuthor, design: DocxDesign): Footer {
@@ -119,18 +170,23 @@ export function buildDocument(input: DocumentInput): Document {
           run: { size: Math.max(16, size - 4), color: COLOR_MUTED },
           paragraph: { spacing: { after: 40 } },
         },
+        ...(input.titlePage ? titlePageStyles(font) : []),
       ],
     },
     numbering: { config: numberingConfig(input.ctx) },
     sections: [
       {
         properties: {
+          // «Erste Seite anders»: Titelseite ohne Fusszeile (Seitenzahl zählt trotzdem)
+          titlePage: input.titlePage || undefined,
           page: {
             size: { width: cmToTwips(PAGE_WIDTH_CM), height: cmToTwips(PAGE_HEIGHT_CM) },
             margin: { top: margin, bottom: margin, left: margin, right: margin },
           },
         },
-        footers: { default: footer(author, design) },
+        footers: input.titlePage
+          ? { default: footer(author, design), first: new Footer({ children: [new Paragraph({})] }) }
+          : { default: footer(author, design) },
         children: input.children,
       },
     ],
