@@ -300,7 +300,11 @@ jobs:
             Write-Host ('{0,-10} {1}{2}' -f $result, $test.NAME, $optional)
             # Befunde ausführlich ins Protokoll (Bericht als Artefakt zusätzlich)
             if ($result -ne 'PASS') {
-              foreach ($m in $test.SelectNodes('.//MESSAGE')) { Write-Host "           $($m.InnerText.Trim())" }
+              # Meldungen stehen je nach Test als Text oder als Attribute im Bericht
+              foreach ($m in $test.SelectNodes('.//MESSAGE') | Select-Object -First 40) {
+                $line = $m.OuterXml
+                Write-Host "           $($line.Substring(0, [Math]::Min(400, $line.Length)))"
+              }
               $desc = $test.SelectSingleNode('DESCRIPTION')
               if ($desc) { Write-Host "           Beschreibung: $($desc.InnerText.Trim())" }
             }

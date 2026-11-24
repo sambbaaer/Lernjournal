@@ -73,4 +73,7 @@ Mit dem Installer aus dem letzten CI-Lauf (Artefakt `lernjournal-windows`). Erge
 | `6095b51` (AJ-17 WIP, Strg+N-Fix) | ✔ | ✔ |
 | `1a97ec8` (AJ-17 WIP, Abnahme-E2E, letzter Code-Stand) | ✔ (Vitest bestanden, LibreOffice-Gegenprobe übersprungen; E2E 78/78) | ✔ |
 
+| `70d46bb` (AJ-16b WIP, MSIX) | ✔ | ✔ inkl. MSIX installiert, Selbsttest mit Paketidentität, deinstalliert; Job `zertifizierung` (WACK) PASS |
+| `6763d01` (AJ-16b WIP) | ✔ | ✔; WACK PASS |
+
 Der abschliessende AJ-17-Commit ändert nur Dokumentation; die CI läuft dafür nicht (`paths-ignore` für `docs/**` und `*.md`). Massgeblich ist darum der Code-Stand `1a97ec8`.
