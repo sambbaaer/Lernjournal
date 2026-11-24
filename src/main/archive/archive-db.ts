@@ -85,9 +85,13 @@ export async function snapshotDatabase(
 // Wie oft eine Kopie versucht wird, wenn SQLite «gesperrt» meldet (z. B.
 // während eines Checkpoints) – technische Konstante, keine Vorgabe
 const COPY_ATTEMPTS = 3;
+// Seiten je Kopierschritt: so viele, dass jede Datenbank in EINEM Schritt
+// kopiert wird. (SQLite kennt dafür −1; Node 24 in Electron verlangt aber
+// eine positive Zahl – höchster Wert einer 32-Bit-Ganzzahl.)
+const ALL_PAGES = 2_147_483_647;
 
 // Kopie über die SQLite-Backup-API – aus einer EIGENEN, nur lesenden
-// Verbindung und in EINEM Schritt (rate −1). Warum nicht direkt aus der
+// Verbindung und in EINEM Schritt (ALL_PAGES). Warum nicht direkt aus der
 // Verbindung des Programms? Schreibt dieselbe Verbindung, während ein
 // Kopierschritt läuft (Speichern während einer Sicherung im Hintergrund),
 // bricht SQLite den Schritt mit SQLITE_LOCKED ab (AJ-15, im Test nachgestellt).
@@ -102,7 +106,7 @@ async function copyConsistently(db: Db, file: string): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     const source = location ? openDatabase(location, { readOnly: true }) : db;
     try {
-      await backup(source, file, { rate: -1 });
+      await backup(source, file, { rate: ALL_PAGES });
       return;
     } catch (err) {
       await rm(file, { force: true }).catch(() => {});

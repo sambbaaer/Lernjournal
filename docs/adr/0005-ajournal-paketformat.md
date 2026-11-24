@@ -37,7 +37,8 @@ Das Manifest steht am Ende, weil die Prüfsummen beim Schreiben in einem Durchga
 
 ## Konsequenzen
 - **+** Keine neue Laufzeitabhängigkeit; volle Kontrolle über jede Grenze; wenig Arbeitsspeicher auch bei grossen Projekten.
-- **+** Bausteine für AJ-15 (Sicherungen): `snapshotDatabase`, `writeProjectArchive`, `verifyArchive`, `importArchive` (Wiederherstellung in neues Zielprojekt), `writeAtomically`, Fortschritt über `lj:archive-progress`.
+- **+** Bausteine für AJ-15 (Sicherungen, ADR 0006): `snapshotDatabase`, ZIP-Leser/-Schreiber, `verifyImportedDatabase`, `finishImportedDatabase`, `writeAtomically`, Fortschritt über `lj:archive-progress`.
+- **Nachtrag AJ-15:** `snapshotDatabase` kopiert seither aus einer eigenen, nur lesenden Verbindung in einem Schritt (vorher aus der Verbindung des Programms, die mit `SQLITE_LOCKED` abbrach, wenn während der Kopie gespeichert wurde). Import und Übergabe speichern den Zeitpunkt der letzten Übergabe (Schema v3).
 - **−** Eigener ZIP-Code muss gepflegt werden; abgesichert durch Angriffstests (`zip.test.ts`, `archive.test.ts`) und die Gegenprobe mit fflate. Archive anderer Werkzeuge mit Ordnereinträgen oder zusätzlichen Dateien werden bewusst abgelehnt.
 - **−** Eine Importkopie hat dieselbe Projekt-ID wie das Original (Identität des Lernjournals); die Oberfläche unterscheidet Projekte darum über ID **und** Pfad.
 - Neue Dateiart im Projekt? `MEDIA_ENTRY`/`maxEntryBytes` erweitern, `ARCHIVE_FORMAT_VERSION` erhöhen und in `readManifest()` ältere Versionen umwandeln.

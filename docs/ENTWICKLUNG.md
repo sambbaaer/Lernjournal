@@ -41,12 +41,13 @@ spikes/       Phase-0-Prototypen (nicht App-Code)
 src/main/db/
   connection.ts   openDatabase (WAL, synchronous=FULL, Fremdschlüssel), transaction, checkIntegrity
   schema-v1.ts    Grundschema – nach Veröffentlichung NIE mehr ändern
+  schema-v2.ts    Suchindex (AJ-11), schema-v3.ts letzte Projektübergabe (AJ-15)
   migrations.ts   Liste aller Migrationen, migrate()
 src/main/project/
   lock.ts         Projektsperre (project.lock)
 ```
 - **Neue Spalte/Tabelle?** Nie `schema-v1.ts` ändern, sondern eine neue Migration `{ version: 2, name, up }` in `MIGRATIONS` anhängen und testen (alte Datei → neue Version, Daten bleiben).
-- `migrate()` sichert bestehende Daten **vor** dem Umbau (SQLite-Backup-API), führt jede Migration in einer eigenen Transaktion aus und verweigert Dateien aus neueren Programmversionen.
+- `migrate()` ruft **vor** dem Umbau den Hook `backup` auf (im Projekt: gewöhnliche Sicherung mit Anlass «vor-update», `backupBeforeMigration`, AJ-15), führt jede Migration in einer eigenen Transaktion aus und verweigert Dateien aus neueren Programmversionen.
 - `openDatabase(file, { journalMode: 'delete' })` für eigenständige Kopien ohne `-wal`/`-shm` (z. B. in der .ajournal-Datei), `{ readOnly: true, untrusted: true }` für Dateien von aussen (`trusted_schema = OFF`, `cell_size_check`).
 - **Regeln, die immer gelten müssen**, gehören als `CHECK`/`UNIQUE`/Fremdschlüssel ins Schema, nicht nur in den Code. Achtung SQLite: Ein `CHECK`, der `NULL` ergibt, gilt als erfüllt – darum `IS` statt `=` bei Funktionen wie `date()`.
 - Datenbankzugriffe nur im Hauptprozess; der Renderer bekommt Daten ausschliesslich über IPC.
@@ -62,6 +63,8 @@ src/main/project/
 src/shared/bipla.ts    Vorschlag-Kategorien a–g aus dem Bildungsplan
 ```
 - Der Projektdienst kennt kein Electron (testbar mit Vitest); Dialoge und App-Pfade werden in `src/main/index.ts` hineingereicht.
+- **Schliessen:** `closeGracefully()` ruft zuerst `beforeClose` (Sicherung beim Schliessen) – bei Projektwechsel, «Projekt schliessen» und Programmende. `close()` bleibt synchron und ohne Sicherung (nur wo vorher schon gesichert wurde, z. B. beim Ersetzen durch eine Sicherung).
+- `freeFolder()` / `targetFolderFor()`: Vorschlag und «Anderen Ordner wählen» für Import und Wiederherstellung (nie in fremde Dateien oder ein bestehendes Projekt).
 - E2E-Tests setzen `LERNJOURNAL_E2E_DIR`: eigene Benutzerdaten und «Dokumente» in einem Temp-Ordner (wirkt nur in der ungepackten App). `launchApp()` legt das Projekt über den echten Assistenten an.
 
 ## Journale
@@ -188,8 +191,26 @@ src/renderer/src/archive/archive-actions.ts Ablauf und Texte (rein, Vitest)
 - **Fortschritt:** Ereignis `lj:archive-progress` (Hauptprozess → Oberfläche, `archive.onProgress` in der Brücke, nur `step`/`percent` werden weitergereicht).
 - **Neue Tabelle/Spalte (Migration)?** Nichts zu tun: Der Schema-Vergleich beim Import baut seine Referenz aus `MIGRATIONS`. **Neue Dateiart im Projektordner?** `MEDIA_ENTRY`/`maxEntryBytes` erweitern, `ARCHIVE_FORMAT_VERSION` erhöhen, ältere Versionen in `readManifest()` umwandeln, Tests ergänzen.
 - **Projekt-ID:** Eine Importkopie behält die ID des Originals. Die Oberfläche lädt darum bei Wechsel von ID **oder** Pfad neu (`AppShell`).
-- **Bausteine für AJ-15 (Sicherungen):** `snapshotDatabase`, `writeProjectArchive`, `verifyArchive`, `importArchive` (Wiederherstellung in ein neues Zielprojekt), `writeAtomically`.
+- **Konsistente Kopie:** `snapshotDatabase` kopiert über eine eigene, nur lesende Verbindung in einem Schritt – nie aus der Verbindung des Programms (die bricht mit `SQLITE_LOCKED` ab, wenn währenddessen gespeichert wird; ADR 0006). Gemeinsam mit den Sicherungen (AJ-15), ebenso `finishImportedDatabase` (Migration, Suchindex, Integrität) und `recordExport`.
 - **Tests:** `src/main/archive/zip.test.ts` (ZIP-Slip, Symlinks, Duplikate, Zip-Bombe mit gelogenen Grössen, Überlappung, CRC, ZIP64, Verschlüsselung, Gegenprobe mit fflate), `archive.test.ts` (Roundtrip mit Bildern, Links, Kategorien, Schlagwörtern und Suche; WAL-Inhalt; ältere Schemaversion; neuere Versionen; falsche/fehlende Hashes; manipuliertes Manifest, Bild und Datenbank; Aufräumen; Handler und IPC), `test-zip.ts` baut bösartige Archive von Hand. `archive-actions.test.ts`, `e2e/archive.test.mjs` (Übergabe, Import auf einem «zweiten Computer» über den Startbildschirm, manipulierte Datei, axe).
+
+## Sicherungen und Wiederherstellung (AJ-15)
+```
+src/shared/backup.ts                       BACKUP_POLICY, EXPORT_REMINDER, Typen/Schemas, Texte, exportReminder()
+src/main/backup/backup-format.ts           Ablage, IDs (UTC-Zeitstempel), Manifest (zod), BackupError
+src/main/backup/rotation.ts                backupsToKeep: letzte 10 + je Monat (rein)
+src/main/backup/backup-store.ts            createBackup, listBackups, verifyBackup, rotateBackups, Fingerabdruck, Bildvorrat
+src/main/backup/backup-restore.ts          stageDatabase, restoreMedia, restoreAsNewProject
+src/main/backup/backup-service.ts          Zeitpunkte, Warteschlange, Vorschau, Ersetzen mit Sicherheitskopie
+src/main/backup/backup-handlers.ts         IPC backup:* (nur IDs, Zielordner aus Vorschlag/Dialog)
+src/renderer/src/backup/                   BackupSection (Einstellungen), RestoreDialog, ExportReminderBar, backup-actions
+```
+- **Format und Gründe:** [ADR 0006](adr/0006-sicherungen.md). Zahlen nur in `BACKUP_POLICY` / `EXPORT_REMINDER` ändern.
+- **Zeitpunkte:** `afterOpen` (Fingerabdruck ≠ neueste Sicherung), `beforeClose` und `tick()` alle 15 min (nur wenn `total_changes()` gestiegen ist), Beenden in `index.ts` (`will-quit` angehalten, höchstens `quitTimeoutMs`). Alles über `BackupService.exclusive` nacheinander. Achtung Verklemmung: Wer innerhalb von `exclusive` ein **anderes** Projekt öffnet, löst `beforeClose` aus, das ebenfalls in die Warteschlange will – darum öffnet `backup:restore` (neues Lernjournal) erst nach `restoreAsNew`.
+- **Keine Pfade vom Renderer:** IDs nach `BACKUP_ID_PATTERN`; der Dienst prüft, dass die Datei existiert. Fortschritt über `lj:archive-progress` (`archive.onProgress`).
+- **Neue Tabelle (Migration)?** Nichts zu tun (Fingerabdruck und Schema-Prüfung lesen `sqlite_master`). Spalten, die beim Ersetzen vom aktuellen Projekt übernommen werden sollen, in `carryOverExport` (backup-service.ts) ergänzen.
+- **Node-Version:** Vitest läuft mit dem Node der Entwicklungsumgebung, die App mit dem Node in Electron (24). Beispiel: `backup(…, { rate: -1 })` geht unter Node 22, Electron lehnt es ab – darum E2E-Test `e2e/backup.test.mjs` nach Änderungen an der Kopie laufen lassen.
+- **Tests:** `src/main/backup/backup.test.ts` (Inhalt, WAL, Konsistenz unter Schreiblast, unverändert, Rotation mit Bildvorrat und verstellter Uhr, beide Wiederherstellungsarten, Sicherheitskopie, beschädigte/manipulierte Sicherungen, Sicherung vor Update, Zeitpunkte, Aufräumen, IPC, Schema v3), `rotation.test.ts`, `src/shared/backup.test.ts` (Erinnerung: genau 30 Tage, nie übergeben, «Später erinnern», Uhr verstellt), `backup-actions.test.ts`, `e2e/backup.test.mjs` (Jetzt sichern, Ersetzen mit Vorschau, Sicherung beim Beenden, Erinnerung, axe).
 
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.
