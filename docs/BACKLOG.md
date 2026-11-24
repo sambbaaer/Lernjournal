@@ -1,6 +1,6 @@
 # Lernjournal – umsetzbares Backlog
 
-Stand: 2026-11-23. **P0:** AJ-00–AJ-17. **P1:** AJ-18, AJ-20–AJ-23 (AJ-19 Semesterbesprechung → P2) (erst nach bestandener P0-Abnahme; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
+Stand: 2026-11-24. **P0:** AJ-00–AJ-17. **P1:** AJ-18, AJ-20–AJ-23 (AJ-19 Semesterbesprechung → P2) (erst nach bestandener P0-Abnahme; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
 
 Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung für eine Person mit KI-Unterstützung).
 
@@ -43,7 +43,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 | ID | Umsetzung | Abnahme | Abhängig | Grösse |
 |---|---|---|---|---|
 | AJ-12 ✔ | Einzel-DOCX | Export im Hauptprozess mit `docx` 9.16: Formatvorlagen (Überschrift 1–4, Beschriftung, Journal-Metadaten), Kopfblock (Name, Lehrbetrieb, Datum, Lehrjahr/Semester, Lernort, Kategorien, Schlagwörter), Word-Listen (jede neu ab 1, Startwert, Folgeabsätze), Tabellen mit wiederholter Kopfzeile, Bilder auf Satzspiegel mit Legende «Abbildung n» (SEQ-Feld), WebP → PNG, Fusszeile «Seite X von Y»; Exporthinweis (R-10) vor jedem Export, nativer Speichern-Dialog ohne stilles Überschreiben, atomares Schreiben, «Im Ordner anzeigen»; aufrufbar aus Menüband, Journalliste, Ansicht «Export» und Datei-Menü; Golden Files (document/styles/numbering/footer/rels), LibreOffice-Gegenprobe, E2E → [ADR 0002](adr/0002-docx-export.md) | 00b, 07 | L (Sichtprüfung in Word 365 offen) |
-| AJ-13 | Sammel-DOCX | Auswahl, Reihenfolge, Titelseite, TOC-Feld, Seitenumbruch je Journal | 12 | M |
+| AJ-13 ✔ | Sammel-DOCX | Ansicht «Export»: Auswahl per Kontrollkästchen mit Suche, Zeitraum (Arbeitsdatum von/bis) und Archiv; Reihenfolge standardmässig chronologisch, mit Auf/Ab bzw. Alt+Pfeil änderbar (Fokus wandert mit, Ansage), «Chronologisch sortieren»; Auswahl bleibt beim Ansichtswechsel erhalten. Dokument: Titelseite (Titel frei, Name, Lehrbetrieb, Beruf/Fachrichtung, Zeitraum, Anzahl, Erstelldatum; ohne Fusszeile), TOC-Feld über die Journaltitel (vorbefüllt, Word ergänzt Seitenzahlen beim Öffnen; Hinweis «Felder aktualisieren» im Dialog), «Seitenumbruch oberhalb» je Journal, durchlaufende Abbildungsnummern, Links zwischen enthaltenen Journalen als Sprung; Hinweise mit Journaltitel. IPC `export:collectionDocx` prüft 1–500 IDs ohne Doppelte, Titel ≤ 150 Zeichen, Hinweis R-10; Zielpfad nur aus dem Speichern-Dialog; Golden Files, Dienst mit echter DB, LibreOffice-Gegenprobe, Auswahl-Logik, E2E → [ADR 0002](adr/0002-docx-export.md) | 12 | M (Sichtprüfung in Word 365 offen) |
 
 ## Phase 5 – Stabilisierung
 

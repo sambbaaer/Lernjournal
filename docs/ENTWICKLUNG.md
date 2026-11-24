@@ -144,23 +144,26 @@ src/renderer/src/fachbuch/FachbuchView.tsx   Ansicht: Suchfeld, Themen links, Tr
 - **Fachbuch-Zustand** (Suchbegriff, Thema, Archiv) liegt im zentralen Zustand (`state.fachbuch`), damit die Suche beim Zurückkehren aus einem Journal erhalten bleibt; Projektwechsel setzt ihn zurück.
 - **Tests:** `src/main/search/search.test.ts` (Abfrage, Projektion, Index, Neuaufbau, Migration v1 → v2), `fachbuch-logic.test.ts`, `e2e/fachbuch.test.mjs`.
 
-## Word-Export (AJ-12)
+## Word-Export (AJ-12, AJ-13)
 ```
 src/shared/export.ts                       Exporthinweis R-10 (Texte), Ergebnis-Schema, formatFileSize
 src/main/export/docx-content.ts            Tiptap-JSON → Word-Elemente (rein), Kontext, Nummerierung
 src/main/export/docx-journal.ts            ein Journal: Titel + Textmarke, Kopfblock, Abschnitte
 src/main/export/docx-document.ts           Seite, Formatvorlagen, Fusszeile; buildDocument / buildJournalDocument
+src/main/export/docx-collection.ts         Sammel-DOCX: Titelseite, Inhaltsverzeichnis, Seitenumbruch je Journal
 src/main/export/export-service.ts          DB → ExportJournal, Bilder laden (WebP → PNG), atomar schreiben
-src/main/export/export-handlers.ts         IPC export:journalDocx (Speichern-Dialog) / export:showFile
+src/main/export/export-handlers.ts         IPC export:journalDocx / export:collectionDocx (Speichern-Dialog) / export:showFile
 src/main/export/image-convert.ts           WebP → PNG im unsichtbaren, gesandboxten Fenster (Electron)
 src/renderer/src/export/ExportDialog.tsx   Hinweis → Speichern → Ergebnis (Menüband, Liste, Ansicht, Datei-Menü)
+src/renderer/src/export/CollectionPanel.tsx Ansicht «Export»: Journale auswählen, Reihenfolge, Titel (Sammel-DOCX)
+src/renderer/src/export/collection-logic.ts Auswahl/Filter/Reihenfolge als reine Funktionen (Vitest)
 ```
 - **Einweg:** DOCX wird nur geschrieben, nie gelesen oder abgeglichen. Vor dem Export speichert die Oberfläche Ausstehendes (`saveIfNeeded`), sonst fehlte eben Getipptes.
 - **Hinweis R-10** erscheint bei jedem Export; der Kanal verlangt `noticeAccepted: true`. Den Zielpfad bestimmt ausschliesslich der Speichern-Dialog im Hauptprozess; «Im Ordner anzeigen» zeigt nur die zuletzt exportierte Datei.
 - **Neuer Editor-Knoten?** Abbildung in `docx-content.ts` ergänzen (sonst: Text + Hinweis «unbekannter Inhalt»), Testfall in `fixtures.ts` aufnehmen, Golden Files neu schreiben.
 - **Golden Files** (`src/main/export/__golden__/`): schlägt der Vergleich fehl, zuerst prüfen, ob die Änderung gewollt ist (z. B. `docx`-Update), dann `npx vitest run src/main/export -u` und den Git-Diff der XML-Dateien ansehen.
-- **Sammel-DOCX (AJ-13):** einen Kontext (`createContentContext` mit allen Journal-IDs in `inDocument`) für alle Journale, je Journal `journalBlocks()`, davor Titelseite/Inhaltsverzeichnis, dann `buildDocument({ updateFields: true })`. Links zwischen den Journalen werden so automatisch zu Sprüngen.
-- **Tests:** `src/main/export/export.test.ts` (Golden Files, Abbildung, Dienst mit echter DB, IPC, LibreOffice falls installiert), `src/renderer/src/export/export-actions.test.ts`, `e2e/export.test.mjs` (echte WebP-Umwandlung; der Speichern-Dialog wird per `app.evaluate` ersetzt).
+- **Sammel-DOCX (AJ-13):** `buildCollectionDocument()` nutzt einen Kontext (`createContentContext` mit allen Journal-IDs in `inDocument`) für alle Journale – Abbildungsnummern laufen durch, Links zwischen den Journalen werden zu Sprüngen. Je Journal `journalBlocks(…, { pageBreakBefore: true })` (Absatzeigenschaft statt leerem Umbruch-Absatz), davor Titelseite und Inhaltsverzeichnis (`TableOfContents`, nur Überschrift 1), dann `buildDocument({ updateFields: true, titlePage: true })`. Die Reihenfolge der IDs im IPC-Aufruf ist die Reihenfolge im Dokument; geprüft werden Anzahl (`COLLECTION_LIMITS`), Doppelte und Titellänge, unbekannte Journale meldet der Dienst noch vor dem Speichern-Dialog. Die Zusammenstellung (IDs, Titel) liegt im App-Zustand `collection`, damit sie beim Ansichtswechsel erhalten bleibt.
+- **Tests:** `src/main/export/export.test.ts` (Einzel-DOCX) und `collection.test.ts` (Sammel-DOCX): Golden Files, Abbildung, Dienst mit echter DB, IPC, LibreOffice falls installiert (eigenes Profil je Aufruf, da Vitest parallel läuft; Hilfen in `test-utils.ts`). `src/renderer/src/export/export-actions.test.ts`, `collection-logic.test.ts`; `e2e/export.test.mjs` (echte WebP-Umwandlung) und `e2e/collection.test.mjs` (Auswahl, Tastatur, Dateiinhalt) – der Speichern-Dialog wird per `app.evaluate` ersetzt. Unter Linux ohne Bildschirm: `xvfb-run -a` und `E2E_EXTRA_ARGS=--no-sandbox`.
 
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.

@@ -302,6 +302,7 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           },
         },
         {
+          // Sammel-DOCX (AJ-13): Auswahl und Reihenfolge in der Ansicht «Export»
           id: 'export-collection',
           label: 'Mehrere Journale als Word',
           icon: Files,

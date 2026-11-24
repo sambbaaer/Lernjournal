@@ -169,7 +169,7 @@ export function CollectionPanel() {
                 1. Journale auswählen
               </h3>
               <div className="flex flex-wrap items-end gap-2 text-sm" role="search">
-                <div className="relative">
+                <div className="relative w-full">
                   <label htmlFor="collection-filter-text" className="sr-only">
                     Journale filtern
                   </label>
@@ -184,7 +184,7 @@ export function CollectionPanel() {
                     value={filter.text}
                     onChange={(e) => setFilter({ ...filter, text: e.target.value })}
                     placeholder="Titel, Kategorie, Schlagwort"
-                    className={`${input} w-56 pl-8 placeholder:text-ink-muted`}
+                    className={`${input} w-full pl-8 placeholder:text-ink-muted`}
                   />
                 </div>
                 <label className="flex flex-col gap-0.5">
