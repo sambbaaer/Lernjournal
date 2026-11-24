@@ -168,3 +168,20 @@ describe('Verknüpfungen im Zustand (AJ-10)', () => {
     expect(s.openJournalLinks).toEqual({ linked: [linked('b')], mentionedIn: [] });
   });
 });
+
+describe('Exportdialog im Zustand (AJ-12)', () => {
+  it('öffnet mit den gewählten Journalen, schliesst das Datei-Menü, schliesst wieder', () => {
+    let s = reducer(initialState, { type: 'openBackstage', page: 'exportieren' });
+    s = reducer(s, { type: 'openExport', journalIds: ['a'] });
+    expect(s.exportDialog).toEqual({ journalIds: ['a'] });
+    expect(s.backstage).toBeNull();
+    s = reducer(s, { type: 'closeExport' });
+    expect(s.exportDialog).toBeNull();
+  });
+
+  it('ohne Journal kein Dialog; Projektwechsel schliesst ihn', () => {
+    expect(reducer(initialState, { type: 'openExport', journalIds: [] }).exportDialog).toBeNull();
+    const s = reducer(initialState, { type: 'openExport', journalIds: ['a'] });
+    expect(reducer(s, { type: 'projectClosed' }).exportDialog).toBeNull();
+  });
+});

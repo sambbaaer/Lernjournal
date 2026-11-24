@@ -52,6 +52,10 @@ export type AppState = {
   // zentralen Zustand, damit die Suche erhalten bleibt, wenn man ein Journal
   // aus den Treffern öffnet und wieder zum Fachbuch zurückkehrt.
   fachbuch: FachbuchState;
+  // Word-Export (AJ-12): offener Exportdialog mit den gewählten Journalen.
+  // Eine Liste, damit der Sammel-Export (AJ-13) denselben Ablauf nutzen kann;
+  // im Moment immer genau ein Journal.
+  exportDialog: { journalIds: string[] } | null;
 };
 
 export const initialState: AppState = {
@@ -73,6 +77,7 @@ export const initialState: AppState = {
   openJournalLinks: EMPTY_LINKS,
   taxonomy: EMPTY_TAXONOMY,
   fachbuch: INITIAL_FACHBUCH,
+  exportDialog: null,
 };
 
 export type Action =
@@ -97,7 +102,9 @@ export type Action =
   | { type: 'journalClosed' }
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
   | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
-  | { type: 'fachbuchChanged'; change: Partial<FachbuchState> };
+  | { type: 'fachbuchChanged'; change: Partial<FachbuchState> }
+  | { type: 'openExport'; journalIds: string[] }
+  | { type: 'closeExport' };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -144,6 +151,7 @@ export function reducer(state: AppState, action: Action): AppState {
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
+        exportDialog: null,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
           : null,
@@ -162,6 +170,7 @@ export function reducer(state: AppState, action: Action): AppState {
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
+        exportDialog: null,
       };
     case 'profileUpdated':
       return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
@@ -217,6 +226,13 @@ export function reducer(state: AppState, action: Action): AppState {
         : state;
     case 'fachbuchChanged':
       return { ...state, fachbuch: { ...state.fachbuch, ...action.change } };
+    case 'openExport':
+      // Ohne Journal kein Dialog; das Datei-Menü schliesst (wie beim Navigieren)
+      return action.journalIds.length
+        ? { ...state, exportDialog: { journalIds: action.journalIds }, backstage: null }
+        : state;
+    case 'closeExport':
+      return { ...state, exportDialog: null };
   }
 }
 

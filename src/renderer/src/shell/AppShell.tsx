@@ -12,6 +12,7 @@ import { matchesShortcut } from '../state/shortcuts';
 import { FachbuchView } from '../fachbuch/FachbuchView';
 import { EinstellungenView, ExportView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
+import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
@@ -185,6 +186,8 @@ export function AppShell({ version }: { version: string | null }) {
                 {views[state.view]}
               </main>
             </div>
+            {/* Word-Export (AJ-12): Hinweis R-10 → Speichern → Ergebnis */}
+            {state.exportDialog && <ExportDialog journalIds={state.exportDialog.journalIds} />}
           </>
         )}
         <StatusBar version={version} />

@@ -73,7 +73,6 @@ export type RibbonGroup = { id: string; label: string; items: RibbonItem[] };
 const NO_EDITOR = 'Zuerst in einen Abschnitt des Journals klicken';
 const onlyInJournal = ({ state }: RibbonCtx) =>
   state.openJournal && state.view === 'journal' ? null : 'Nur in einem geöffneten Journal verfügbar';
-const LATER = (what: string) => () => `${what} folgt in einem der nächsten Entwicklungsschritte`;
 
 // Hilfsfunktion für Editor-Befehle: verfügbar, wenn ein Journal offen und ein
 // Abschnitt aktiv ist; «can» prüft zusätzlich, ob der Befehl gerade möglich ist.
@@ -292,11 +291,15 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       label: 'Word',
       items: [
         {
+          // Einzel-DOCX (AJ-12): öffnet den Exportdialog mit Hinweis (R-10)
           id: 'export-single',
           label: 'Dieses Journal als Word',
           icon: FileDown,
           iconOnly: false,
-          disabledReason: LATER('Word-Export'),
+          disabledReason: onlyInJournal,
+          run: ({ state, dispatch }) => {
+            if (state.openJournal) dispatch({ type: 'openExport', journalIds: [state.openJournal.id] });
+          },
         },
         {
           id: 'export-collection',

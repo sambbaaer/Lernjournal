@@ -123,11 +123,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
     case 'oeffnen':
       return <OpenPage />;
     case 'exportieren':
-      return (
-        <Placeholder title="Exportieren">
-          Word-Export einzelner oder mehrerer Journale sowie die vollständige Projektsicherung (.ajournal).
-        </Placeholder>
-      );
+      return <ExportPage />;
     case 'einstellungen':
       return <SettingsPage />;
     case 'info':
@@ -158,12 +154,41 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
   }
 }
 
-function Placeholder({ title, children }: { title: string; children: React.ReactNode }) {
+// Exportieren (AJ-12): geöffnetes Journal direkt als Word, sonst zur Ansicht
+// «Export» mit Auswahl. Sammel-DOCX (AJ-13) und Projektsicherung (.ajournal,
+// AJ-14) folgen – ohne Scheinknöpfe.
+function ExportPage() {
+  const { state, dispatch } = useApp();
+  const open = state.openJournal;
   return (
-    <div className="max-w-2xl space-y-3 text-sm">
-      <h2 className="text-2xl font-semibold">{title}</h2>
-      <p>{children}</p>
-      <p className="text-ink-muted">Diese Funktion folgt in einem der nächsten Entwicklungsschritte.</p>
+    <div className="max-w-2xl space-y-4 text-sm">
+      <h2 className="text-2xl font-semibold">Exportieren</h2>
+      <p>
+        Journale als Word-Dokument ausgeben, z. B. für die Besprechung mit deiner Berufsbildnerin oder deinem
+        Berufsbildner. Änderungen in Word fliessen nicht in Lernjournal zurück.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {open && (
+          <button
+            type="button"
+            className={primaryButton}
+            onClick={() => dispatch({ type: 'openExport', journalIds: [open.id] })}
+          >
+            «{open.title.trim() || 'Ohne Titel'}» als Word exportieren …
+          </button>
+        )}
+        <button
+          type="button"
+          className="rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover"
+          onClick={() => dispatch({ type: 'navigate', view: 'export' })}
+        >
+          Anderes Journal wählen …
+        </button>
+      </div>
+      <p className="text-ink-muted">
+        Mehrere Journale in einem Dokument und die vollständige Projektsicherung (.ajournal) folgen in einem
+        der nächsten Entwicklungsschritte.
+      </p>
     </div>
   );
 }

@@ -144,6 +144,24 @@ src/renderer/src/fachbuch/FachbuchView.tsx   Ansicht: Suchfeld, Themen links, Tr
 - **Fachbuch-Zustand** (Suchbegriff, Thema, Archiv) liegt im zentralen Zustand (`state.fachbuch`), damit die Suche beim Zurückkehren aus einem Journal erhalten bleibt; Projektwechsel setzt ihn zurück.
 - **Tests:** `src/main/search/search.test.ts` (Abfrage, Projektion, Index, Neuaufbau, Migration v1 → v2), `fachbuch-logic.test.ts`, `e2e/fachbuch.test.mjs`.
 
+## Word-Export (AJ-12)
+```
+src/shared/export.ts                       Exporthinweis R-10 (Texte), Ergebnis-Schema, formatFileSize
+src/main/export/docx-content.ts            Tiptap-JSON → Word-Elemente (rein), Kontext, Nummerierung
+src/main/export/docx-journal.ts            ein Journal: Titel + Textmarke, Kopfblock, Abschnitte
+src/main/export/docx-document.ts           Seite, Formatvorlagen, Fusszeile; buildDocument / buildJournalDocument
+src/main/export/export-service.ts          DB → ExportJournal, Bilder laden (WebP → PNG), atomar schreiben
+src/main/export/export-handlers.ts         IPC export:journalDocx (Speichern-Dialog) / export:showFile
+src/main/export/image-convert.ts           WebP → PNG im unsichtbaren, gesandboxten Fenster (Electron)
+src/renderer/src/export/ExportDialog.tsx   Hinweis → Speichern → Ergebnis (Menüband, Liste, Ansicht, Datei-Menü)
+```
+- **Einweg:** DOCX wird nur geschrieben, nie gelesen oder abgeglichen. Vor dem Export speichert die Oberfläche Ausstehendes (`saveIfNeeded`), sonst fehlte eben Getipptes.
+- **Hinweis R-10** erscheint bei jedem Export; der Kanal verlangt `noticeAccepted: true`. Den Zielpfad bestimmt ausschliesslich der Speichern-Dialog im Hauptprozess; «Im Ordner anzeigen» zeigt nur die zuletzt exportierte Datei.
+- **Neuer Editor-Knoten?** Abbildung in `docx-content.ts` ergänzen (sonst: Text + Hinweis «unbekannter Inhalt»), Testfall in `fixtures.ts` aufnehmen, Golden Files neu schreiben.
+- **Golden Files** (`src/main/export/__golden__/`): schlägt der Vergleich fehl, zuerst prüfen, ob die Änderung gewollt ist (z. B. `docx`-Update), dann `npx vitest run src/main/export -u` und den Git-Diff der XML-Dateien ansehen.
+- **Sammel-DOCX (AJ-13):** einen Kontext (`createContentContext` mit allen Journal-IDs in `inDocument`) für alle Journale, je Journal `journalBlocks()`, davor Titelseite/Inhaltsverzeichnis, dann `buildDocument({ updateFields: true })`. Links zwischen den Journalen werden so automatisch zu Sprüngen.
+- **Tests:** `src/main/export/export.test.ts` (Golden Files, Abbildung, Dienst mit echter DB, IPC, LibreOffice falls installiert), `src/renderer/src/export/export-actions.test.ts`, `e2e/export.test.mjs` (echte WebP-Umwandlung; der Speichern-Dialog wird per `app.evaluate` ersetzt).
+
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.
 - **Anzeige:** «Speichert …» → «Gespeichert» erst nach Bestätigung durch den Hauptprozess (`synchronous=FULL`). Bei Fehlern «Speichern fehlgeschlagen» mit Knopf «Erneut versuchen» und automatischem Wiederholversuch nach 2/5/10/30 s – die Änderungen bleiben im Speicher und gehen nicht verloren.
@@ -179,7 +197,7 @@ Der Rahmen (`src/main/ipc-handler.ts`) prüft automatisch Absender, Kanal und Da
 - Die gepackte App hat Debug- und Node-Schalter per Electron-Fuses abgeschaltet (`electron-builder.yml`).
 
 ## Abhängigkeiten
-- `dependencies`: nur, was der **Hauptprozess zur Laufzeit** braucht (aktuell `zod`). Nur das landet im Installer.
+- `dependencies`: nur, was der **Hauptprozess zur Laufzeit** braucht (aktuell `zod`, `docx`). Nur das landet im Installer.
 - `devDependencies`: alles andere, auch React – Vite bündelt die Oberfläche ohnehin in eine Datei.
 - Versionen sind exakt gepinnt. Aktualisieren bewusst und mit `npm run check` + `npm run test:e2e`.
 - Bekannt: `npm audit` meldet eine mittlere Schwachstelle in `minimatch` innerhalb von electron-builder (nur Build-Zeit, nicht im Installer).

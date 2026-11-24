@@ -1,13 +1,15 @@
 // Hauptansichten Start, Journale, Export und Einstellungen. Das Fachbuch
 // (AJ-11) liegt in src/renderer/src/fachbuch/. Noch nicht umgesetzte
 // Ansichten zeigen leere Zustände mit klaren Hinweisen statt Scheinfunktionen.
-import { FileOutput, FilePlus, NotebookPen } from 'lucide-react';
+import { useState } from 'react';
+import { FileDown, FilePlus, Files, NotebookPen } from 'lucide-react';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
 import { SettingsPanel } from '../project/SettingsPanel';
 import { displayTitle, formatDate, openJournal } from '../journal/actions';
 import { JournalList } from '../journal/JournalList';
+import { JournalPicker } from '../journal/JournalPicker';
 import { StatusBadge } from '../journal/StatusBadge';
 import type { JournalSummary } from '@shared/journal';
 import { EmptyState } from './EmptyState';
@@ -125,13 +127,56 @@ export function JournaleView() {
   );
 }
 
+const NO_IDS: string[] = []; // stabile Referenz (keine neue Liste bei jedem Rendern)
+
+// Export: Einzel-DOCX (AJ-12). Der Sammel-Export mit Titelseite und
+// Inhaltsverzeichnis folgt mit AJ-13 – bis dahin nur ein ehrlicher Hinweis.
 export function ExportView() {
+  const { state, dispatch } = useApp();
+  const [picking, setPicking] = useState(false);
+  const none = state.journals.length === 0;
   return (
     <ViewFrame title="Export">
-      <EmptyState icon={FileOutput} title="Journale als Word-Dokument ausgeben">
-        Einzelne Journale oder eine Sammlung mit Titelseite und Inhaltsverzeichnis. Word-Dateien sind ein
-        Ausgabeformat – Änderungen darin fliessen nicht in Lernjournal zurück.
+      <section
+        aria-labelledby="export-single"
+        className="space-y-3 rounded-md border border-border bg-surface p-5"
+      >
+        <h2 id="export-single" className="flex items-center gap-2 text-base font-semibold">
+          <FileDown aria-hidden="true" size={18} /> Ein Journal als Word-Dokument
+        </h2>
+        <p className="text-sm">
+          Mit echten Formatvorlagen, Listen, Tabellen, Bildern mit Legenden und Seitenzahlen – in Word normal
+          weiterbearbeitbar. Word-Dateien sind ein Ausgabeformat: Änderungen darin fliessen nicht in
+          Lernjournal zurück.
+        </p>
+        {none ? (
+          <p className="text-sm text-ink-muted">Noch keine Journale zum Exportieren.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong"
+          >
+            Journal wählen und exportieren …
+          </button>
+        )}
+      </section>
+      <EmptyState icon={Files} title="Mehrere Journale in einem Dokument">
+        Eine Sammlung mit Titelseite, Inhaltsverzeichnis und gewählter Reihenfolge folgt in einem der nächsten
+        Entwicklungsschritte.
       </EmptyState>
+      {picking && (
+        <JournalPicker
+          title="Journal als Word exportieren"
+          confirmLabel="Weiter"
+          excludeIds={NO_IDS}
+          onCancel={() => setPicking(false)}
+          onPick={(id) => {
+            setPicking(false);
+            dispatch({ type: 'openExport', journalIds: [id] });
+          }}
+        />
+      )}
     </ViewFrame>
   );
 }

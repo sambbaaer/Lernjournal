@@ -42,7 +42,7 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 
 | ID | Umsetzung | Abnahme | Abhängig | Grösse |
 |---|---|---|---|---|
-| AJ-12 | Einzel-DOCX | In Word editierbar, Formatvorlagen, Listen/Bilder/Legenden/Seitenzahlen; Exporthinweis (R-10); Golden-File-Test | 00b, 07 | L |
+| AJ-12 ✔ | Einzel-DOCX | Export im Hauptprozess mit `docx` 9.16: Formatvorlagen (Überschrift 1–4, Beschriftung, Journal-Metadaten), Kopfblock (Name, Lehrbetrieb, Datum, Lehrjahr/Semester, Lernort, Kategorien, Schlagwörter), Word-Listen (jede neu ab 1, Startwert, Folgeabsätze), Tabellen mit wiederholter Kopfzeile, Bilder auf Satzspiegel mit Legende «Abbildung n» (SEQ-Feld), WebP → PNG, Fusszeile «Seite X von Y»; Exporthinweis (R-10) vor jedem Export, nativer Speichern-Dialog ohne stilles Überschreiben, atomares Schreiben, «Im Ordner anzeigen»; aufrufbar aus Menüband, Journalliste, Ansicht «Export» und Datei-Menü; Golden Files (document/styles/numbering/footer/rels), LibreOffice-Gegenprobe, E2E → [ADR 0002](adr/0002-docx-export.md) | 00b, 07 | L (Sichtprüfung in Word 365 offen) |
 | AJ-13 | Sammel-DOCX | Auswahl, Reihenfolge, Titelseite, TOC-Feld, Seitenumbruch je Journal | 12 | M |
 
 ## Phase 5 – Stabilisierung
