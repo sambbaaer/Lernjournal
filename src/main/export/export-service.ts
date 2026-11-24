@@ -7,14 +7,14 @@
 //
 // DOCX ist ein Einweg-Export (SPEC): Die Datei wird geschrieben und danach
 // nie wieder gelesen oder mit dem Journal abgeglichen.
-import { randomUUID } from 'node:crypto';
-import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { SECTION_KEYS, type Sections } from '@shared/journal';
 import { journalLinkTargets } from '@shared/links';
 import type { Profile } from '@shared/ipc';
 import { computeSchoolYear, localIsoDate } from '@shared/school-year';
 import type { Db } from '../db/connection';
+import { writeAtomically } from '../fs-atomic';
 import { JournalNotFoundError, type JournalService } from '../journal/journal-service';
 import { sniffImage } from '../media/image-info';
 import { referencedMediaIds, type MediaService } from '../media/media-service';
@@ -39,15 +39,22 @@ export type ImageConverter = (data: Uint8Array) => Promise<Uint8Array>;
 // Windows in Dateinamen verbietet, fallen weg; reservierte Namen (CON, NUL …)
 // und Punkte/Leerzeichen am Ende ebenso.
 export function suggestFileName(title: string, workDate: string): string {
-  const clean = displayTitle(title)
+  return `${workDate} ${safeFileName(displayTitle(title), 'Journal')}.docx`;
+}
+
+// Text als Teil eines Windows-Dateinamens (auch für Ordnernamen, z. B. beim
+// Import eines .ajournal, AJ-14): verbotene Zeichen und Steuerzeichen → Leerzeichen,
+// höchstens 80 Zeichen, keine Punkte/Leerzeichen am Ende, reservierte Namen mit «_».
+export function safeFileName(text: string, fallback: string): string {
+  const clean = text
     // eslint-disable-next-line no-control-regex -- Steuerzeichen bewusst entfernen
     .replace(/[\u0000-\u001f<>:"/\\|?*]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80)
     .replace(/[. ]+$/, '');
-  const name = `${workDate} ${clean || 'Journal'}`.trim();
-  return `${/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(name) ? `_${name}` : name}.docx`;
+  const name = clean || fallback;
+  return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(name) ? `_${name}` : name;
 }
 
 // Endung «.docx» ergänzen, falls im Dialog weggelassen
@@ -59,12 +66,9 @@ export function withDocxExtension(file: string): string {
 // umbenennen. So entsteht nie eine halbe Word-Datei, und eine bestehende Datei
 // (Überschreiben hat der Dialog bestätigt) bleibt bei einem Fehler unverändert.
 export async function writeFileAtomic(file: string, data: Uint8Array): Promise<void> {
-  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${randomUUID().slice(0, 8)}.tmp`);
   try {
-    await writeFile(tmp, data, { flush: true });
-    await rename(tmp, file);
+    await writeAtomically(file, (tmp) => writeFile(tmp, data, { flush: true }));
   } catch (err) {
-    await rm(tmp, { force: true }).catch(() => {});
     const code = (err as NodeJS.ErrnoException).code;
     // Windows sperrt Dateien, die in Word geöffnet sind
     if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {

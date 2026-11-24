@@ -1,6 +1,7 @@
 // Form der Brücke, die das Preload-Skript als `window.lernjournal` bereitstellt.
 // Bewusst fachlich benannt (project.open), nicht technisch (invoke(channel)):
 // Die Oberfläche kann keine beliebigen Kanäle ansprechen.
+import type { ArchiveProgress } from './archive';
 import type { IpcChannel, IpcRequest, IpcResponse, IpcResult } from './ipc';
 
 type Call<C extends IpcChannel> =
@@ -56,6 +57,16 @@ export interface LernjournalApi {
     journalDocx: Call<'export:journalDocx'>;
     collectionDocx: Call<'export:collectionDocx'>;
     showFile: Call<'export:showFile'>;
+  };
+  // Projektübergabe .ajournal (AJ-14)
+  archive: {
+    export: Call<'archive:export'>;
+    showFile: Call<'archive:showFile'>;
+    chooseImport: Call<'archive:chooseImport'>;
+    chooseImportTarget: Call<'archive:chooseImportTarget'>;
+    import: Call<'archive:import'>;
+    // Fortschritt einer laufenden Übergabe/eines Imports. Gibt eine Funktion zum Abmelden zurück.
+    onProgress(listener: (progress: ArchiveProgress) => void): () => void;
   };
   taxonomy: {
     list: Call<'taxonomy:list'>;

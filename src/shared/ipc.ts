@@ -16,6 +16,7 @@ import {
   JournalSummarySchema,
   SectionsSchema,
 } from './journal';
+import { ArchiveExportResultSchema, ArchivePreviewSchema } from './archive';
 import { COLLECTION_LIMITS, ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
 import { SearchRequestSchema, SearchResultSchema } from './search';
@@ -258,6 +259,33 @@ export const ipcContract = {
   },
   // Zuletzt exportierte Datei im Explorer zeigen (kein Pfad vom Renderer)
   'export:showFile': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
+
+  // --- Projektübergabe .ajournal (AJ-14) ---
+  // Keiner dieser Befehle nimmt einen Pfad an: Datei und Ordner wählt der
+  // Nutzer in den nativen Dialogen des Hauptprozesses, der sie sich bis zum
+  // nächsten Schritt merkt. Fortschritt kommt als Ereignis (archive.onProgress).
+  // Ganzes Projekt als .ajournal speichern (Speichern-Dialog im Hauptprozess)
+  'archive:export': { request: z.undefined(), response: ArchiveExportResultSchema },
+  // Zuletzt gespeicherte .ajournal-Datei im Explorer zeigen
+  'archive:showFile': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
+  // Import Schritt 1: Datei wählen und prüfen → Vorschau + vorgeschlagener Zielordner
+  'archive:chooseImport': { request: z.undefined(), response: ArchivePreviewSchema },
+  // Import optional: anderen Zielordner wählen (null = abgebrochen, alter bleibt)
+  'archive:chooseImportTarget': {
+    request: z.undefined(),
+    response: z.object({ target: z.string().nullable() }),
+  },
+  // Import Schritt 2: entpacken, prüfen, als neues Projekt öffnen
+  'archive:import': {
+    request: z.undefined(),
+    response: z.object({
+      status: z.literal('imported'),
+      project: ProjectInfoSchema,
+      journals: z.number().int().nonnegative(),
+      media: z.number().int().nonnegative(),
+      warnings: z.array(z.string()),
+    }),
+  },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;

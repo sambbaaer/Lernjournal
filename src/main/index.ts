@@ -14,6 +14,8 @@ import {
   type WebContents,
 } from 'electron';
 import { ipcContract } from '@shared/ipc';
+import { createArchiveHandlers } from './archive/archive-handlers';
+import { ArchiveService } from './archive/archive-service';
 import { createCloseGuard } from './close-guard';
 import { createExportHandlers } from './export/export-handlers';
 import { ExportService } from './export/export-service';
@@ -24,7 +26,7 @@ import { JournalService } from './journal/journal-service';
 import { createLinkHandlers } from './links/link-handlers';
 import { LinkService } from './links/link-service';
 import { MediaService } from './media/media-service';
-import { createProjectHandlers } from './project/project-handlers';
+import { createProjectHandlers, OpenedProjects } from './project/project-handlers';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
 import { TaxonomyService } from './taxonomy/taxonomy-service';
 import { ProjectService } from './project/project-service';
@@ -91,6 +93,13 @@ const taxonomy = new TaxonomyService(
 );
 // Word-Export (AJ-12): WebP-Bilder wandelt ein verborgenes Fenster in PNG um
 const exporter = new ExportService(() => projects.db, journals, media, convertWebpToPng);
+// Projektübergabe .ajournal (AJ-14)
+const archives = new ArchiveService({
+  getDb: () => projects.db,
+  projectDir: () => projects.dir,
+  appVersion: app.getVersion(),
+  inspectFolder: (dir) => projects.inspectFolder(dir),
+});
 
 // Sandbox: Jedes Fenster wird mit sandbox:true erstellt (secureWebPreferences),
 // weitere Fenster und <webview> sind blockiert (hardenWebContents). Auf das
@@ -204,7 +213,14 @@ function lockDownSession() {
   });
 }
 
+// Hauptfenster (es gibt nur eines) – Ziel für Dialoge und Fortschrittsmeldungen
+function mainWindow(): BrowserWindow | undefined {
+  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+}
+
 function registerIpc() {
+  // Zuletzt-Liste und Pfad-Freigabe: gemeinsam für «Öffnen» und den Import (AJ-14)
+  const opened = new OpenedProjects(path.join(app.getPath('userData'), 'recent-projects.json'));
   const dispatch = createIpcDispatcher(
     {
       'app:getInfo': () => ({
@@ -219,6 +235,7 @@ function registerIpc() {
       }),
       ...createProjectHandlers({
         service: projects,
+        opened,
         recentFile: path.join(app.getPath('userData'), 'recent-projects.json'),
         documentsDir: app.getPath('documents'),
         // Nativer Windows-Dialog (SPEC). Der gewählte Pfad wird freigegeben.
@@ -261,6 +278,51 @@ function registerIpc() {
           return r.canceled || !r.filePath ? null : r.filePath;
         },
         showInFolder: (file) => shell.showItemInFolder(file),
+      }),
+      ...createArchiveHandlers({
+        service: archives,
+        projects,
+        opened,
+        documentsDir: app.getPath('documents'),
+        // Vorschlag «Dokumente»: Lernende wählen dort meist den USB-Stick o. Ä.
+        // Eine Kopie im Projektordner selbst würde vor Geräteverlust nicht schützen.
+        chooseExportPath: async (suggested) => {
+          const win = mainWindow();
+          const options: Electron.SaveDialogOptions = {
+            title: 'Projekt übergeben (.ajournal)',
+            buttonLabel: 'Speichern',
+            defaultPath: path.join(app.getPath('documents'), suggested),
+            filters: [{ name: 'Lernjournal-Projekt', extensions: ['ajournal'] }],
+            properties: ['showOverwriteConfirmation', 'createDirectory'],
+          };
+          const r = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+          return r.canceled || !r.filePath ? null : r.filePath;
+        },
+        chooseArchiveFile: async () => {
+          const win = mainWindow();
+          const options: Electron.OpenDialogOptions = {
+            title: 'Projekt importieren (.ajournal)',
+            buttonLabel: 'Prüfen',
+            defaultPath: app.getPath('documents'),
+            filters: [{ name: 'Lernjournal-Projekt', extensions: ['ajournal'] }],
+            properties: ['openFile'],
+          };
+          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+          return r.canceled ? null : (r.filePaths[0] ?? null);
+        },
+        chooseImportFolder: async () => {
+          const win = mainWindow();
+          const options: Electron.OpenDialogOptions = {
+            title: 'Ordner für das importierte Lernjournal wählen',
+            buttonLabel: 'Ordner wählen',
+            defaultPath: app.getPath('documents'),
+            properties: ['openDirectory', 'createDirectory'],
+          };
+          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+          return r.canceled ? null : (r.filePaths[0] ?? null);
+        },
+        showInFolder: (file) => shell.showItemInFolder(file),
+        progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
       }),
     },
     trusted,

@@ -55,6 +55,23 @@ const api: LernjournalApi = {
     collectionDocx: (req) => ipcRenderer.invoke('export:collectionDocx', req),
     showFile: () => ipcRenderer.invoke('export:showFile'),
   },
+  archive: {
+    export: () => ipcRenderer.invoke('archive:export'),
+    showFile: () => ipcRenderer.invoke('archive:showFile'),
+    chooseImport: () => ipcRenderer.invoke('archive:chooseImport'),
+    chooseImportTarget: () => ipcRenderer.invoke('archive:chooseImportTarget'),
+    import: () => ipcRenderer.invoke('archive:import'),
+    // Nur dieses Ereignis, und nur die zwei erwarteten Felder weitergeben
+    onProgress: (listener) => {
+      const wrapped = (_e: unknown, p: { step?: unknown; percent?: unknown } | undefined) =>
+        listener({
+          step: typeof p?.step === 'string' ? p.step.slice(0, 200) : '',
+          percent: typeof p?.percent === 'number' ? p.percent : null,
+        });
+      ipcRenderer.on('lj:archive-progress', wrapped);
+      return () => ipcRenderer.removeListener('lj:archive-progress', wrapped);
+    },
+  },
   taxonomy: {
     list: () => ipcRenderer.invoke('taxonomy:list'),
     createCategory: (req) => ipcRenderer.invoke('category:create', req),
