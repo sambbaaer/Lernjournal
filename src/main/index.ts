@@ -14,8 +14,11 @@ import {
   type WebContents,
 } from 'electron';
 import { ipcContract } from '@shared/ipc';
+import { BACKUP_POLICY } from '@shared/backup';
 import { createArchiveHandlers } from './archive/archive-handlers';
 import { ArchiveService } from './archive/archive-service';
+import { createBackupHandlers } from './backup/backup-handlers';
+import { BackupService } from './backup/backup-service';
 import { createCloseGuard } from './close-guard';
 import { createExportHandlers } from './export/export-handlers';
 import { ExportService } from './export/export-service';
@@ -62,15 +65,19 @@ if (e2eDir) {
 let closeGuard: ReturnType<typeof createCloseGuard> | null = null;
 
 // Höchstens ein geöffnetes Projekt pro App-Instanz
-// Beim Öffnen eines Projekts verwaiste Bilder aufräumen (älter als 1 Stunde)
-// und den Suchindex prüfen (unvollständig → neu aufbauen, AJ-11)
+// Beim Öffnen eines Projekts verwaiste Bilder aufräumen (älter als 1 Stunde),
+// den Suchindex prüfen (unvollständig → neu aufbauen, AJ-11) und im
+// Hintergrund sichern, falls sich seit der neuesten Sicherung etwas geändert
+// hat (AJ-15). Vor dem Schliessen sichern, falls in der Sitzung geändert.
 const projects: ProjectService = new ProjectService({
   appVersion: app.getVersion(),
   afterOpen: () => {
     const r = media.collectGarbage();
     if (r.rows || r.files) console.log(`[medien] aufgeräumt: ${r.rows} Einträge, ${r.files} Dateien`);
     if (search.ensureComplete()) console.log('[suche] Suchindex war unvollständig und wurde neu aufgebaut');
+    backups.afterOpen();
   },
+  beforeClose: () => backups.beforeClose(),
 });
 const search = new SearchIndex(() => projects.db);
 const media = new MediaService(
@@ -93,6 +100,8 @@ const taxonomy = new TaxonomyService(
 );
 // Word-Export (AJ-12): WebP-Bilder wandelt ein verborgenes Fenster in PNG um
 const exporter = new ExportService(() => projects.db, journals, media, convertWebpToPng);
+// Sicherungen im Projektordner (AJ-15)
+const backups = new BackupService({ projects, appVersion: app.getVersion() });
 // Projektübergabe .ajournal (AJ-14)
 const archives = new ArchiveService({
   getDb: () => projects.db,
@@ -136,6 +145,9 @@ function startup() {
   registerAppProtocol();
   lockDownSession();
   registerIpc();
+  // «Mindestens täglich nach Änderungen» (AJ-15): regelmässig prüfen, ob die
+  // tägliche Sicherung fällig ist. unref: hält das Programm nicht am Leben.
+  setInterval(() => void backups.tick(), BACKUP_POLICY.checkEveryMs).unref();
   // Kein Standard-Menü: Die Office-ähnliche Menüleiste baut die Oberfläche
   // selbst (AJ-02). Nebeneffekt: Ctrl+R (Neu laden) ist im fertigen Programm aus.
   Menu.setApplicationMenu(null);
@@ -324,6 +336,25 @@ function registerIpc() {
         showInFolder: (file) => shell.showItemInFolder(file),
         progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
       }),
+      ...createBackupHandlers({
+        service: backups,
+        projects,
+        opened,
+        documentsDir: app.getPath('documents'),
+        chooseRestoreFolder: async () => {
+          const win = mainWindow();
+          const options: Electron.OpenDialogOptions = {
+            title: 'Ordner für die wiederhergestellte Sicherung wählen',
+            buttonLabel: 'Ordner wählen',
+            defaultPath: app.getPath('documents'),
+            properties: ['openDirectory', 'createDirectory'],
+          };
+          const r = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+          return r.canceled ? null : (r.filePaths[0] ?? null);
+        },
+        // Gleicher Fortschritts-Kanal wie die Projektübergabe (archive.onProgress)
+        progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
+      }),
     },
     trusted,
   );
@@ -418,8 +449,28 @@ function createMainWindow() {
 
 app.on('window-all-closed', () => app.quit());
 
-// Beim Beenden Projekt sauber schliessen: WAL zurückschreiben, Sperre freigeben
-app.on('will-quit', () => {
+// Beim Beenden Projekt sauber schliessen: zuerst sichern, falls in dieser
+// Sitzung etwas geändert wurde (SPEC «bei Programmende», AJ-15), dann WAL
+// zurückschreiben und Sperre freigeben. Die Sicherung ist asynchron: Beenden
+// anhalten, sichern (höchstens quitTimeoutMs), dann wirklich beenden. Eine
+// abgebrochene Sicherung hinterlässt keine halbe Datei (fs-atomic.ts).
+let quitPrepared = false;
+app.on('will-quit', (event) => {
+  if (!quitPrepared && projects.isOpen) {
+    event.preventDefault();
+    quitPrepared = true;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<void>(
+      (resolve) => (timer = setTimeout(resolve, BACKUP_POLICY.quitTimeoutMs)),
+    );
+    void Promise.race([backups.beforeClose(), timeout])
+      .catch((err: unknown) => console.error('[sicherung] Sicherung beim Beenden:', err))
+      .finally(() => {
+        clearTimeout(timer);
+        app.quit();
+      });
+    return;
+  }
   try {
     projects.close();
   } catch (err) {

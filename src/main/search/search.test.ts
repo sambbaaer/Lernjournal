@@ -1,6 +1,7 @@
 // Tests der Fachbuch-Suche (AJ-11): Abfrage-Aufbau, Klartextprojektion,
 // Suchindex auf einer echten Projektdatenbank, Neuaufbau und Migration v1 → v2.
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { backup } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -367,9 +368,15 @@ describe('Migration v1 → v2 (Suchindex mit Legenden und Schlagwörtern)', () =
     // Alter Index (v1: nur Titel und Text, Legende im Text, kein Schlagwort)
     db.prepare("INSERT INTO journal_fts VALUES ('j1', 'Andruck', 'Farbmessung Kontrollstreifen')").run();
 
-    const r = await migrate(db, { backupFile: (from) => path.join(dir, `vor-update-${from}.sqlite`) });
+    const r = await migrate(db, {
+      backup: async (d, from) => {
+        const file = path.join(dir, `vor-update-${from}.sqlite`);
+        await backup(d, file);
+        return file;
+      },
+    });
     expect(r).toMatchObject({ from: 1, to: LATEST_VERSION });
-    expect(existsSync(r.backupFile!)).toBe(true);
+    expect(existsSync(r.backup!)).toBe(true);
 
     const row = db.prepare('SELECT * FROM journal_fts').get();
     expect(row).toEqual({

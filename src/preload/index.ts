@@ -24,6 +24,7 @@ const api: LernjournalApi = {
     create: (req) => ipcRenderer.invoke('project:create', req),
     open: (req) => ipcRenderer.invoke('project:open', req),
     close: () => ipcRenderer.invoke('project:close'),
+    snoozeExportReminder: () => ipcRenderer.invoke('project:snoozeExportReminder'),
   },
   profile: {
     update: (req) => ipcRenderer.invoke('profile:update', req),
@@ -71,6 +72,13 @@ const api: LernjournalApi = {
       ipcRenderer.on('lj:archive-progress', wrapped);
       return () => ipcRenderer.removeListener('lj:archive-progress', wrapped);
     },
+  },
+  backup: {
+    list: () => ipcRenderer.invoke('backup:list'),
+    create: () => ipcRenderer.invoke('backup:create'),
+    preview: (req) => ipcRenderer.invoke('backup:preview', req),
+    chooseRestoreTarget: (req) => ipcRenderer.invoke('backup:chooseRestoreTarget', req),
+    restore: (req) => ipcRenderer.invoke('backup:restore', req),
   },
   taxonomy: {
     list: () => ipcRenderer.invoke('taxonomy:list'),

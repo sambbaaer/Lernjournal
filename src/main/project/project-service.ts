@@ -4,7 +4,7 @@
 //   journal.sqlite   Datenbank
 //   project.lock     Sperre, solange geöffnet
 //   media/           Bilder
-//   backups/         automatische Sicherungen
+//   backups/         Sicherungen (AJ-15, src/main/backup/)
 //   exports/         Vorschlag für Word-Exporte
 //
 // Es ist immer höchstens EIN Projekt geöffnet. Diese Klasse kennt kein
@@ -16,6 +16,7 @@ import type { FolderKind, OpenResult, Profile, ProjectInfo } from '@shared/ipc';
 import { checkIntegrity, openDatabase, transaction, type Db } from '../db/connection';
 import { migrate, NewerSchemaError } from '../db/migrations';
 import { BIPLA_CATEGORIES } from '@shared/bipla';
+import { backupBeforeMigration } from '../backup/backup-store';
 import { acquireLock, defaultEnv, type Env, type ProjectLock } from './lock';
 import { detectSyncProvider } from './sync-detect';
 
@@ -32,7 +33,14 @@ export type ServiceDeps = {
   env?: Record<string, string | undefined>;
   // Wird nach jedem erfolgreichen Öffnen aufgerufen (z. B. verwaiste Bilder aufräumen)
   afterOpen?: () => void;
+  // Wird vor dem Schliessen aufgerufen, solange das Projekt noch offen ist
+  // (Sicherung beim Schliessen, AJ-15). Fehler werden protokolliert und
+  // verhindern das Schliessen nicht.
+  beforeClose?: () => Promise<void>;
 };
+
+// Ergebnis von targetFolderFor: ein verwendbarer Ordner oder der Grund, warum nicht
+export type TargetFolder = { target: string } | { problem: 'not-a-folder' | 'project' | 'none-free' };
 
 type OpenProject = { dir: string; db: Db; lock: ProjectLock; migratedFromVersion: number | null };
 
@@ -78,7 +86,7 @@ export class ProjectService {
     const { kind } = this.inspectFolder(input.dir);
     // Nie in einen Ordner mit fremden Dateien schreiben und nie ein bestehendes Projekt überschreiben
     if (kind !== 'new' && kind !== 'empty') return { status: 'not-allowed' };
-    this.close();
+    await this.closeGracefully();
 
     mkdirSync(input.dir, { recursive: true });
     for (const d of PROJECT_DIRS) mkdirSync(path.join(input.dir, d), { recursive: true });
@@ -117,7 +125,7 @@ export class ProjectService {
     if (this.current && path.resolve(this.current.dir) === path.resolve(dir)) {
       return { status: 'opened', project: this.info() };
     }
-    this.close();
+    await this.closeGracefully();
 
     const lockResult = acquireLock(dir, this.deps.appVersion, {
       force: options.force ?? false,
@@ -141,9 +149,17 @@ export class ProjectService {
         lockResult.lock.release();
         return { status: 'corrupt', problems: problems.slice(0, 10) };
       }
-      const stamp = this.now().toISOString().replace(/[:.]/g, '-');
+      // Vor einem Umbau auf ein neues Datenformat: gewöhnliche Sicherung mit
+      // Anlass «vor-update» (AJ-15) – erscheint in der Liste und lässt sich
+      // wie jede andere wiederherstellen
       const result = await migrate(db, {
-        backupFile: (from) => path.join(dir, 'backups', `vor-update-format-${from}-${stamp}.sqlite`),
+        backup: (d) =>
+          backupBeforeMigration({
+            db: d,
+            projectDir: dir,
+            appVersion: this.deps.appVersion,
+            now: this.now(),
+          }),
       });
       for (const d of PROJECT_DIRS) mkdirSync(path.join(dir, d), { recursive: true });
       this.current = {
@@ -173,6 +189,20 @@ export class ProjectService {
     }
   }
 
+  // Schliessen mit vorheriger Sicherung (beforeClose): bei Projektwechsel,
+  // «Projekt schliessen» und Programmende. close() selbst bleibt synchron und
+  // ohne Sicherung (z. B. beim Ersetzen durch eine Sicherung, die vorher
+  // schon eine eigene Sicherheitskopie angelegt hat).
+  async closeGracefully(): Promise<boolean> {
+    if (!this.current) return false;
+    try {
+      await this.deps.beforeClose?.();
+    } catch (err) {
+      console.error('[projekt] Vor dem Schliessen:', err);
+    }
+    return this.close();
+  }
+
   close(): boolean {
     if (!this.current) return false;
     const { db, lock } = this.current;
@@ -188,6 +218,37 @@ export class ProjectService {
     return true;
   }
 
+  // «Später erinnern» an die Projektübergabe (AJ-15): bis wann ausgeblendet
+  snoozeExportReminder(days: number): string {
+    const until = new Date(this.now().getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+    this.db.prepare('UPDATE project SET export_reminder_snoozed_until = ?').run(until);
+    return until;
+  }
+
+  // Erster neuer oder leerer Ordner «<parent>\<name>», «<name> 2» … (Vorschlag
+  // für Import und Wiederherstellung als neues Lernjournal); null = keiner frei
+  freeFolder(parent: string, name: string): string | null {
+    for (let i = 1; i < 100; i++) {
+      const candidate = path.join(parent, i === 1 ? name : `${name} ${i}`);
+      const { kind } = this.inspectFolder(candidate);
+      if (kind === 'new' || kind === 'empty') return candidate;
+    }
+    return null;
+  }
+
+  // Ordner aus dem Dialog «Anderen Ordner wählen»: Ist er neu oder leer, wird
+  // er verwendet; sonst ein neuer Unterordner mit dem Namen darin
+  // (z. B. «Dokumente» gewählt → «Dokumente\Lehre 2025»). So entsteht nie
+  // ein Projekt zwischen fremden Dateien oder in einem bestehenden Projekt.
+  targetFolderFor(chosen: string, name: string): TargetFolder {
+    const { kind } = this.inspectFolder(chosen);
+    if (kind === 'not-a-folder') return { problem: 'not-a-folder' };
+    if (kind === 'project') return { problem: 'project' };
+    if (kind === 'new' || kind === 'empty') return { target: chosen };
+    const target = this.freeFolder(chosen, name);
+    return target ? { target } : { problem: 'none-free' };
+  }
+
   updateProfile(profile: Profile): Profile {
     writeProfile(this.db, profile, false);
     return this.info().profile;
@@ -196,8 +257,17 @@ export class ProjectService {
   info(): ProjectInfo {
     if (!this.current) throw new Error('Kein Projekt geöffnet');
     const { db, dir, migratedFromVersion } = this.current;
-    const p = db.prepare('SELECT id, title, created_at FROM project').get() as
-      { id: string; title: string; created_at: string } | undefined;
+    const p = db
+      .prepare('SELECT id, title, created_at, last_export_at, export_reminder_snoozed_until FROM project')
+      .get() as
+      | {
+          id: string;
+          title: string;
+          created_at: string;
+          last_export_at: string | null;
+          export_reminder_snoozed_until: string | null;
+        }
+      | undefined;
     if (!p) throw new Error('Projektdatei ohne Projektangaben');
     const prof = db
       .prepare('SELECT display_name, company, apprenticeship_start, specialization FROM profile')
@@ -224,6 +294,8 @@ export class ProjectService {
       syncProvider: detectSyncProvider(dir, this.deps.env),
       journalCount: n,
       migratedFromVersion,
+      lastExportAt: p.last_export_at,
+      exportReminderUntil: p.export_reminder_snoozed_until,
     };
   }
 }

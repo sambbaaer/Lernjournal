@@ -24,6 +24,8 @@ export interface LernjournalApi {
     create: Call<'project:create'>;
     open: Call<'project:open'>;
     close: Call<'project:close'>;
+    // Erinnerung an die Projektübergabe ausblenden (AJ-15)
+    snoozeExportReminder: Call<'project:snoozeExportReminder'>;
   };
   profile: {
     update: Call<'profile:update'>;
@@ -65,8 +67,17 @@ export interface LernjournalApi {
     chooseImport: Call<'archive:chooseImport'>;
     chooseImportTarget: Call<'archive:chooseImportTarget'>;
     import: Call<'archive:import'>;
-    // Fortschritt einer laufenden Übergabe/eines Imports. Gibt eine Funktion zum Abmelden zurück.
+    // Fortschritt einer laufenden Übergabe, eines Imports oder einer
+    // Wiederherstellung (AJ-15). Gibt eine Funktion zum Abmelden zurück.
     onProgress(listener: (progress: ArchiveProgress) => void): () => void;
+  };
+  // Sicherungen und Wiederherstellung (AJ-15)
+  backup: {
+    list: Call<'backup:list'>;
+    create: Call<'backup:create'>;
+    preview: Call<'backup:preview'>;
+    chooseRestoreTarget: Call<'backup:chooseRestoreTarget'>;
+    restore: Call<'backup:restore'>;
   };
   taxonomy: {
     list: Call<'taxonomy:list'>;

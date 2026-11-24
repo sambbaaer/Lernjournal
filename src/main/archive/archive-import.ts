@@ -18,7 +18,7 @@ import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { FolderKind } from '@shared/ipc';
 import type { ArchiveSummary } from '@shared/archive';
-import { checkIntegrity, openDatabase } from '../db/connection';
+import { checkIntegrity, openDatabase, type Db } from '../db/connection';
 import { LATEST_VERSION, migrate } from '../db/migrations';
 import { EXT, sniffImage } from '../media/image-info';
 import { MAX_IMAGE_SIDE } from '../media/media-service';
@@ -163,6 +163,7 @@ export async function importArchive(input: {
   inspectFolder: (dir: string) => { kind: FolderKind };
   onProgress?: Progress;
   limits?: ArchiveLimits;
+  now?: Date;
 }): Promise<ImportOutcome> {
   const progress: Progress = input.onProgress ?? (() => {});
   const target = input.targetDir;
@@ -243,20 +244,11 @@ export async function importArchive(input: {
 
     // 6) Auf den Stand dieses Programms bringen und Suchindex neu aufbauen.
     //    Kein Backup vor der Migration nötig: Die .ajournal-Datei IST die Sicherung.
+    //    Die Datei auf dem Datenträger ist jetzt eine Kopie des Projekts →
+    //    zählt als letzte Übergabe (Erinnerung nach 30 Tagen, AJ-15).
     progress('Suchindex wird aufgebaut …', total, total);
-    const db = openDatabase(dbFile);
-    try {
-      await migrate(db);
-      new SearchIndex(() => db).rebuild();
-      const problems = checkIntegrity(db);
-      if (problems.length > 0) {
-        console.error('[archiv] integrity_check nach Import:', problems.slice(0, 5));
-        throw new ArchiveError('database', `${DAMAGED} (Datenbank nach dem Umwandeln fehlerhaft.)`);
-      }
-      db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
-    } finally {
-      db.close();
-    }
+    const importedAt = (input.now ?? new Date()).toISOString();
+    await finishImportedDatabase(dbFile, (db) => recordExport(db, importedAt));
     for (const d of PROJECT_DIRS) mkdirSync(path.join(target, d), { recursive: true });
     return { journals: verified.journals, media: mediaFiles.length, warnings, manifest };
   } catch (err) {
@@ -273,6 +265,35 @@ export async function importArchive(input: {
     if (err instanceof ArchiveError) throw err;
     throw ioError(err);
   }
+}
+
+// Letzte Schritte für eine geprüfte Datenbank (verifyImportedDatabase), die
+// als Projekt geöffnet werden soll – gemeinsam für den Import und die
+// Wiederherstellung einer Sicherung (AJ-15): auf das aktuelle Schema
+// migrieren, Suchindex neu aufbauen (abgeleitet, ADR 0004), optionale
+// Anpassung (adjust, z. B. Zeitpunkt der letzten Übergabe), nochmals
+// integrity_check, WAL zurückschreiben. Wirft ArchiveError, wenn etwas nicht stimmt.
+export async function finishImportedDatabase(dbFile: string, adjust?: (db: Db) => void): Promise<void> {
+  const db = openDatabase(dbFile);
+  try {
+    await migrate(db);
+    new SearchIndex(() => db).rebuild();
+    adjust?.(db);
+    const problems = checkIntegrity(db);
+    if (problems.length > 0) {
+      console.error('[archiv] integrity_check nach Import:', problems.slice(0, 5));
+      throw new ArchiveError('database', `${DAMAGED} (Datenbank nach dem Umwandeln fehlerhaft.)`);
+    }
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } finally {
+    db.close();
+  }
+}
+
+// Zeitpunkt der letzten Projektübergabe speichern (Schema v3) und ein
+// «Später erinnern» aufheben – die Erinnerung beginnt von vorn
+export function recordExport(db: Db, at: string): void {
+  db.prepare('UPDATE project SET last_export_at = ?, export_reminder_snoozed_until = NULL').run(at);
 }
 
 // Bild muss nach seinen Bytes das sein, was die Endung sagt, und in die

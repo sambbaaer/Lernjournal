@@ -1,5 +1,6 @@
 // Tests: Schema-Regeln (Datenintegrität), Migrationen, Integritätsprüfung.
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { backup } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -153,8 +154,15 @@ describe('Schema v1: Datenintegrität', () => {
 
 describe('Migrationen', () => {
   it('ist idempotent: zweiter Lauf ändert nichts und sichert nichts', async () => {
-    const r = await migrate(db, { backupFile: () => path.join(dir, 'nie.sqlite') });
-    expect(r).toEqual({ from: LATEST_VERSION, to: LATEST_VERSION, backupFile: null });
+    let called = false;
+    const r = await migrate(db, {
+      backup: async () => {
+        called = true;
+        return 'nie';
+      },
+    });
+    expect(r).toEqual({ from: LATEST_VERSION, to: LATEST_VERSION, backup: null });
+    expect(called).toBe(false);
   });
 
   it('verweigert Dateien aus einer neueren Programmversion', async () => {
@@ -170,8 +178,16 @@ describe('Migrationen', () => {
       up: (d) => d.exec('ALTER TABLE journal ADD COLUMN test TEXT'),
     };
     const backupFile = path.join(dir, 'vor-migration.sqlite');
-    const r = await migrate(db, { migrations: [...MIGRATIONS, v2], backupFile: () => backupFile });
-    expect(r.to).toBe(LATEST_VERSION + 1);
+    // Der Hook sichert im alten Stand (im Projekt: Sicherung «vor-update», AJ-15)
+    const r = await migrate(db, {
+      migrations: [...MIGRATIONS, v2],
+      backup: async (d, from) => {
+        expect(from).toBe(LATEST_VERSION);
+        await backup(d, backupFile);
+        return 'vor-migration';
+      },
+    });
+    expect(r).toMatchObject({ to: LATEST_VERSION + 1, backup: 'vor-migration' });
     expect(existsSync(backupFile)).toBe(true);
     // Backup ist eine vollständige, intakte Kopie im alten Stand
     const copy = openDatabase(backupFile, { readOnly: true });

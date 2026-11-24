@@ -12,7 +12,13 @@ import type { Db } from '../db/connection';
 import { safeFileName } from '../export/export-service';
 import { ARCHIVE_EXTENSION, ARCHIVE_LIMITS, ArchiveError, type ArchiveLimits } from './archive-format';
 import { exportProjectArchive, type ExportOutcome } from './archive-export';
-import { importArchive, inspectArchive, type ImportOutcome, type Progress } from './archive-import';
+import {
+  importArchive,
+  inspectArchive,
+  recordExport,
+  type ImportOutcome,
+  type Progress,
+} from './archive-import';
 
 export type ArchiveServiceDeps = {
   getDb: () => Db;
@@ -25,7 +31,7 @@ export type ArchiveServiceDeps = {
 
 // Fortschritt für die Oberfläche: Schritt + Prozent
 export type ProgressListener = (p: ArchiveProgress) => void;
-const toPercent =
+export const toPercent =
   (listener?: ProgressListener): Progress =>
   (step, done, total) =>
     listener?.({ step, percent: total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null });
@@ -60,7 +66,10 @@ export class ArchiveService {
     return safeFileName(title, 'Lernjournal');
   }
 
-  async exportTo(target: string, onProgress?: ProgressListener): Promise<ExportOutcome> {
+  async exportTo(
+    target: string,
+    onProgress?: ProgressListener,
+  ): Promise<ExportOutcome & { lastExportAt: string | null }> {
     // Nicht in den Bilderordner des Projekts: Unbekannte Dateien dort räumt
     // das Programm beim nächsten Öffnen auf (MediaService.collectGarbage)
     const mediaDir = path.resolve(this.deps.projectDir(), 'media');
@@ -75,13 +84,15 @@ export class ArchiveService {
         'Bitte nicht im Bilderordner des Projekts speichern – am besten auf einem USB-Stick oder einer externen Festplatte.',
       );
     }
+    const now = this.now();
+    let outcome: ExportOutcome;
     try {
-      return await exportProjectArchive({
+      outcome = await exportProjectArchive({
         db: this.deps.getDb(),
         projectDir: this.deps.projectDir(),
         target,
         appVersion: this.deps.appVersion,
-        now: this.now(),
+        now,
         onProgress: toPercent(onProgress),
         limits: this.limits,
       });
@@ -102,6 +113,17 @@ export class ArchiveService {
       }
       throw err;
     }
+    // Erst nach bestandener Prüfung: Zeitpunkt für die Erinnerung nach 30
+    // Tagen merken (AJ-15). Schlägt das fehl, ist die Datei trotzdem gut –
+    // dann erinnert das Programm eben zu früh, nichts geht verloren.
+    let lastExportAt: string | null = now.toISOString();
+    try {
+      recordExport(this.deps.getDb(), lastExportAt);
+    } catch (err) {
+      console.error('[archiv] Zeitpunkt der Übergabe nicht gespeichert:', err);
+      lastExportAt = null;
+    }
+    return { ...outcome, lastExportAt };
   }
 
   inspect(file: string): Promise<ArchiveSummary> {
@@ -115,6 +137,7 @@ export class ArchiveService {
       inspectFolder: this.deps.inspectFolder,
       onProgress: toPercent(onProgress),
       limits: this.limits,
+      now: this.now(),
     });
   }
 }

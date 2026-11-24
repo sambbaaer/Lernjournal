@@ -2,6 +2,7 @@
 // Zuletzt-Liste und Projektdienst. Electron-Teile (Dialog) kommen als
 // Funktion herein, damit alles mit Vitest prüfbar bleibt.
 import path from 'node:path';
+import { EXPORT_REMINDER } from '@shared/backup';
 import type { OpenResult } from '@shared/ipc';
 import type { Handlers } from '../ipc-handler';
 import { PathGuard } from './path-guard';
@@ -68,6 +69,7 @@ type ProjectChannels =
   | 'project:create'
   | 'project:open'
   | 'project:close'
+  | 'project:snoozeExportReminder'
   | 'profile:update';
 
 export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, ProjectChannels> {
@@ -135,7 +137,13 @@ export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, 
       return remember(result);
     },
 
-    'project:close': () => ({ closed: deps.service.close() }),
+    // Mit Sicherung beim Schliessen (AJ-15), falls etwas geändert wurde
+    'project:close': async () => ({ closed: await deps.service.closeGracefully() }),
+
+    // «Später erinnern» an die Projektübergabe (AJ-15)
+    'project:snoozeExportReminder': () => ({
+      exportReminderUntil: deps.service.snoozeExportReminder(EXPORT_REMINDER.snoozeDays),
+    }),
 
     'profile:update': (profile) => deps.service.updateProfile(profile),
   };

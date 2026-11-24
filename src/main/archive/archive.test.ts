@@ -3,7 +3,6 @@
 // Manifest, Formatversionen, ältere Schemas; manipulierte Dateien (Hashes,
 // Manifest, Datenbank, Bilder); Aufräumen des Zielordners; IPC-Handler.
 // Angriffe auf ZIP-Ebene (ZIP-Slip, Zip-Bombe …) stehen in zip.test.ts.
-import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -18,29 +17,27 @@ import path from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ipcContract } from '@shared/ipc';
-import { EMPTY_SECTIONS, type Sections } from '@shared/journal';
-import { journalLinkHref } from '@shared/links';
+import { EMPTY_SECTIONS } from '@shared/journal';
 import { openDatabase } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, migrate, MIGRATIONS } from '../db/migrations';
 import { createIpcDispatcher, type Handlers } from '../ipc-handler';
-import { JournalService } from '../journal/journal-service';
-import { LinkService } from '../links/link-service';
-import { MediaService } from '../media/media-service';
 import { OpenedProjects } from '../project/project-handlers';
 import { DB_FILE, ProjectService } from '../project/project-service';
-import { SearchIndex } from '../search/search-index';
-import { TaxonomyService } from '../taxonomy/taxonomy-service';
 import { ARCHIVE_FORMAT_VERSION, type ArchiveErrorCode, type Manifest } from './archive-format';
 import { writeProjectArchive } from './archive-export';
 import { createArchiveHandlers } from './archive-handlers';
 import { inspectArchive, verifyArchive } from './archive-import';
-import { ArchiveService } from './archive-service';
+import {
+  contentOf,
+  createSampleProject,
+  newProjectService,
+  PNG,
+  projectServices,
+  sha,
+  type ProjectServices,
+} from '../test-project';
 
-const PNG = new Uint8Array(readFileSync(path.resolve('e2e/fixtures/screenshot.png')));
-const WEBP = new Uint8Array(readFileSync(path.resolve('e2e/fixtures/bild.webp')));
-const sha = (d: Uint8Array) => createHash('sha256').update(d).digest('hex');
 const NOW = new Date(2026, 10, 24, 9, 30);
-const lockEnv = { pid: 1, hostname: 'PC', isProcessAlive: () => true, now: () => new Date() };
 
 let root: string;
 let opened: ProjectService[] = [];
@@ -53,113 +50,27 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-// Ein Projekt samt allen Diensten, wie in src/main/index.ts verdrahtet
+// Ein Projekt samt allen Diensten (test-project.ts)
 function services(projects: ProjectService) {
-  const db = () => projects.db;
-  const search = new SearchIndex(db);
-  const media = new MediaService(db, () => projects.dir);
-  const links = new LinkService(db);
-  const journals = new JournalService(
-    db,
-    () => projects.dir,
-    () => new Date(),
-    media,
-    links,
-    search,
-  );
-  const taxonomy = new TaxonomyService(db, () => new Date(), search);
-  const archive = new ArchiveService({
-    getDb: db,
-    projectDir: () => projects.dir,
-    appVersion: '0.1.0',
-    inspectFolder: (d) => projects.inspectFolder(d),
-    now: () => NOW,
-  });
-  return { projects, search, media, links, journals, taxonomy, archive };
+  return projectServices(projects, () => NOW);
 }
 
 function newService(): ProjectService {
-  const p = new ProjectService({ appVersion: '0.1.0', env: {}, lockEnv });
+  const p = newProjectService();
   opened.push(p);
   return p;
 }
 
-const text = (t: string) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] });
-const figure = (mediaId: string, caption: string) => ({
-  type: 'figure',
-  attrs: { mediaId, caption, alt: '' },
-});
-const doc = (...content: unknown[]) => ({ type: 'doc' as const, content });
-
-// Beispielprojekt: drei Journale (eines archiviert), Bilder PNG + WebP mit
-// Legenden, Kategorien, Schlagwörter, Verknüpfung und Link im Text
+// Beispielprojekt (test-project.ts): drei Journale, Bilder, Kategorien,
+// Schlagwörter, Verknüpfung und Link im Text
 async function sampleProject(name = 'quelle') {
   const s = services(newService());
-  await s.projects.create({
-    dir: path.join(root, name),
-    title: 'Lehre 2025–2029',
-    profile: {
-      displayName: 'Lea Muster',
-      company: 'Druckerei AG',
-      apprenticeshipStart: '2025-08-01',
-      specialization: 'print',
-    },
-    seedCategories: true,
-  });
-  const a = s.journals.create({ title: 'Farbmessung am Druckbogen', workDate: '2026-03-14' });
-  const b = s.journals.create({ title: 'Papier und Laufrichtung', workDate: '2026-06-20' });
-  const c = s.journals.create({ title: 'Alte Übung', workDate: '2025-09-01' });
-  const png = s.media.add({ journalId: a.id, data: PNG, originalName: 'Messung.png' });
-  const webp = s.media.add({ journalId: a.id, data: WEBP, originalName: 'Bogen.webp' });
-  const sectionsA: Sections = {
-    auftrag: doc(text('Farbe nach Proof abstimmen')),
-    durchfuehrung: doc(
-      text('Mit dem Spektralfotometer gemessen, siehe '),
-      {
-        type: 'paragraph',
-        content: [
-          {
-            type: 'text',
-            text: 'Laufrichtung',
-            marks: [{ type: 'link', attrs: { href: journalLinkHref(b.id) } }],
-          },
-        ],
-      },
-      figure(png.id, 'Kontrollstreifen am Bogen'),
-      figure(webp.id, 'Druckbogen von oben'),
-    ),
-    reflexion: doc(text('Nächstes Mal früher messen.')),
-  };
-  s.journals.updateSections(a.id, sectionsA);
-  s.journals.updateSections(b.id, {
-    auftrag: doc(text('Papier wählen')),
-    durchfuehrung: doc(text('Laufrichtung prüfen')),
-    reflexion: doc(text('Gut gelaufen.')),
-  });
-  s.journals.setStatus(c.id, 'archived');
-  const cat = s.taxonomy.list().categories[0]!;
-  s.taxonomy.setJournalCategories(a.id, [cat.id]);
-  s.taxonomy.setJournalTags(a.id, ['Spektralfotometer', 'Proof']);
-  s.taxonomy.setJournalTags(b.id, ['Papier']);
-  s.links.add(a.id, c.id);
-  return { ...s, ids: { a: a.id, b: b.id, c: c.id, png: png.id, webp: webp.id } };
+  const ids = await createSampleProject(s, path.join(root, name));
+  return { ...s, ids };
 }
 
-// Alles, was ein Projekt fachlich ausmacht (für den Vergleich vorher/nachher)
-function snapshotOf(s: ReturnType<typeof services>) {
-  const db = s.projects.db;
-  const all = (sql: string) => db.prepare(sql).all();
-  return {
-    project: all('SELECT id, title, created_at FROM project'),
-    profile: all('SELECT * FROM profile'),
-    journals: all('SELECT * FROM journal ORDER BY id'),
-    categories: all('SELECT * FROM category ORDER BY id'),
-    journalCategories: all('SELECT * FROM journal_category ORDER BY journal_id, category_id'),
-    tags: all('SELECT * FROM tag ORDER BY id'),
-    journalTags: all('SELECT * FROM journal_tag ORDER BY journal_id, tag_id'),
-    links: all('SELECT * FROM journal_link ORDER BY source_journal_id'),
-    media: all('SELECT * FROM media ORDER BY id'),
-  };
+function snapshotOf(s: ProjectServices) {
+  return contentOf(s.projects.db);
 }
 
 async function rejects(promise: Promise<unknown>, code: ArchiveErrorCode): Promise<string> {

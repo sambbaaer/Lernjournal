@@ -8,7 +8,10 @@
 //   liefert einen in sich stimmigen Stand, auch während gespeichert wird.
 //   Danach wird die Kopie verdichtet (VACUUM: keine freien Seiten mit alten
 //   Daten, kleiner) und auf den Journalmodus DELETE gestellt, damit sie ohne
-//   -wal/-shm-Dateien vollständig ist. Baustein auch für AJ-15 (Backups).
+//   -wal/-shm-Dateien vollständig ist. Baustein auch für die Sicherungen
+//   (AJ-15, backup-store.ts): Dort bleibt der Suchindex leer (dropSearchIndex),
+//   weil er abgeleitet ist und bei der Wiederherstellung ohnehin neu entsteht –
+//   das macht jede der vielen Sicherungen deutlich kleiner.
 //
 // Import – verifyImportedDatabase():
 //   Die Datei kommt von aussen. Bevor das Programm sie wie ein eigenes Projekt
@@ -44,10 +47,16 @@ export type SnapshotInfo = {
 // Konsistente, verdichtete Kopie der geöffneten Datenbank nach `file`
 // (Datei darf noch nicht existieren). Prüft die Kopie und liefert, was das
 // Manifest braucht.
-export async function snapshotDatabase(db: Db, file: string): Promise<SnapshotInfo> {
+export async function snapshotDatabase(
+  db: Db,
+  file: string,
+  options: { dropSearchIndex?: boolean } = {},
+): Promise<SnapshotInfo> {
   await backup(db, file);
   const copy = openDatabase(file, { journalMode: 'delete' });
   try {
+    // Nur in der Kopie: Indexzeilen weg, Tabelle bleibt (gleiches Schema)
+    if (options.dropSearchIndex) copy.exec('DELETE FROM journal_fts');
     copy.exec('VACUUM');
     const problems = checkIntegrity(copy);
     if (problems.length > 0) {

@@ -42,6 +42,9 @@ export const ArchiveExportResultSchema = z.discriminatedUnion('status', [
     journals: z.number().int().nonnegative(),
     media: z.number().int().nonnegative(),
     warnings: z.array(z.string()),
+    // Neuer Zeitpunkt der letzten Übergabe (Erinnerung nach 30 Tagen, AJ-15);
+    // null, falls er nicht gespeichert werden konnte
+    lastExportAt: z.string().nullable(),
   }),
   z.object({ status: z.literal('canceled') }),
 ]);

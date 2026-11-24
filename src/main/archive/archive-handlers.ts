@@ -34,6 +34,15 @@ export type ArchiveHandlerDeps = {
   progress: ProgressListener;
 };
 
+// Meldungen zu ProjectService.targetFolderFor (auch für die Wiederherstellung, AJ-15)
+export const TARGET_PROBLEMS = {
+  'not-a-folder': 'Das ist kein Ordner.',
+  // Nicht in einen bestehenden Projektordner verschachteln
+  project:
+    'Dieser Ordner ist bereits ein Lernjournal. Bitte einen anderen Ordner wählen – ein bestehendes Projekt wird nie überschrieben.',
+  'none-free': 'Kein freier Ordner gefunden. Bitte einen anderen Ordner wählen.',
+} as const;
+
 type ArchiveChannels =
   | 'archive:export'
   | 'archive:showFile'
@@ -62,16 +71,6 @@ export function createArchiveHandlers(deps: ArchiveHandlerDeps): Pick<Handlers, 
     }
   }
 
-  // Erster freier (neuer oder leerer) Ordner «<parent>\<Name>», «<Name> 2» …
-  function freeFolder(parent: string, name: string): string | null {
-    for (let i = 1; i < 100; i++) {
-      const candidate = path.join(parent, i === 1 ? name : `${name} ${i}`);
-      const { kind } = deps.projects.inspectFolder(candidate);
-      if (kind === 'new' || kind === 'empty') return candidate;
-    }
-    return null;
-  }
-
   return {
     'archive:export': () =>
       exclusive(async () => {
@@ -88,6 +87,7 @@ export function createArchiveHandlers(deps: ArchiveHandlerDeps): Pick<Handlers, 
           journals: r.journals,
           media: r.media,
           warnings: r.warnings,
+          lastExportAt: r.lastExportAt,
         };
       }),
 
@@ -103,38 +103,25 @@ export function createArchiveHandlers(deps: ArchiveHandlerDeps): Pick<Handlers, 
         const file = await deps.chooseArchiveFile();
         if (!file) return { status: 'canceled' as const };
         const summary = await deps.service.inspect(file);
-        const target = freeFolder(deps.documentsDir, deps.service.folderNameFor(summary.title));
+        const target = deps.projects.freeFolder(deps.documentsDir, deps.service.folderNameFor(summary.title));
         if (!target)
           throw new ArchiveError('target', 'Kein freier Ordner gefunden. Bitte einen Zielordner wählen.');
         pending = { file, summary, target };
         return { status: 'ready' as const, fileName: path.basename(file), summary, target };
       }),
 
-    // Anderer Zielordner: Ist der gewählte Ordner neu oder leer, wird er
-    // verwendet; sonst ein neuer Unterordner mit dem Projekttitel darin
-    // (z. B. «Dokumente» gewählt → «Dokumente\Lehre 2025»). So entsteht nie
-    // ein Projekt zwischen fremden Dateien.
+    // Anderer Zielordner: neu/leer → dieser, sonst ein Unterordner mit dem
+    // Projekttitel (ProjectService.targetFolderFor). So entsteht nie ein
+    // Projekt zwischen fremden Dateien.
     'archive:chooseImportTarget': () =>
       exclusive(async () => {
         if (!pending) throw new ArchiveError('target', 'Bitte zuerst eine .ajournal-Datei wählen.');
         const dir = await deps.chooseImportFolder();
         if (!dir) return { target: null };
-        const { kind } = deps.projects.inspectFolder(dir);
-        if (kind === 'not-a-folder') throw new ArchiveError('target', 'Das ist kein Ordner.');
-        // Nicht in einen bestehenden Projektordner verschachteln
-        if (kind === 'project')
-          throw new ArchiveError(
-            'target',
-            'Dieser Ordner ist bereits ein Lernjournal. Bitte einen anderen Ordner wählen – ein Import überschreibt nie ein bestehendes Projekt.',
-          );
-        const target =
-          kind === 'new' || kind === 'empty'
-            ? dir
-            : freeFolder(dir, deps.service.folderNameFor(pending.summary.title));
-        if (!target)
-          throw new ArchiveError('target', 'Kein freier Ordner gefunden. Bitte einen anderen Ordner wählen.');
-        pending.target = target;
-        return { target };
+        const r = deps.projects.targetFolderFor(dir, deps.service.folderNameFor(pending.summary.title));
+        if ('problem' in r) throw new ArchiveError('target', TARGET_PROBLEMS[r.problem]);
+        pending.target = r.target;
+        return { target: r.target };
       }),
 
     'archive:import': () =>
