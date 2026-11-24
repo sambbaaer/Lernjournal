@@ -5,14 +5,15 @@ import type { ArchiveProgress } from './archive';
 import type { IpcChannel, IpcRequest, IpcResponse, IpcResult } from './ipc';
 
 type Call<C extends IpcChannel> =
-  IpcRequest<C> extends undefined
-    ? () => Promise<IpcResult<IpcResponse<C>>>
+  undefined extends IpcRequest<C>
+    ? (req?: IpcRequest<C>) => Promise<IpcResult<IpcResponse<C>>>
     : (req: IpcRequest<C>) => Promise<IpcResult<IpcResponse<C>>>;
 
 export interface LernjournalApi {
   app: {
     getInfo: Call<'app:getInfo'>;
     closeReady: Call<'app:closeReady'>;
+    pasteInEditor: Call<'app:pasteInEditor'>;
     // Der Hauptprozess meldet «Fenster wird geschlossen – bitte speichern».
     // Gibt eine Funktion zum Abmelden zurück.
     onBeforeClose(listener: () => void): () => void;
@@ -24,6 +25,7 @@ export interface LernjournalApi {
     create: Call<'project:create'>;
     open: Call<'project:open'>;
     close: Call<'project:close'>;
+    showFolder: Call<'project:showFolder'>;
     // Erinnerung an die Projektübergabe ausblenden (AJ-15)
     snoozeExportReminder: Call<'project:snoozeExportReminder'>;
   };
@@ -40,6 +42,7 @@ export interface LernjournalApi {
     updateMeta: Call<'journal:updateMeta'>;
     updateSections: Call<'journal:updateSections'>;
     setStatus: Call<'journal:setStatus'>;
+    setQvSelected: Call<'journal:setQvSelected'>;
     duplicate: Call<'journal:duplicate'>;
     delete: Call<'journal:delete'>;
     setCategories: Call<'journal:setCategories'>;
@@ -54,10 +57,20 @@ export interface LernjournalApi {
     query: Call<'search:query'>;
     rebuild: Call<'search:rebuild'>;
   };
+  mcp: {
+    status: Call<'mcp:status'>;
+    setActive: Call<'mcp:setActive'>;
+    setDrafts: Call<'mcp:setDrafts'>;
+    copy: Call<'mcp:copy'>;
+    decide: Call<'mcp:decide'>;
+    onChanged: (listener: () => void) => () => void;
+  };
   // Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX)
   export: {
     journalDocx: Call<'export:journalDocx'>;
+    journalPdf: Call<'export:journalPdf'>;
     collectionDocx: Call<'export:collectionDocx'>;
+    collectionPdf: Call<'export:collectionPdf'>;
     showFile: Call<'export:showFile'>;
   };
   // Projektübergabe .ajournal (AJ-14)

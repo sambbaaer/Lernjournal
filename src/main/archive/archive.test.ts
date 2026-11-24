@@ -17,7 +17,8 @@ import path from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipcContract } from '@shared/ipc';
-import { EMPTY_SECTIONS } from '@shared/journal';
+import { EMPTY_DOCUMENT } from '@shared/journal';
+import { EMPTY_LEGACY_SECTIONS, newJournalSections } from '@shared/journal-templates';
 import { openDatabase } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, migrate, MIGRATIONS } from '../db/migrations';
 import { createIpcDispatcher, type Handlers } from '../ipc-handler';
@@ -179,11 +180,13 @@ describe('Export: versioniertes ZIP mit Prüfsummen', () => {
   it('enthält auch Änderungen, die nur in der WAL-Datei stehen (Online-Backup)', async () => {
     const src = await sampleProject();
     // Nach dem letzten Checkpoint gespeichert: steht nur in journal.sqlite-wal
-    src.journals.create({ title: 'Gerade eben gespeichert', workDate: '2026-11-24' });
+    const marked = src.journals.create({ title: 'Gerade eben gespeichert', workDate: '2026-11-24' });
+    src.journals.setQvSelected(marked.id, true);
     expect(existsSync(path.join(src.projects.dir, 'journal.sqlite-wal'))).toBe(true);
     const file = path.join(root, 'neu.ajournal');
     expect((await src.archive.exportTo(file)).journals).toBe(4);
     const t = await importInto(file);
+    expect(t.journals.get(marked.id).qvSelected).toBe(true);
     expect(t.journals.list({ includeArchived: true }).map((j) => j.title)).toContain(
       'Gerade eben gespeichert',
     );
@@ -199,7 +202,7 @@ describe('Export: versioniertes ZIP mit Prüfsummen', () => {
     // unter Windows jedes COMMIT (synchronous=FULL) auf den Datenträger wartet.
     const src = await sampleProject();
     const db = src.projects.db;
-    const big = JSON.stringify({ ...EMPTY_SECTIONS, reflexion: { type: 'doc', content: [] } });
+    const big = JSON.stringify(newJournalSections());
     const ins = db.prepare(
       "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, ?, '2026-01-01', ?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
     );
@@ -346,6 +349,26 @@ describe('Import in ein neues Projekt', () => {
     ]);
   });
 
+  it('übernimmt Vorlage, eigene Abschnitte, Reihenfolge und Kennwerte bei einer Projektübergabe', async () => {
+    const src = await sampleProject();
+    const machine = src.journals.create({ template: 'machine', title: 'Offsetmaschine' });
+    const sections = [
+      { id: '18e32da7-763f-4d5c-94dc-41da43968655', heading: 'Wartung und Pflege', doc: EMPTY_DOCUMENT },
+      ...machine.sections,
+    ];
+    src.journals.updateSections(machine.id, sections);
+    const file = path.join(root, 'vorlagen.ajournal');
+    await src.archive.exportTo(file);
+    const target = await importInto(file);
+    expect(target.journals.get(machine.id)).toMatchObject({
+      template: 'machine',
+      sections,
+    });
+    expect(
+      target.search.search('Geschwindigkeit', { includeArchived: true }).hits.map((h) => h.id),
+    ).toContain(machine.id);
+  });
+
   it('zieht ältere Schemaversionen per Migration hoch (Schema v1 → aktuell)', async () => {
     // Projektdatei, wie sie eine ältere Lernjournal-Version (Schema v1) hätte
     const dbFile = path.join(root, 'v1.sqlite');
@@ -355,7 +378,7 @@ describe('Import in ein neues Projekt', () => {
              INSERT INTO profile (singleton, display_name) VALUES (1, 'Lea');
              INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at)
              VALUES ('6f1c1c52-7d1e-4b3e-9a51-1d2b3c4d5e6f', 'Druckmaschine reinigen', '2025-09-01',
-                     '${JSON.stringify(EMPTY_SECTIONS)}',
+                     '${JSON.stringify(EMPTY_LEGACY_SECTIONS)}',
                      '2025-09-01T08:00:00.000Z', '2025-09-01T08:00:00.000Z');`);
     expect(getSchemaVersion(db)).toBe(1);
     db.close();
@@ -373,6 +396,10 @@ describe('Import in ein neues Projekt', () => {
     });
     const t = await importInto(file);
     expect(getSchemaVersion(t.projects.db)).toBe(LATEST_VERSION);
+    expect(t.journals.get('6f1c1c52-7d1e-4b3e-9a51-1d2b3c4d5e6f')).toMatchObject({
+      template: 'report',
+      sections: newJournalSections(),
+    });
     // Trigramm-Suche (Schema v2) findet den Wortteil
     expect(t.search.search('maschine', { includeArchived: true }).hits).toHaveLength(1);
   });
@@ -524,7 +551,7 @@ describe('Manipulierte Dateien werden abgelehnt', () => {
     ['verletzter Fremdschlüssel', "PRAGMA foreign_keys = OFF; DELETE FROM journal WHERE status = 'archived'"],
     [
       'ungültiger Journal-Inhalt',
-      `UPDATE journal SET sections_json = '{"auftrag":{"type":"doc","content":[{"type":"script"}]},"durchfuehrung":{"type":"doc"},"reflexion":{"type":"doc"}}'`,
+      `UPDATE journal SET sections_json = '[{"id":"auftrag","heading":"Auftrag","doc":{"type":"doc","content":[{"type":"script"}]}}]'`,
     ],
     [
       'Link mit unerlaubtem Protokoll',

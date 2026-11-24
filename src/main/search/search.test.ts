@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ipcContract } from '@shared/ipc';
-import type { Sections } from '@shared/journal';
+import type { LegacySectionKey, LegacySections } from '@shared/journal';
+import { sectionsFromLegacy } from '@shared/journal-templates';
 import { MAX_QUERY_WORDS, queryWords, searchableWords, stripMarks } from '@shared/search';
 import { checkIntegrity, openDatabase, transaction } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, migrate, MIGRATIONS } from '../db/migrations';
@@ -27,11 +28,13 @@ const figure = (caption: string) => ({
   type: 'figure',
   attrs: { mediaId: '00000000-0000-4000-8000-000000000001', caption, alt: caption },
 });
-const sections = (parts: Partial<Record<keyof Sections, unknown[]>>): Sections => ({
+type Parts = Partial<Record<LegacySectionKey, unknown[]>>;
+const legacySections = (parts: Parts): LegacySections => ({
   auftrag: doc(...(parts.auftrag ?? [p('')])),
   durchfuehrung: doc(...(parts.durchfuehrung ?? [p('')])),
   reflexion: doc(...(parts.reflexion ?? [p('')])),
 });
+const sections = (parts: Parts) => sectionsFromLegacy('report', legacySections(parts));
 
 describe('Suchbegriffe → FTS5-Abfrage', () => {
   it('zerlegt in Wörter: klein, ohne Satzzeichen, ohne Doppelte; kurze Wörter zählen nicht', () => {
@@ -89,7 +92,7 @@ describe('Suchbegriffe → FTS5-Abfrage', () => {
 
 describe('Klartextprojektion', () => {
   it('trennt Text und Bildlegenden, Blöcke kleben nicht zusammen', () => {
-    const s = sections({
+    const s = legacySections({
       auftrag: [
         p('Plakat drucken'),
         { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Ziel' }] },
@@ -119,7 +122,7 @@ describe('Klartextprojektion', () => {
   });
 
   it('entfernt die Markierungszeichen der Trefferanzeige aus dem Text', () => {
-    const r = projectSections(sections({ auftrag: [p('a\u0002b\u0003c')] }));
+    const r = projectSections(legacySections({ auftrag: [p('a\u0002b\u0003c')] }));
     expect(r.body).toBe('a b c');
   });
 });
@@ -167,11 +170,7 @@ describe('Suchindex', () => {
   const find = (q: string, includeArchived = false) => search.search(q, { includeArchived }).hits;
   const ids = (q: string, includeArchived = false) => find(q, includeArchived).map((h) => h.id);
 
-  function journal(
-    title: string,
-    s: Partial<Record<keyof Sections, unknown[]>> = {},
-    workDate = '2026-03-14',
-  ) {
+  function journal(title: string, s: Parts = {}, workDate = '2026-03-14') {
     const j = journals.create({ title, workDate });
     journals.updateSections(j.id, sections(s));
     return j.id;
@@ -363,7 +362,7 @@ describe('Migration v1 → v2 (Suchindex mit Legenden und Schlagwörtern)', () =
     await migrate(db, { migrations: MIGRATIONS.slice(0, 1) });
     expect(getSchemaVersion(db)).toBe(1);
     const ts = '2026-03-14T09:00:00.000Z';
-    const s = sections({ durchfuehrung: [p('Farbmessung'), figure('Kontrollstreifen')] });
+    const s = legacySections({ durchfuehrung: [p('Farbmessung'), figure('Kontrollstreifen')] });
     db.prepare(
       'INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
     ).run('j1', 'Andruck', '2026-03-14', JSON.stringify(s), ts, ts);

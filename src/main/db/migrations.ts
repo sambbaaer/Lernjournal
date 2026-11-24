@@ -11,6 +11,9 @@
 import { SCHEMA_V1 } from './schema-v1';
 import { SCHEMA_V2 } from './schema-v2';
 import { SCHEMA_V3 } from './schema-v3';
+import { SCHEMA_V4 } from './schema-v4';
+import { migrateJournalSections } from './schema-v5';
+import { SCHEMA_V6 } from './schema-v6';
 import { transaction, type Db } from './connection';
 import { fillSearchIndex } from '../search/search-index';
 
@@ -33,6 +36,9 @@ export const MIGRATIONS: readonly Migration[] = [
     name: 'Letzte Projektübergabe und Erinnerung (AJ-15)',
     up: (db) => db.exec(SCHEMA_V3),
   },
+  { version: 4, name: 'Journalvorlagen', up: (db) => db.exec(SCHEMA_V4) },
+  { version: 5, name: 'Frei gestaltbare Journalabschnitte', up: migrateJournalSections },
+  { version: 6, name: 'Journale für das QV vormerken', up: (db) => db.exec(SCHEMA_V6) },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ipcContract } from '@shared/ipc';
-import { EMPTY_SECTIONS, type Sections } from '@shared/journal';
+import { withSectionDocument, type Sections } from '@shared/journal';
+import { newJournalSections } from '@shared/journal-templates';
 import { journalLinkHref, journalLinkTargets } from '@shared/links';
 import { checkIntegrity } from '../db/connection';
 import { createIpcDispatcher, type Handlers } from '../ipc-handler';
@@ -57,25 +58,22 @@ const linkCount = () =>
 
 // Abschnitt «Durchführung» mit einem Text-Link auf ein anderes Journal
 function withTextLink(targetId: string, word = 'Farbprofil'): Sections {
-  return {
-    ...EMPTY_SECTIONS,
-    durchfuehrung: {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            { type: 'text', text: 'Siehe ' },
-            {
-              type: 'text',
-              text: word,
-              marks: [{ type: 'link', attrs: { href: journalLinkHref(targetId) } }],
-            },
-          ],
-        },
-      ],
-    },
-  };
+  return withSectionDocument(newJournalSections(), 'durchfuehrung', {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Siehe ' },
+          {
+            type: 'text',
+            text: word,
+            marks: [{ type: 'link', attrs: { href: journalLinkHref(targetId) } }],
+          },
+        ],
+      },
+    ],
+  });
 }
 
 describe('Verknüpfungen', () => {
@@ -181,7 +179,9 @@ describe('Links im Text', () => {
     const quelle = make('Quelle');
     const bad = withTextLink('x');
     (
-      bad.durchfuehrung.content as { content: { marks?: { attrs: { href: string } }[] }[] }[]
+      bad.find(({ id }) => id === 'durchfuehrung')!.doc.content as {
+        content: { marks?: { attrs: { href: string } }[] }[];
+      }[]
     )[0]!.content[1]!.marks![0]!.attrs.href = 'lernjournal://journal/../../etc';
     expect(() => journals.updateSections(quelle, bad)).toThrow(/Link-Ziel/);
   });

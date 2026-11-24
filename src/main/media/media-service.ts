@@ -8,7 +8,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Sections } from '@shared/journal';
-import { SECTION_KEYS } from '@shared/journal';
 import { transaction, type Db } from '../db/connection';
 import { EXT, sniffImage } from './image-info';
 
@@ -25,7 +24,7 @@ export class MediaError extends Error {
 export type AddedMedia = { id: string; width: number; height: number; mime: string };
 
 // Alle mediaIds, auf die ein Journal-Inhalt verweist
-export function referencedMediaIds(sections: Sections): Set<string> {
+export function referencedMediaIds(sections: readonly { doc: unknown }[]): Set<string> {
   const ids = new Set<string>();
   const walk = (n: unknown) => {
     if (!n || typeof n !== 'object') return;
@@ -33,7 +32,7 @@ export function referencedMediaIds(sections: Sections): Set<string> {
     if (node.type === 'figure' && typeof node.attrs?.mediaId === 'string') ids.add(node.attrs.mediaId);
     node.content?.forEach(walk);
   };
-  SECTION_KEYS.forEach((k) => walk(sections[k]));
+  for (const { doc } of sections) walk(doc);
   return ids;
 }
 
@@ -127,7 +126,7 @@ export class MediaService {
         update.run(String(node.attrs.caption ?? '').slice(0, 500), node.attrs.mediaId);
       node.content?.forEach(walk);
     };
-    SECTION_KEYS.forEach((k) => walk(sections[k]));
+    for (const { doc } of sections) walk(doc);
   }
 
   // Beim Duplizieren: Bilder physisch kopieren (neue IDs) und Verweise im Inhalt ersetzen.

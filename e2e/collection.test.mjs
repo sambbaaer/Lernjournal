@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
-import { launchApp, runAxe, waitForNewSave } from './helpers.mjs';
+import { launchApp, openJournalDetails, runAxe, waitForNewSave } from './helpers.mjs';
 
 let app;
 let page;
@@ -45,6 +45,7 @@ async function newJournal(title, workDate) {
   await page.keyboard.press('Control+N');
   await page.waitForFunction(() => document.querySelector('#journal-title')?.value === '');
   await page.getByLabel('Titel des Journals').fill(title);
+  await openJournalDetails(page);
   await waitForNewSave(page, async () => {
     await page.getByLabel('Arbeitsdatum').fill(workDate);
     await page.getByLabel('Arbeitsdatum').blur();

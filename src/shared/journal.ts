@@ -16,30 +16,47 @@ export const LEARNING_PLACE_LABELS: Record<(typeof LEARNING_PLACES)[number], str
   schule: 'Berufsfachschule',
 };
 
-export const SECTION_KEYS = ['auftrag', 'durchfuehrung', 'reflexion'] as const;
-export const SECTION_TITLES: Record<(typeof SECTION_KEYS)[number], string> = {
-  auftrag: 'Auftrag / Ausgangslage',
-  durchfuehrung: 'Durchführung',
-  reflexion: 'Reflexion',
-};
+export const LEGACY_SECTION_KEYS = ['auftrag', 'durchfuehrung', 'reflexion'] as const;
+export type LegacySectionKey = (typeof LEGACY_SECTION_KEYS)[number];
+
+export const JOURNAL_TEMPLATE_IDS = ['report', 'blank', 'machine', 'workflow'] as const;
+export const JournalTemplateIdSchema = z.enum(JOURNAL_TEMPLATE_IDS);
+export type JournalTemplateId = z.infer<typeof JournalTemplateIdSchema>;
+export const DEFAULT_JOURNAL_TEMPLATE = 'report';
 
 export const JournalId = z.uuid();
 export const IsoDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 // Tiptap-Dokument (Inhalt wird beim Speichern im Editor-Ticket AJ-06 genauer geprüft)
 const TiptapDoc = z.object({ type: z.literal('doc') }).loose();
-export const SectionsSchema = z.object({
+export type SectionDocument = z.infer<typeof TiptapDoc>;
+export const SECTION_HEADING_MAX = 200;
+
+export const LegacySectionsSchema = z.object({
   auftrag: TiptapDoc,
   durchfuehrung: TiptapDoc,
   reflexion: TiptapDoc,
 });
+export type LegacySections = z.infer<typeof LegacySectionsSchema>;
+
+const SectionSchema = z.strictObject({
+  id: z.union([z.enum(LEGACY_SECTION_KEYS), z.uuid()]),
+  heading: z.string().trim().min(1).max(SECTION_HEADING_MAX).nullable(),
+  doc: TiptapDoc,
+});
+export type JournalSection = z.infer<typeof SectionSchema>;
+export const SectionsSchema = z
+  .array(SectionSchema)
+  .refine((sections) => new Set(sections.map(({ id }) => id)).size === sections.length);
 export type Sections = z.infer<typeof SectionsSchema>;
 
 export const JournalSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
+  template: JournalTemplateIdSchema,
   workDate: z.string(),
   status: z.enum(JOURNAL_STATUS),
+  qvSelected: z.boolean(),
   learningPlace: z.enum(LEARNING_PLACES),
   schoolYear: z.number().int().nullable(), // wirksam (manuell oder berechnet)
   schoolYearOverride: z.number().int().nullable(),
@@ -65,11 +82,11 @@ export const JournalMetaSchema = z.object({
 });
 export type JournalMeta = z.infer<typeof JournalMetaSchema>;
 
-export const EMPTY_SECTIONS: Sections = {
-  auftrag: { type: 'doc', content: [{ type: 'paragraph' }] },
-  durchfuehrung: { type: 'doc', content: [{ type: 'paragraph' }] },
-  reflexion: { type: 'doc', content: [{ type: 'paragraph' }] },
-};
+export const EMPTY_DOCUMENT: SectionDocument = { type: 'doc', content: [{ type: 'paragraph' }] };
+
+export function withSectionDocument(sections: Sections, id: string, doc: SectionDocument): Sections {
+  return sections.map((section) => (section.id === id ? { ...section, doc } : section));
+}
 
 // Reiner Text eines Tiptap-Dokuments (für Suchindex und Vorschau)
 export function plainTextOf(node: unknown): string {

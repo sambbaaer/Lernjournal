@@ -384,11 +384,13 @@ describe('Programmsymbol', () => {
     expect(() => parseIco(Buffer.from('kein Symbol'))).toThrow(/Keine ICO-Datei/);
   });
 
-  it('build/icon.ico enthält alle Grössen, die Windows und der Installer brauchen', () => {
-    const entries = parseIco(readFileSync(path.join(root, 'build/icon.ico')));
-    const sizes = entries.map((e) => e.width);
-    for (const size of [16, 24, 32, 48, 64, 256]) expect(sizes).toContain(size);
-    expect(entries.find((e) => e.width === 256)?.format).toBe('png');
+  it('Programm- und Dateisymbol enthalten die benötigten Windows-Grössen', () => {
+    for (const name of ['icon.ico', 'ajournal.ico']) {
+      const entries = parseIco(readFileSync(path.join(root, 'build', name)));
+      const sizes = entries.map((e) => e.width);
+      for (const size of [16, 24, 32, 48, 64, 256]) expect(sizes).toContain(size);
+      expect(entries.find((e) => e.width === 256)?.format).toBe('png');
+    }
     const png = readFileSync(path.join(root, 'build/icon.png'));
     expect(png.readUInt32BE(16)).toBeGreaterThanOrEqual(512); // Breite laut PNG-Kopf
   });

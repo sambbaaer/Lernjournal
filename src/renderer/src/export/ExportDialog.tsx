@@ -12,23 +12,30 @@
 // Esc bricht ab (ausser während das Dokument erstellt wird).
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { CircleAlert, FileCheck2, LoaderCircle, ShieldAlert } from 'lucide-react';
-import { COLLECTION_TOC_HINT, DEFAULT_COLLECTION_TITLE, EXPORT_NOTICE } from '@shared/export';
+import {
+  COLLECTION_TOC_HINT,
+  DEFAULT_COLLECTION_TITLE,
+  EXPORT_NOTICE,
+  type ExportFormat,
+} from '@shared/export';
 import { saveIfNeeded } from '../editor/save-registry';
 import { displayTitle } from '../journal/actions';
 import { useApp } from '../state/AppContext';
-import { exportCollectionDocx, exportJournalDocx, type ExportOutcome } from './export-actions';
+import { exportCollection, exportJournal, type ExportOutcome } from './export-actions';
 
 type Step = { kind: 'notice' } | { kind: 'working' } | Exclude<ExportOutcome, { kind: 'canceled' }>;
 
-const primary = 'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
+const primary = 'rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover';
 const secondary = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
 
 export function ExportDialog({
   journalIds,
   collection,
+  format = 'docx',
 }: {
   journalIds: string[];
   collection?: { title: string }; // gesetzt = Sammel-DOCX in der Reihenfolge von journalIds
+  format?: ExportFormat;
 }) {
   const { state, dispatch } = useApp();
   const [step, setStep] = useState<Step>({ kind: 'notice' });
@@ -37,7 +44,9 @@ export function ExportDialog({
   const primaryRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<Element | null>(null);
   const journalId = journalIds[0]!;
-  const heading = collection ? 'Mehrere Journale als Word exportieren' : 'Als Word exportieren';
+  const label = format === 'pdf' ? 'PDF' : 'Word';
+  const heading = collection ? `Mehrere Journale als ${label} exportieren` : `Als ${label} exportieren`;
+  const word = format === 'docx';
   // Unter der Überschrift: Journaltitel bzw. Titel der Sammlung mit Anzahl
   const subtitle = collection
     ? `«${collection.title.trim() || DEFAULT_COLLECTION_TITLE}» · ${journalIds.length} ${
@@ -60,8 +69,8 @@ export function ExportDialog({
   async function run() {
     setStep({ kind: 'working' });
     const outcome = collection
-      ? await exportCollectionDocx(journalIds, collection.title, saveIfNeeded)
-      : await exportJournalDocx(journalId, saveIfNeeded);
+      ? await exportCollection(journalIds, collection.title, saveIfNeeded, format)
+      : await exportJournal(journalId, saveIfNeeded, format);
     if (outcome.kind === 'canceled') return close();
     setStep(outcome);
     if (outcome.kind === 'saved') dispatch({ type: 'notice', text: `Gespeichert: ${outcome.fileName}` });
@@ -115,8 +124,10 @@ export function ExportDialog({
                   </li>
                 ))}
               </ul>
-              <p className="rounded-sm border-l-4 border-accent bg-selected p-3">{EXPORT_NOTICE.oneWay}</p>
-              {collection && <p className="text-ink-muted">{COLLECTION_TOC_HINT}</p>}
+              {word && (
+                <p className="rounded-sm border-l-4 border-accent bg-selected p-3">{EXPORT_NOTICE.oneWay}</p>
+              )}
+              {word && collection && <p className="text-ink-muted">{COLLECTION_TOC_HINT}</p>}
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" onClick={close} className={secondary}>
@@ -132,7 +143,7 @@ export function ExportDialog({
         {step.kind === 'working' && (
           <p id={`${baseId}-body`} role="status" className="mt-6 flex items-center gap-2 text-sm">
             <LoaderCircle aria-hidden="true" size={18} className="animate-spin" />
-            Word-Dokument wird erstellt …
+            {word ? 'Word-Dokument' : 'PDF'} wird erstellt …
           </p>
         )}
 
@@ -155,8 +166,8 @@ export function ExportDialog({
                   </ul>
                 </div>
               )}
-              {collection && <p>{COLLECTION_TOC_HINT}</p>}
-              <p className="text-ink-muted">{EXPORT_NOTICE.oneWay}</p>
+              {word && collection && <p>{COLLECTION_TOC_HINT}</p>}
+              {word && <p className="text-ink-muted">{EXPORT_NOTICE.oneWay}</p>}
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button

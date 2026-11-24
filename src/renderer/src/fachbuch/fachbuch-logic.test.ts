@@ -18,6 +18,7 @@ import {
 } from './fachbuch-logic';
 
 const j = (id: string, extra: Partial<JournalSummary> = {}): JournalSummary => ({
+  template: 'report',
   id,
   title: id,
   workDate: '2026-03-14',
@@ -26,6 +27,7 @@ const j = (id: string, extra: Partial<JournalSummary> = {}): JournalSummary => (
   schoolYear: null,
   schoolYearOverride: null,
   updatedAt: '2026-03-14T09:00:00.000Z',
+  qvSelected: false,
   completedAt: null,
   categoryIds: [],
   tagIds: [],

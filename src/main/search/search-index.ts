@@ -9,7 +9,7 @@
 //    Öffnen, wenn er unvollständig ist, oder per Knopf in den Einstellungen.
 //  - Gesucht wird nur im Hauptprozess; die Oberfläche bekommt fertige Treffer.
 import { MARK_END, MARK_START, type SearchField, type SearchHit, type SearchResult } from '@shared/search';
-import type { Sections } from '@shared/journal';
+import type { LegacySections, Sections } from '@shared/journal';
 import { transaction, type Db } from '../db/connection';
 import { SCHEMA_V2 } from '../db/schema-v2';
 import { buildFtsQuery } from './fts-query';
@@ -39,7 +39,7 @@ function readProjection(db: Db, journalId: string): SearchProjection | null {
   if (!r) return null;
   const names = (sql: string) =>
     (db.prepare(sql).all(journalId) as { name: string }[]).map((x) => x.name).join('\n');
-  const { body, captions } = projectSections(JSON.parse(r.sections_json) as Sections);
+  const { body, captions } = projectSections(JSON.parse(r.sections_json) as Sections | LegacySections);
   return {
     title: cleanIndexText(r.title),
     body,

@@ -1,7 +1,7 @@
 // E2E: Journale anlegen, bearbeiten, Status, duplizieren, archivieren, löschen (AJ-05).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { launchApp, runAxe } from './helpers.mjs';
+import { launchApp, openJournalDetails, runAxe } from './helpers.mjs';
 
 let app;
 let page;
@@ -18,6 +18,48 @@ const nav = (name) =>
   page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button', { name }).click();
 const live = () => page.getByTestId('statusbar-live');
 
+test('Vorlagen sind mit Tastatur bedienbar und erzeugen die passende Journalseite', async () => {
+  const button = page.getByRole('button', { name: 'Vorlagen' });
+  const dialog = page.getByRole('dialog', { name: 'Journalvorlage wählen' });
+  const choose = async (name) => {
+    await button.click();
+    await dialog.getByRole('button', { name }).click();
+    await dialog.waitFor({ state: 'detached' });
+  };
+  await button.focus();
+  await page.keyboard.press('Enter');
+  await dialog.waitFor();
+  assert.deepEqual(await runAxe(page), [], 'Vorlagenauswahl');
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await button.evaluate((el) => el === document.activeElement), true);
+
+  await choose('Freier Eintrag');
+  const article = page.getByRole('article', { name: 'Journal' });
+  await article.getByRole('textbox', { name: 'Inhalt' }).waitFor();
+  assert.equal(await article.locator('[contenteditable="true"]').count(), 1);
+
+  await choose('Arbeitsablauf');
+  const steps = article.getByRole('textbox', { name: 'Arbeitsschritte' });
+  await steps.locator('ol li').waitFor();
+
+  await choose('Maschinenwerte');
+  const title = page.getByLabel('Titel des Journals');
+  await title.fill('Maschinendaten Bogenoffset');
+  const table = article.getByRole('textbox', { name: 'Kennwerte' }).getByRole('table');
+  const values = table.getByRole('row', { name: /Maximale Geschwindigkeit/ }).getByRole('cell');
+  await values.nth(1).click();
+  await page.keyboard.type('15000');
+  await page.keyboard.press('Control+S');
+  await live().getByText('Gespeichert').waitFor();
+  await nav('Journale');
+  const row = page.getByRole('row', { name: /Maschinendaten Bogenoffset.*Maschinenwerte/ });
+  await row.dblclick();
+  await table.getByRole('cell', { name: '15000' }).waitFor();
+
+  await nav('Start');
+});
+
 test('Strg+N legt ein Journal an; Titel und Metadaten werden automatisch gespeichert', async () => {
   await page.keyboard.press('Control+N');
   const title = page.getByLabel('Titel des Journals');
@@ -25,6 +67,7 @@ test('Strg+N legt ein Journal an; Titel und Metadaten werden automatisch gespeic
   // Neues Journal: Cursor steht direkt im Titel
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'journal-title');
   await title.fill('Plattenwechsel an der Bogenoffset');
+  await openJournalDetails(page);
   await page.getByLabel('Lernort').selectOption('uek');
   await live().getByText('Gespeichert').waitFor();
   assert.equal(await page.title(), 'Plattenwechsel an der Bogenoffset – Lernjournal');

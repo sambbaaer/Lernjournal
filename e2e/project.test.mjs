@@ -10,6 +10,16 @@ test('Erster Start: Startbildschirm mit Hinweis «inoffizielles Hilfsmittel», b
   try {
     await page.getByText('Inoffizielles Hilfsmittel.').waitFor();
     assert.equal(await page.title(), 'Lernjournal');
+    const start = page.getByRole('main', { name: 'Lernjournal' });
+    await start
+      .locator('img')
+      .first()
+      .evaluate((img) => img.decode());
+    for (const name of [/Neues Lernjournal anlegen/, /Vorhandenes öffnen/, /Projekt importieren/]) {
+      const icon = start.getByRole('button', { name }).locator('img');
+      await icon.evaluate((img) => img.decode());
+    }
+    assert.equal(await start.locator('img').count(), 4);
     assert.deepEqual(await runAxe(page), []);
   } finally {
     await app.close();

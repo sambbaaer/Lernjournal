@@ -19,7 +19,7 @@ export function NewJournalPending() {
         Neues Journal wird angelegt …
       </p>
       <article
-        className="rounded-sm border border-border bg-surface px-12 py-10 shadow-sm"
+        className="rounded-lg border border-border bg-surface px-6 py-8 shadow-sm lg:px-12 lg:py-10"
         aria-label="Journal"
       >
         <label htmlFor="journal-title" className="sr-only">

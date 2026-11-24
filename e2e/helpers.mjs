@@ -34,6 +34,11 @@ export async function createProjectViaWizard(page, { name = 'Lea Muster' } = {})
   await page.waitForSelector('[aria-label="Hauptnavigation"]', { timeout: 15000 });
 }
 
+export async function openJournalDetails(page) {
+  const button = page.getByRole('button', { name: 'Journaldetails', exact: true });
+  if ((await button.getAttribute('aria-expanded')) === 'false') await button.click();
+}
+
 // axe-core (Barrierefreiheitsprüfung) in die Seite laden. page.evaluate
 // umgeht die CSP der App bewusst nur im Test – die App selbst lädt kein axe.
 const axeSource = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');

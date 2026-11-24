@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { Sections } from '@shared/journal';
+import { sectionsFromLegacy } from '@shared/journal-templates';
 import { journalLinkHref } from '@shared/links';
 import { ArchiveService } from './archive/archive-service';
 import type { Db } from './db/connection';
@@ -77,7 +77,7 @@ export async function createSampleProject(s: ProjectServices, dir: string) {
   const c = s.journals.create({ title: 'Alte Übung', workDate: '2025-09-01' });
   const png = s.media.add({ journalId: a.id, data: PNG, originalName: 'Messung.png' });
   const webp = s.media.add({ journalId: a.id, data: WEBP, originalName: 'Bogen.webp' });
-  const sectionsA: Sections = {
+  const sectionsA = sectionsFromLegacy('report', {
     auftrag: doc(paragraph('Farbe nach Proof abstimmen')),
     durchfuehrung: doc(
       paragraph('Mit dem Spektralfotometer gemessen, siehe '),
@@ -95,13 +95,16 @@ export async function createSampleProject(s: ProjectServices, dir: string) {
       figure(webp.id, 'Druckbogen von oben'),
     ),
     reflexion: doc(paragraph('Nächstes Mal früher messen.')),
-  };
-  s.journals.updateSections(a.id, sectionsA);
-  s.journals.updateSections(b.id, {
-    auftrag: doc(paragraph('Papier wählen')),
-    durchfuehrung: doc(paragraph('Laufrichtung prüfen')),
-    reflexion: doc(paragraph('Gut gelaufen.')),
   });
+  s.journals.updateSections(a.id, sectionsA);
+  s.journals.updateSections(
+    b.id,
+    sectionsFromLegacy('report', {
+      auftrag: doc(paragraph('Papier wählen')),
+      durchfuehrung: doc(paragraph('Laufrichtung prüfen')),
+      reflexion: doc(paragraph('Gut gelaufen.')),
+    }),
+  );
   s.journals.setStatus(c.id, 'archived');
   const cat = s.taxonomy.list().categories[0]!;
   s.taxonomy.setJournalCategories(a.id, [cat.id]);

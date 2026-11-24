@@ -2,12 +2,13 @@
 // (AJ-11) liegt in src/renderer/src/fachbuch/. Noch nicht umgesetzte
 // Ansichten zeigen leere Zustände mit klaren Hinweisen statt Scheinfunktionen.
 import { useState } from 'react';
+import type { ExportFormat } from '@shared/export';
 import { FileDown, FilePlus, NotebookPen } from 'lucide-react';
 import { CollectionPanel } from '../export/CollectionPanel';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
-import { SettingsPanel } from '../project/SettingsPanel';
+import { SettingsTabs } from '../project/SettingsTabs';
 import { displayTitle, formatDate, openJournal } from '../journal/actions';
 import { JournalList } from '../journal/JournalList';
 import { JournalPicker } from '../journal/JournalPicker';
@@ -26,7 +27,7 @@ export function ViewFrame({
 }) {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-8 py-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">{title}</h1>
         {actions}
       </div>
@@ -44,7 +45,7 @@ function NewJournalButton() {
       onClick={() => cmd.run(state, dispatch)}
       title={`${cmd.label} (${formatShortcut(cmd.shortcut!)})`}
       aria-keyshortcuts={cmd.shortcut}
-      className="flex items-center gap-2 rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong"
+      className="flex items-center gap-2 rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover"
     >
       <FilePlus aria-hidden="true" size={18} /> {cmd.label}
     </button>
@@ -134,7 +135,7 @@ const NO_IDS: string[] = []; // stabile Referenz (keine neue Liste bei jedem Ren
 // Inhaltsverzeichnis (AJ-13, export/CollectionPanel.tsx).
 export function ExportView() {
   const { state, dispatch } = useApp();
-  const [picking, setPicking] = useState(false);
+  const [picking, setPicking] = useState<ExportFormat | null>(null);
   const none = state.journals.length === 0;
   return (
     <ViewFrame title="Export">
@@ -143,35 +144,40 @@ export function ExportView() {
         className="space-y-3 rounded-md border border-border bg-surface p-5"
       >
         <h2 id="export-single" className="flex items-center gap-2 text-base font-semibold">
-          <FileDown aria-hidden="true" size={18} /> Ein Journal als Word-Dokument
+          <FileDown aria-hidden="true" size={18} /> Ein Journal exportieren
         </h2>
-        <p className="text-sm">
-          Mit echten Formatvorlagen, Listen, Tabellen, Bildern mit Legenden und Seitenzahlen – in Word normal
-          weiterbearbeitbar. Word-Dateien sind ein Ausgabeformat: Änderungen darin fliessen nicht in
-          Lernjournal zurück.
-        </p>
+        <p className="text-sm">Als PDF zum Weitergeben oder als Word-Dokument zum Weiterbearbeiten.</p>
         {none ? (
           <p className="text-sm text-ink-muted">Noch keine Journale zum Exportieren.</p>
         ) : (
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong"
-          >
-            Journal wählen und exportieren …
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setPicking('pdf')}
+              className="rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover"
+            >
+              Journal als PDF wählen …
+            </button>
+            <button
+              type="button"
+              onClick={() => setPicking('docx')}
+              className="rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover"
+            >
+              Journal wählen und exportieren …
+            </button>
+          </div>
         )}
       </section>
       <CollectionPanel />
       {picking && (
         <JournalPicker
-          title="Journal als Word exportieren"
+          title={`Journal als ${picking === 'pdf' ? 'PDF' : 'Word'} exportieren`}
           confirmLabel="Weiter"
           excludeIds={NO_IDS}
-          onCancel={() => setPicking(false)}
+          onCancel={() => setPicking(null)}
           onPick={(id) => {
-            setPicking(false);
-            dispatch({ type: 'openExport', journalIds: [id] });
+            setPicking(null);
+            dispatch({ type: 'openExport', format: picking, journalIds: [id] });
           }}
         />
       )}
@@ -182,7 +188,7 @@ export function ExportView() {
 export function EinstellungenView() {
   return (
     <ViewFrame title="Einstellungen">
-      <SettingsPanel />
+      <SettingsTabs />
     </ViewFrame>
   );
 }

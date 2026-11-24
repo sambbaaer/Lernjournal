@@ -105,7 +105,10 @@ test('Import auf einem zweiten Computer: Startbildschirm → Vorschau → neues 
   // «Zweiter Computer»: neue App mit leeren Benutzerdaten und eigenem «Dokumente»
   await app.close();
   ({ app, page, dir } = await launchApp({ withProject: false }));
-  await page.getByRole('button', { name: /Projekt importieren \(\.ajournal\)/ }).click();
+  await page
+    .getByRole('main', { name: 'Lernjournal' })
+    .getByRole('button', { name: /^Projekt importieren/ })
+    .click();
   await importDialog().waitFor();
   assert.deepEqual(await runAxe(page), []);
 

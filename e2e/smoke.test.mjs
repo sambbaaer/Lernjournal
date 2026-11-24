@@ -29,6 +29,7 @@ test('Renderer hat keinen Zugriff auf Node.js oder Electron', async () => {
     module: typeof globalThis.module,
     ipcRenderer: typeof globalThis.ipcRenderer,
     bridgeKeys: Object.keys(globalThis.lernjournal),
+    mcpKeys: Object.keys(globalThis.lernjournal.mcp),
   }));
   assert.deepEqual(r, {
     require: 'undefined',
@@ -42,11 +43,13 @@ test('Renderer hat keinen Zugriff auf Node.js oder Electron', async () => {
       'media',
       'journal',
       'search',
+      'mcp',
       'export',
       'archive',
       'backup',
       'taxonomy',
     ],
+    mcpKeys: ['status', 'setActive', 'setDrafts', 'copy', 'decide', 'onChanged'],
   });
 });
 

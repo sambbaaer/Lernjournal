@@ -30,7 +30,7 @@ type Step =
   | { kind: 'done'; outcome: RestoreOutcome; createdAt: string }
   | { kind: 'error'; message: string };
 
-const primary = 'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
+const primary = 'rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover';
 const secondary = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
 
 export function RestoreDialog({ backupId }: { backupId: string }) {

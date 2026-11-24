@@ -56,7 +56,7 @@ export function BackupSection() {
     };
   }, [apply, dialogOpen, state.projectEpoch]);
 
-  // Datei → Info → «Sicherungen …» springt hierher
+  // Statusleiste und Datei → Info springen direkt zur Sicherungsliste.
   useEffect(() => {
     if (state.focusRequest !== 'settings-backups') return;
     headingRef.current?.scrollIntoView({ block: 'start' });

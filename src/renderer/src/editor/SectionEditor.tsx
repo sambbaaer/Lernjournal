@@ -27,15 +27,17 @@ export function SectionEditor({
   label,
   hint,
   content,
+  autofocus = false,
   onChange,
 }: {
   journalId: string;
   label: string;
   hint: string;
   content: JSONContent;
+  autofocus?: boolean;
   onChange: (doc: JSONContent) => void;
 }) {
-  const { setEditor, bump } = useActiveEditor();
+  const { setEditor, clearEditor, bump } = useActiveEditor();
   const { dispatch } = useApp();
 
   const editor = useEditor({
@@ -45,6 +47,7 @@ export function SectionEditor({
       Placeholder.configure({ placeholder: hint, showOnlyWhenEditable: true }),
     ],
     content,
+    autofocus,
     editorProps: {
       attributes: {
         class: 'lj-editor',
@@ -109,9 +112,9 @@ export function SectionEditor({
   // Beim Verlassen der Seite den Editor beim Menüband abmelden
   useEffect(
     () => () => {
-      if (editor) setEditor(null);
+      if (editor) clearEditor(editor);
     },
-    [editor, setEditor],
+    [editor, clearEditor],
   );
 
   return <EditorContent editor={editor} />;

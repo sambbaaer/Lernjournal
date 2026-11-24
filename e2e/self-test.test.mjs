@@ -28,6 +28,8 @@ test('Selbsttest: anlegen, Neustart, ohne Verbindung ins Netz', async () => {
   assert.equal(pass, true);
   const create = results[0].report;
   assert.match(create.steps.docx.fileName, /Offline-Selbsttest\.docx$/);
+  assert.match(create.steps.pdf.fileName, /Offline-Selbsttest\.pdf$/);
+  assert.match(create.steps.mcp, /^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
   assert.equal(create.steps.archive.journals, 1);
   assert.equal(results[1].report.steps.backups > 0, true);
 });

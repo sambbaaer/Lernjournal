@@ -1,11 +1,14 @@
 // Klartextprojektion eines Journals für den Suchindex (SPEC «Suche»):
-// Titel + Text der drei Abschnitte + Bildlegenden + Schlagwörter + Kategorien.
+// Titel + Abschnittstext und eigene Überschriften + Bildlegenden + Zuordnungen.
 //
 // Text und Bildlegenden kommen in getrennte Spalten. So kann die Suche
 // melden, WO ein Begriff vorkam («Gefunden in: Bildlegende»), und Treffer im
 // Titel höher gewichten als Treffer irgendwo im Fliesstext.
-import { SECTION_KEYS, type Sections } from '@shared/journal';
+import { LEGACY_SECTION_KEYS, type LegacySections, type Sections } from '@shared/journal';
+import { JOURNAL_TEMPLATES } from '@shared/journal-templates';
 import { MARK_END, MARK_START } from '@shared/search';
+
+const starterHeadings = Object.values(JOURNAL_TEMPLATES).flatMap((template) => template.sections);
 
 export type SearchProjection = {
   title: string;
@@ -47,10 +50,22 @@ function collect(node: unknown, body: string[], captions: string[]): void {
   if (inline) body.push('\n');
 }
 
-export function projectSections(sections: Sections): { body: string; captions: string } {
+export function projectSections(sections: Sections | LegacySections): { body: string; captions: string } {
   const body: string[] = [];
   const captions: string[] = [];
-  for (const key of SECTION_KEYS) collect(sections[key], body, captions);
+  if (Array.isArray(sections)) {
+    for (const { id, heading, doc } of sections) {
+      // Vorlagenüberschriften kommen in vielen Journalen vor und sollen die
+      // Ausschnitte der eigentlichen Lerndokumentation nicht verdrängen.
+      if (heading && !starterHeadings.some((starter) => starter.key === id && starter.heading === heading)) {
+        body.push(heading, '\n');
+      }
+      collect(doc, body, captions);
+    }
+  } else {
+    // Beim Umstieg von Schema v1 baut Migration 2 den Index vor Migration 5 auf.
+    for (const key of LEGACY_SECTION_KEYS) collect(sections[key], body, captions);
+  }
   return {
     // Mehrfache Leerzeilen zusammenfassen (kleinerer Index, ruhigere Ausschnitte)
     body: cleanIndexText(body.join(''))

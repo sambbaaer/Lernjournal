@@ -4,7 +4,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { launchApp, runAxe, waitForNewSave } from './helpers.mjs';
+import { launchApp, openJournalDetails, runAxe, waitForNewSave } from './helpers.mjs';
 
 let app;
 let page;
@@ -59,6 +59,7 @@ test('Journale mit Text, Bildlegende, Schlagwort und Kategorie anlegen', async (
     await page.keyboard.type('Fertig.');
   });
   // Schlagwort und Kategorie
+  await openJournalDetails(page);
   await waitForNewSave(page, async () => {
     await page
       .getByRole('article', { name: 'Journal' })

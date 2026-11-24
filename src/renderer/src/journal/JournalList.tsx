@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Archive, ArchiveRestore, Copy, FileDown, FolderOpen, Search, Trash2 } from 'lucide-react';
 import { LEARNING_PLACE_LABELS, type JournalSummary } from '@shared/journal';
+import { JOURNAL_TEMPLATES } from '@shared/journal-templates';
 import { useApp } from '../state/AppContext';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import {
@@ -14,6 +15,7 @@ import {
   setJournalStatus,
 } from './actions';
 import { StatusBadge } from './StatusBadge';
+import { QvMarkButton } from './QvMarkButton';
 import {
   DEFAULT_FILTER,
   matchesFilter,
@@ -157,7 +159,7 @@ export function JournalList() {
         <div
           role="toolbar"
           aria-label="Aktionen für ausgewähltes Journal"
-          className="ml-auto flex items-center gap-1"
+          className="ml-auto flex flex-wrap items-center gap-1"
         >
           <button
             type="button"
@@ -184,6 +186,17 @@ export function JournalList() {
           >
             <FileDown aria-hidden="true" size={16} /> Als Word
           </button>
+          <button
+            type="button"
+            disabled={!selected}
+            className={toolButton}
+            onClick={() =>
+              selected && dispatch({ type: 'openExport', format: 'pdf', journalIds: [selected.id] })
+            }
+          >
+            <FileDown aria-hidden="true" size={16} /> Als PDF
+          </button>
+          {selected && <QvMarkButton key={selected.id} journal={selected} />}
           {selected?.status === 'archived' ? (
             <button
               type="button"
@@ -265,6 +278,11 @@ export function JournalList() {
                     <span className={j.title.trim() ? 'font-semibold' : 'italic text-ink-muted'}>
                       {displayTitle(j.title)}
                     </span>
+                    {j.template !== 'report' && (
+                      <span className="mt-0.5 block text-xs text-ink-muted">
+                        {JOURNAL_TEMPLATES[j.template].label}
+                      </span>
+                    )}
                     {j.tagIds.length > 0 && (
                       <span className="mt-0.5 block text-xs text-ink-muted">
                         <span className="sr-only">Schlagwörter: </span>
@@ -285,6 +303,11 @@ export function JournalList() {
                   </td>
                   <td className="px-3 py-2">
                     <StatusBadge status={j.status} />
+                    {j.qvSelected && (
+                      <span className="ml-2 text-xs font-semibold text-warning" title="Für das QV vorgemerkt">
+                        QV
+                      </span>
+                    )}
                   </td>
                 </tr>
               );

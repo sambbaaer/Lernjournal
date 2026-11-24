@@ -14,6 +14,7 @@ import {
   JournalId,
   JournalMetaSchema,
   JournalSummarySchema,
+  JournalTemplateIdSchema,
   SectionsSchema,
 } from './journal';
 import { ArchiveExportResultSchema, ArchivePreviewSchema } from './archive';
@@ -27,6 +28,7 @@ import {
 } from './backup';
 import { COLLECTION_LIMITS, ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
+import { McpDecisionResultSchema, McpDecisionSchema, McpStatusSchema } from './mcp';
 import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
 
@@ -111,6 +113,16 @@ export const OpenResultSchema = z.discriminatedUnion('status', [
 ]);
 export type OpenResult = z.infer<typeof OpenResultSchema>;
 
+const CollectionExportRequest = z.object({
+  ids: z
+    .array(JournalId)
+    .min(1)
+    .max(COLLECTION_LIMITS.maxJournals)
+    .refine((ids) => new Set(ids).size === ids.length, 'Ein Journal ist doppelt ausgewählt'),
+  title: z.string().trim().max(COLLECTION_LIMITS.maxTitleLength),
+  noticeAccepted: z.literal(true),
+});
+
 export const ipcContract = {
   // Liefert App-Version und Laufzeit – erster, harmloser Befehl, an dem
   // das ganze Sicherheitsmuster getestet wird.
@@ -118,6 +130,12 @@ export const ipcContract = {
 
   // Antwort auf «Fenster wird geschlossen»: Ist alles gespeichert?
   'app:closeReady': { request: z.object({ saved: z.boolean() }), response: z.object({ ok: z.boolean() }) },
+  'app:pasteInEditor': {
+    request: z.strictObject({ plainText: z.boolean().optional() }).optional(),
+    response: z.boolean(),
+  },
+  // Geöffneten Projektordner im Windows-Explorer anzeigen (ohne Pfad vom Renderer)
+  'project:showFolder': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
 
   // Aktuelles Projekt (oder keines), Zuletzt-Liste und vorgeschlagener Speicherort
   'project:getState': {
@@ -165,7 +183,10 @@ export const ipcContract = {
     response: z.array(JournalSummarySchema),
   },
   'journal:get': { request: z.object({ id: JournalId }), response: JournalDetailSchema },
-  'journal:create': { request: z.undefined(), response: JournalDetailSchema },
+  'journal:create': {
+    request: z.strictObject({ template: JournalTemplateIdSchema }).optional(),
+    response: JournalDetailSchema,
+  },
   'journal:updateMeta': {
     request: z.object({ id: JournalId, meta: JournalMetaSchema }),
     response: JournalSummarySchema,
@@ -189,6 +210,10 @@ export const ipcContract = {
   },
   'journal:setStatus': {
     request: z.object({ id: JournalId, status: z.enum(['draft', 'completed', 'archived']) }),
+    response: JournalSummarySchema,
+  },
+  'journal:setQvSelected': {
+    request: z.strictObject({ id: JournalId, selected: z.boolean() }),
     response: JournalSummarySchema,
   },
   'journal:duplicate': { request: z.object({ id: JournalId }), response: JournalDetailSchema },
@@ -249,11 +274,22 @@ export const ipcContract = {
   // «Suchindex neu aufbauen»: liefert die Anzahl neu indexierter Journale
   'search:rebuild': { request: z.undefined(), response: z.object({ journals: z.number().int() }) },
 
+  // Lokale MCP-Freigabe und Prüfung. Der MCP-Client hat keinen IPC-Zugriff.
+  'mcp:status': { request: z.undefined(), response: McpStatusSchema },
+  'mcp:setActive': { request: z.strictObject({ enabled: z.boolean() }), response: McpStatusSchema },
+  'mcp:setDrafts': { request: z.strictObject({ allowed: z.boolean() }), response: McpStatusSchema },
+  'mcp:copy': { request: z.strictObject({ field: z.enum(['endpoint', 'token']) }), response: z.boolean() },
+  'mcp:decide': { request: McpDecisionSchema, response: McpDecisionResultSchema },
+
   // --- Word-Export (AJ-12) ---
   // Ein Journal als Word-Dokument. Der Hauptprozess zeigt selbst den
   // Speichern-Dialog; der Renderer schickt nur die Journal-ID und bestätigt,
   // dass der Exporthinweis (R-10) angezeigt und angenommen wurde.
   'export:journalDocx': {
+    request: z.object({ id: JournalId, noticeAccepted: z.literal(true) }),
+    response: ExportResultSchema,
+  },
+  'export:journalPdf': {
     request: z.object({ id: JournalId, noticeAccepted: z.literal(true) }),
     response: ExportResultSchema,
   },
@@ -263,15 +299,11 @@ export const ipcContract = {
   // COLLECTION_LIMITS.maxJournals gültige IDs ohne Doppelte, Titel begrenzt.
   // Wie beim Einzel-DOCX bestimmt nur der Speichern-Dialog den Zielpfad.
   'export:collectionDocx': {
-    request: z.object({
-      ids: z
-        .array(JournalId)
-        .min(1)
-        .max(COLLECTION_LIMITS.maxJournals)
-        .refine((ids) => new Set(ids).size === ids.length, 'Ein Journal ist doppelt ausgewählt'),
-      title: z.string().trim().max(COLLECTION_LIMITS.maxTitleLength),
-      noticeAccepted: z.literal(true),
-    }),
+    request: CollectionExportRequest,
+    response: ExportResultSchema,
+  },
+  'export:collectionPdf': {
+    request: CollectionExportRequest,
     response: ExportResultSchema,
   },
   // Zuletzt exportierte Datei im Explorer zeigen (kein Pfad vom Renderer)

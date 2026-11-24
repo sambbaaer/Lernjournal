@@ -1,40 +1,38 @@
-// Dokumentansicht eines Journals: «Seite» mit Titel, Metadaten und den drei
-// Abschnitten (je ein Rich-Text-Editor). Alles wird automatisch gespeichert:
+// Dokumentansicht eines Journals: «Seite» mit Titel, Metadaten und den
+// Abschnitten der Vorlage. Alles wird automatisch gespeichert:
 // kurz nach der letzten Änderung, bei Dauertippen spätestens alle 10 Sekunden,
 // beim Verlassen der Ansicht und mit Strg+S sofort (SPEC «Autosave»).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { JSONContent } from '@tiptap/react';
-import { Archive, CircleCheck, Copy, PencilLine, Trash2 } from 'lucide-react';
+import { Archive, ChevronDown, CircleCheck, Copy, PencilLine, Plus, Trash2 } from 'lucide-react';
 import {
-  LEARNING_PLACES,
+  EMPTY_DOCUMENT,
   LEARNING_PLACE_LABELS,
-  SECTION_KEYS,
-  SECTION_TITLES,
+  withSectionDocument,
   type JournalDetail,
   type JournalMeta,
+  type JournalSection,
+  type JournalTemplateId,
   type Sections,
 } from '@shared/journal';
-import { computeSchoolYear } from '@shared/school-year';
+import { newJournalSections, sectionHint } from '@shared/journal-templates';
+import { effectiveSchoolYear } from '@shared/school-year';
 import { useApp } from '../state/AppContext';
 import { SectionEditor } from '../editor/SectionEditor';
-import { registerSaveNow } from '../editor/save-registry';
+import { registerSaveNow, saveOnUnmount } from '../editor/save-registry';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
-import { deleteJournal, displayTitle, duplicateJournal, setJournalStatus } from './actions';
+import { deleteJournal, displayTitle, duplicateJournal, formatDate, setJournalStatus } from './actions';
 import { StatusBadge } from './StatusBadge';
-import { LinkFields } from './LinkFields';
-import { TaxonomyFields } from './TaxonomyFields';
+import { JournalDetails } from './JournalDetails';
+import { JournalInsertMenu } from './JournalInsertMenu';
+import { JournalSectionActions } from './JournalSectionActions';
+import { JournalSectionForm } from './JournalSectionForm';
+import { QvMarkButton } from './QvMarkButton';
 
 const SAVE_DELAY_MS = 800; // SPEC: speichern nach kurzer Ruhephase
 const MAX_WAIT_MS = 10_000; // SPEC: bei Dauertippen spätestens alle 10 s
 // Zeitquelle für die Speicherplanung (nur in Event-Handlern verwendet, nie beim Rendern)
 const currentTime = () => Date.now();
-
-const SECTION_HINTS: Record<(typeof SECTION_KEYS)[number], string> = {
-  auftrag: 'Was war die Aufgabe, was das Ziel? Für wen (ohne vertrauliche Details)?',
-  durchfuehrung:
-    'Wie und weshalb hast du gearbeitet? Schritte, Material, Maschinen, Einstellungen, Sicherheit.',
-  reflexion: 'Was lief gut, was war schwierig, was machst du nächstes Mal anders?',
-};
 
 function metaOf(j: JournalDetail): JournalMeta {
   return {
@@ -45,7 +43,8 @@ function metaOf(j: JournalDetail): JournalMeta {
   };
 }
 
-const field = 'rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm';
+const actionButton =
+  'inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-muted hover:bg-hover';
 
 export function JournalDocument({ journal }: { journal: JournalDetail }) {
   const { state, dispatch } = useApp();
@@ -60,6 +59,9 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
     typedTitle === null ? metaOf(journal) : { ...metaOf(journal), title: typedTitle },
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sectionLayout, setSectionLayout] = useState(journal.sections);
+  const [confirmRemove, setConfirmRemove] = useState<JournalSection | null>(null);
+  const [addedSection, setAddedSection] = useState<string | null>(null);
   // Ausstehende Änderungen, getrennt nach Metadaten und Inhalt
   const pending = useRef<{ meta?: JournalMeta; sections?: Sections }>({});
   const sectionsRef = useRef<Sections>(journal.sections);
@@ -86,7 +88,7 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
     if (!todo.meta && !todo.sections) return true;
     pending.current = {};
     firstPendingAt.current = null;
-    dispatch({ type: 'setSaveStatus', status: { kind: 'saving' } });
+    dispatch({ type: 'setSaveStatus', journalId: journal.id, status: { kind: 'saving' } });
     let ok = true;
     const run = (async () => {
       try {
@@ -109,12 +111,12 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
       if (ok) {
         retryCount.current = 0;
         // «Gespeichert» nur, wenn wirklich alles gespeichert ist: Kam während
-        // des Speicherns schon wieder etwas dazu (Dauertippen), steht nichts da,
-        // bis auch das gespeichert ist (SPEC: Status nur bei zutreffendem Zustand)
+        // des Speicherns schon wieder etwas dazu, bleibt die Anzeige ausstehend.
         const more = pending.current.meta || pending.current.sections;
         dispatch({
           type: 'setSaveStatus',
-          status: more ? { kind: 'idle' } : { kind: 'saved', at: Date.now() },
+          journalId: journal.id,
+          status: more ? { kind: 'pending' } : { kind: 'saved', at: Date.now() },
         });
       } else {
         // Nichts verlieren: beim nächsten Versuch erneut senden (neuere Änderungen haben Vorrang)
@@ -124,6 +126,7 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
         };
         dispatch({
           type: 'setSaveStatus',
+          journalId: journal.id,
           status: { kind: 'error', message: 'Wird automatisch erneut versucht.' },
         });
         // Automatisch erneut versuchen: nach 2, 5, 10, dann alle 30 Sekunden
@@ -155,8 +158,8 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
     const now = currentTime();
     // Erste ungespeicherte Änderung: ein «Gespeichert» von vorhin trifft nicht
     // mehr zu (ein Fehler bleibt dagegen sichtbar, bis erneut gespeichert ist)
-    if (firstPendingAt.current === null && state.saveStatus.kind === 'saved')
-      dispatch({ type: 'setSaveStatus', status: { kind: 'idle' } });
+    if (firstPendingAt.current === null && !saving.current && state.saveStatus.kind !== 'error')
+      dispatch({ type: 'setSaveStatus', journalId: journal.id, status: { kind: 'pending' } });
     firstPendingAt.current ??= now;
     if (timer.current) clearTimeout(timer.current);
     const waited = now - firstPendingAt.current;
@@ -169,16 +172,55 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
     schedule();
   }
 
-  function changeSection(key: keyof Sections, doc: JSONContent) {
-    sectionsRef.current = { ...sectionsRef.current, [key]: doc as Sections[typeof key] };
-    pending.current.sections = sectionsRef.current;
+  function queueSections(sections: Sections) {
+    sectionsRef.current = sections;
+    pending.current.sections = sections;
     schedule();
+  }
+
+  function changeSection(id: string, doc: JSONContent) {
+    queueSections(withSectionDocument(sectionsRef.current, id, doc as JournalSection['doc']));
+  }
+
+  function changeLayout(sections: Sections) {
+    queueSections(sections);
+    setSectionLayout(sections);
+  }
+
+  function moveSection(id: string, direction: -1 | 1) {
+    const sections = [...sectionsRef.current];
+    const from = sections.findIndex((section) => section.id === id);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= sections.length) return;
+    [sections[from], sections[to]] = [sections[to]!, sections[from]!];
+    changeLayout(sections);
+  }
+
+  function saveSectionHeading(heading: string | null) {
+    const id = state.journalSectionForm?.sectionId;
+    if (id) {
+      changeLayout(
+        sectionsRef.current.map((section) => (section.id === id ? { ...section, heading } : section)),
+      );
+    } else {
+      const newId = crypto.randomUUID();
+      changeLayout([...sectionsRef.current, { id: newId, heading, doc: structuredClone(EMPTY_DOCUMENT) }]);
+      setAddedSection(newId);
+    }
+    dispatch({ type: 'closeJournalSectionForm' });
+  }
+
+  function appendTemplate(template: JournalTemplateId) {
+    const sections = newJournalSections(template).map((section) => ({ ...section, id: crypto.randomUUID() }));
+    changeLayout([...sectionsRef.current, ...sections]);
+    setAddedSection(sections[0]?.id ?? null);
+    dispatch({ type: 'closeJournalSectionForm' });
   }
 
   // Beim Verlassen der Ansicht (Navigation, anderes Journal) sofort speichern
   useEffect(
     () => () => {
-      void flush();
+      saveOnUnmount(flush);
     },
     [flush],
   );
@@ -209,64 +251,18 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const computed = computeSchoolYear(state.project?.profile.apprenticeshipStart ?? null, meta.workDate);
+  const year = effectiveSchoolYear(
+    state.project?.profile.apprenticeshipStart ?? null,
+    meta.workDate,
+    meta.schoolYearOverride,
+  );
   const isCompleted = journal.status === 'completed';
+  const editingSection = sectionLayout.find(({ id }) => id === state.journalSectionForm?.sectionId);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 py-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <StatusBadge status={journal.status} />
-        <div role="toolbar" aria-label="Journal-Aktionen" className="flex items-center gap-1">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover"
-            onClick={async () => {
-              await flush();
-              void setJournalStatus(dispatch, journal.id, isCompleted ? 'draft' : 'completed');
-            }}
-          >
-            {isCompleted ? (
-              <PencilLine aria-hidden="true" size={16} />
-            ) : (
-              <CircleCheck aria-hidden="true" size={16} />
-            )}
-            {isCompleted ? 'Wieder als Entwurf' : 'Als abgeschlossen markieren'}
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover"
-            onClick={async () => {
-              await flush();
-              void duplicateJournal(dispatch, journal.id);
-            }}
-          >
-            <Copy aria-hidden="true" size={16} /> Duplizieren
-          </button>
-          {journal.status !== 'archived' && (
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover"
-              onClick={async () => {
-                await flush();
-                void setJournalStatus(dispatch, journal.id, 'archived');
-              }}
-            >
-              <Archive aria-hidden="true" size={16} /> Archivieren
-            </button>
-          )}
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover"
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 aria-hidden="true" size={16} /> Löschen
-          </button>
-        </div>
-      </div>
-
-      {/* Die «Seite»: helle Dokumentfläche wie in Word */}
+    <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
       <article
-        className="rounded-sm border border-border bg-surface px-12 py-10 shadow-sm"
+        className="rounded-lg border border-border bg-surface px-5 py-5 shadow-sm lg:px-10 lg:py-6"
         aria-label="Journal"
       >
         <label htmlFor="journal-title" className="sr-only">
@@ -283,80 +279,167 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
           className="w-full border-0 border-b border-transparent bg-transparent pb-1 text-3xl font-semibold placeholder:text-ink-muted focus:border-accent"
         />
 
-        <div className="mt-4 flex flex-wrap items-end gap-4 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-ink-muted">Arbeitsdatum</span>
-            <input
-              type="date"
-              required
-              value={meta.workDate}
-              onChange={(e) => e.target.value && change({ ...meta, workDate: e.target.value })}
-              onBlur={() => void flush()}
-              className={field}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-ink-muted">Lernort</span>
-            <select
-              value={meta.learningPlace}
-              onChange={(e) =>
-                change({ ...meta, learningPlace: e.target.value as JournalMeta['learningPlace'] })
-              }
-              className={field}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+            <StatusBadge status={journal.status} />
+            <QvMarkButton journal={journal} />
+            <span>
+              {formatDate(meta.workDate)} · {LEARNING_PLACE_LABELS[meta.learningPlace]}
+              {year ? ` · ${year}. Lehrjahr` : ''}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2">
+            <button
+              type="button"
+              aria-expanded={state.journalDetailsOpen}
+              aria-controls="journal-details"
+              onClick={() => dispatch({ type: 'toggleJournalDetails' })}
+              className="flex min-h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-accent-strong hover:bg-hover"
             >
-              {LEARNING_PLACES.map((p) => (
-                <option key={p} value={p}>
-                  {LEARNING_PLACE_LABELS[p]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-ink-muted">Lehrjahr</span>
-            <select
-              value={meta.schoolYearOverride ?? 'auto'}
-              onChange={(e) =>
-                change({
-                  ...meta,
-                  schoolYearOverride: e.target.value === 'auto' ? null : Number(e.target.value),
-                })
-              }
-              className={field}
+              Journaldetails{' '}
+              <ChevronDown
+                aria-hidden="true"
+                size={14}
+                className={state.journalDetailsOpen ? 'rotate-180' : ''}
+              />
+            </button>
+            <div
+              role="toolbar"
+              aria-label="Journal-Aktionen"
+              className="flex items-center border-l border-border-subtle pl-1"
             >
-              <option value="auto">
-                {computed ? `Automatisch (${computed.year}. Lehrjahr)` : 'Automatisch (kein Lehrbeginn)'}
-              </option>
-              {[1, 2, 3, 4].map((y) => (
-                <option key={y} value={y}>
-                  {y}. Lehrjahr
-                </option>
-              ))}
-            </select>
-          </label>
+              <button
+                type="button"
+                className={actionButton}
+                aria-label={isCompleted ? 'Wieder als Entwurf' : 'Als abgeschlossen markieren'}
+                title={isCompleted ? 'Wieder als Entwurf' : 'Als abgeschlossen markieren'}
+                onClick={async () => {
+                  if (await flush())
+                    void setJournalStatus(dispatch, journal.id, isCompleted ? 'draft' : 'completed');
+                }}
+              >
+                {isCompleted ? (
+                  <PencilLine aria-hidden="true" size={16} />
+                ) : (
+                  <CircleCheck aria-hidden="true" size={16} />
+                )}
+              </button>
+              <button
+                type="button"
+                className={actionButton}
+                aria-label="Duplizieren"
+                title="Duplizieren"
+                onClick={async () => {
+                  if (await flush()) void duplicateJournal(dispatch, journal.id);
+                }}
+              >
+                <Copy aria-hidden="true" size={16} />
+              </button>
+              {journal.status !== 'archived' && (
+                <button
+                  type="button"
+                  className={actionButton}
+                  aria-label="Archivieren"
+                  title="Archivieren"
+                  onClick={async () => {
+                    if (await flush()) void setJournalStatus(dispatch, journal.id, 'archived');
+                  }}
+                >
+                  <Archive aria-hidden="true" size={16} />
+                </button>
+              )}
+              <button
+                type="button"
+                className={actionButton}
+                aria-label="Löschen"
+                title="Löschen"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 aria-hidden="true" size={16} />
+              </button>
+            </div>
+          </div>
         </div>
-        {/* Kategorien und Schlagwörter (AJ-09): aktueller Stand aus dem Zustand,
-            damit Änderungen aus der Verwaltung sofort sichtbar sind */}
-        <div className="border-b border-border-subtle pb-4">
-          <TaxonomyFields journal={state.openJournal?.id === journal.id ? state.openJournal : journal} />
-          {/* Verknüpfungen und Rückverweise (AJ-10) */}
-          <LinkFields journalId={journal.id} />
-        </div>
+        <JournalDetails
+          journal={state.openJournal?.id === journal.id ? state.openJournal : journal}
+          meta={meta}
+          onChange={change}
+          onCommit={() => void flush()}
+        />
 
-        {SECTION_KEYS.map((k) => (
-          <section key={k} aria-labelledby={`sec-${k}`} className="mt-8">
-            <h2 id={`sec-${k}`} className="mb-2 text-xl font-semibold text-accent-strong">
-              {SECTION_TITLES[k]}
-            </h2>
-            <SectionEditor
-              journalId={journal.id}
-              label={SECTION_TITLES[k]}
-              hint={SECTION_HINTS[k]}
-              content={journal.sections[k] as JSONContent}
-              onChange={(doc) => changeSection(k, doc)}
-            />
-          </section>
-        ))}
+        <div className="mt-3 border-t border-border-subtle">
+          {sectionLayout.map(({ id, heading, doc }, index) => (
+            <section
+              key={id}
+              aria-labelledby={heading ? `sec-${id}` : undefined}
+              className={heading ? 'mt-4' : 'mt-3 [&_.lj-editor]:min-h-44'}
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                {heading && (
+                  <h2 id={`sec-${id}`} className="text-xl font-semibold text-accent-strong">
+                    {heading}
+                  </h2>
+                )}
+                <div className="ml-auto">
+                  <JournalSectionActions
+                    label={heading ?? `Abschnitt ${index + 1}`}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < sectionLayout.length - 1}
+                    onRename={() => dispatch({ type: 'openJournalSectionForm', sectionId: id })}
+                    onMove={(direction) => moveSection(id, direction)}
+                    onRemove={() => setConfirmRemove({ id, heading, doc })}
+                  />
+                </div>
+              </div>
+              <SectionEditor
+                journalId={journal.id}
+                label={heading ?? 'Inhalt'}
+                hint={sectionHint(journal.template, id, heading)}
+                content={doc as JSONContent}
+                autofocus={addedSection === id}
+                onChange={(next) => changeSection(id, next)}
+              />
+            </section>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'openJournalSectionForm' })}
+            aria-haspopup="dialog"
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-accent-strong hover:bg-selected"
+          >
+            <Plus aria-hidden="true" size={16} /> Abschnitt hinzufügen
+          </button>
+          <JournalInsertMenu journalId={journal.id} />
+        </div>
       </article>
+
+      {state.journalSectionForm && (
+        <JournalSectionForm
+          current={editingSection?.heading}
+          onSubmit={saveSectionHeading}
+          onChooseTemplate={editingSection ? undefined : appendTemplate}
+          onCancel={() => dispatch({ type: 'closeJournalSectionForm' })}
+        />
+      )}
+
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Abschnitt entfernen?"
+          confirmLabel="Entfernen"
+          danger
+          onCancel={() => setConfirmRemove(null)}
+          onConfirm={() => {
+            changeLayout(sectionsRef.current.filter(({ id }) => id !== confirmRemove.id));
+            setConfirmRemove(null);
+          }}
+        >
+          {confirmRemove.heading
+            ? `«${confirmRemove.heading}» wird mit seinem Inhalt entfernt.`
+            : 'Dieser Abschnitt wird mit seinem Inhalt entfernt.'}
+        </ConfirmDialog>
+      )}
 
       {confirmDelete && (
         <ConfirmDialog

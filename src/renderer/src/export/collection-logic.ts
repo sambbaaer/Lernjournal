@@ -33,6 +33,7 @@ export type CollectionFilter = {
   from: string; // ISO-Datum oder ''
   to: string; // ISO-Datum oder ''
   includeArchived: boolean;
+  qvOnly?: boolean;
 };
 export const DEFAULT_COLLECTION_FILTER: CollectionFilter = {
   text: '',
@@ -52,6 +53,7 @@ export function filterCandidates(
   const inRange = journals.filter(
     (j) =>
       (filter.includeArchived || j.status !== 'archived') &&
+      (!filter.qvOnly || j.qvSelected) &&
       (!filter.from || j.workDate >= filter.from) &&
       (!filter.to || j.workDate <= filter.to),
   );

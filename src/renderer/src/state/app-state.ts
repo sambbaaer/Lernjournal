@@ -8,23 +8,34 @@ export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren' | 'tab
 export type BackstagePage = 'neu' | 'oeffnen' | 'importieren' | 'exportieren' | 'einstellungen' | 'info';
 
 import type { ProjectInfo } from '@shared/ipc';
+import { DEFAULT_QV_MINIMUM, type ExportFormat } from '@shared/export';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
 import { EMPTY_LINKS, type JournalLinks } from '@shared/links';
+import { MCP_OFF, type McpStatus } from '@shared/mcp';
 import { EMPTY_TAXONOMY, type Taxonomy } from '@shared/taxonomy';
 import { INITIAL_FACHBUCH, type FachbuchState } from '../fachbuch/fachbuch-logic';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
 
 // Speicherstatus: nur Zustände, die auch WIRKLICH zutreffen dürfen (SPEC).
-// 'idle' = nichts zu speichern; die Statusleiste zeigt dann keinen Speicherhinweis.
+// 'idle' = noch kein Journal gespeichert oder aus der Datenbank geladen.
 export type SaveStatus =
-  { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved'; at: number } | { kind: 'error'; message: string };
+  | { kind: 'idle' | 'pending' | 'saving' }
+  | { kind: 'saved'; at: number }
+  | { kind: 'error'; message: string };
+
+const NO_DETAIL_WRITES = { active: 0, error: null };
 
 export type AppState = {
+  settingsTab: SettingsTab;
+  mcp: McpStatus;
+  appearance: Appearance;
+  qvMinimum: number;
   view: View;
   ribbonTab: RibbonTab;
   backstage: BackstagePage | null; // null = Datei-Menü geschlossen
   saveStatus: SaveStatus;
+  journalDetailSave: { active: number; error: string | null };
   // Kurze Meldung in der Statusleiste (z. B. «Folgt in einem späteren Schritt»)
   notice: string | null;
   // Fokuswunsch, den eine Ansicht nach dem Rendern erfüllt (z. B. Suchfeld)
@@ -32,7 +43,13 @@ export type AppState = {
   // zu den Feldern im geöffneten Journal; 'journal-links' öffnet «Journal verknüpfen» (AJ-10);
   // 'settings-backups' springt in den Einstellungen zu «Sicherungen» (AJ-15)
   focusRequest:
-    'fachbuch-search' | 'journal-categories' | 'journal-tags' | 'journal-links' | 'settings-backups' | null;
+    | 'fachbuch-search'
+    | 'journal-categories'
+    | 'journal-tags'
+    | 'journal-links'
+    | 'settings-backups'
+    | 'settings-mcp'
+    | null;
   // Projekt: null = keines geöffnet → Startbildschirm/Assistent
   project: ProjectInfo | null;
   // Zählt jedes Öffnen eines Projekts. Die Oberfläche lädt Journale neu, wenn
@@ -50,6 +67,9 @@ export type AppState = {
   journals: JournalSummary[];
   journalsLoaded: boolean;
   openJournal: JournalDetail | null;
+  journalTemplatesOpen: boolean;
+  journalDetailsOpen: boolean;
+  journalSectionForm: { sectionId?: string } | null;
   // Neues Journal wird angelegt (Strg+N, AJ-17): Solange der Hauptprozess
   // antwortet, zeigt die Dokumentfläche statt des bisherigen Journals einen
   // Platzhalter mit eigenem Titelfeld. Ohne ihn landete, wer direkt nach
@@ -88,15 +108,26 @@ export type AppState = {
 
 export type ArchiveDialogMode = 'export' | 'import';
 
-export type ExportDialogState = { journalIds: string[]; collection?: { title: string } };
+export type Appearance = 'light' | 'dark' | 'system';
+export type SettingsTab = 'general' | 'mcp';
+export type ExportDialogState = {
+  journalIds: string[];
+  format?: ExportFormat;
+  collection?: { title: string };
+};
 export type CollectionState = { ids: string[]; title: string };
 export const INITIAL_COLLECTION: CollectionState = { ids: [], title: '' };
 
 export const initialState: AppState = {
+  settingsTab: 'general',
+  mcp: MCP_OFF,
+  appearance: 'light',
+  qvMinimum: DEFAULT_QV_MINIMUM,
   view: 'start',
   ribbonTab: 'start',
   backstage: null,
   saveStatus: { kind: 'idle' },
+  journalDetailSave: NO_DETAIL_WRITES,
   notice: null,
   focusRequest: null,
   project: null,
@@ -109,6 +140,9 @@ export const initialState: AppState = {
   journals: [],
   journalsLoaded: false,
   openJournal: null,
+  journalTemplatesOpen: false,
+  journalDetailsOpen: false,
+  journalSectionForm: null,
   creatingJournal: null,
   newJournalTitle: null,
   openJournalLinks: EMPTY_LINKS,
@@ -121,11 +155,20 @@ export const initialState: AppState = {
 };
 
 export type Action =
+  | { type: 'setAppearance'; appearance: Appearance }
+  | { type: 'setQvMinimum'; minimum: number }
   | { type: 'navigate'; view: View }
+  | { type: 'showBackups' }
+  | { type: 'showMcp' }
+  | { type: 'selectSettingsTab'; tab: SettingsTab }
+  | { type: 'mcpStatus'; status: McpStatus }
+  | { type: 'mcpJournalApplied'; journal: JournalDetail }
   | { type: 'selectRibbonTab'; tab: RibbonTab }
   | { type: 'openBackstage'; page?: BackstagePage }
   | { type: 'closeBackstage' }
-  | { type: 'setSaveStatus'; status: SaveStatus }
+  | { type: 'setSaveStatus'; journalId: string; status: SaveStatus }
+  | { type: 'journalDetailWriteStarted'; journalId: string }
+  | { type: 'journalDetailWriteFinished'; journalId: string; error?: string }
   | { type: 'notice'; text: string | null }
   | { type: 'requestFocus'; target: AppState['focusRequest'] }
   | { type: 'projectState'; project: ProjectInfo | null; recent: RecentProject[]; suggestedLocation: string }
@@ -139,6 +182,11 @@ export type Action =
   | { type: 'journalUpserted'; journal: JournalSummary }
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
+  | { type: 'openJournalTemplates' }
+  | { type: 'closeJournalTemplates' }
+  | { type: 'toggleJournalDetails' }
+  | { type: 'openJournalSectionForm'; sectionId?: string }
+  | { type: 'closeJournalSectionForm' }
   // Strg+N (AJ-17): Anlegen gestartet / Titel im Platzhalter / angelegt /
   // fehlgeschlagen / Titel vom neuen Journal übernommen
   | { type: 'journalCreating' }
@@ -150,7 +198,7 @@ export type Action =
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
   | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
   | { type: 'fachbuchChanged'; change: Partial<FachbuchState> }
-  | { type: 'openExport'; journalIds: string[]; collection?: { title: string } }
+  | ({ type: 'openExport' } & ExportDialogState)
   | { type: 'closeExport' }
   | { type: 'collectionChanged'; change: Partial<CollectionState> }
   | { type: 'openArchive'; mode: ArchiveDialogMode }
@@ -163,10 +211,48 @@ export type Action =
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'setAppearance':
+      return { ...state, appearance: action.appearance };
+    case 'setQvMinimum':
+      return { ...state, qvMinimum: action.minimum };
     case 'navigate':
       // Navigieren schliesst das Datei-Menü, wie in Office. Wer während des
       // Anlegens wegnavigiert, will das neue Journal nicht mehr öffnen.
-      return { ...state, view: action.view, backstage: null, notice: null, creatingJournal: null };
+      return {
+        ...state,
+        view: action.view,
+        backstage: null,
+        notice: null,
+        creatingJournal: null,
+        journalSectionForm: null,
+      };
+    case 'showBackups':
+      return {
+        ...reducer(state, { type: 'navigate', view: 'einstellungen' }),
+        settingsTab: 'general',
+        focusRequest: 'settings-backups',
+      };
+    case 'showMcp':
+      return {
+        ...reducer(state, { type: 'navigate', view: 'einstellungen' }),
+        settingsTab: 'mcp',
+        focusRequest: 'settings-mcp',
+      };
+    case 'selectSettingsTab':
+      return { ...state, settingsTab: action.tab };
+    case 'mcpStatus':
+      return { ...state, mcp: action.status };
+    case 'mcpJournalApplied': {
+      const { sections, createdAt, ...summary } = action.journal;
+      const updated = reducer(state, { type: 'journalUpserted', journal: summary });
+      return updated.openJournal?.id === summary.id
+        ? {
+            ...updated,
+            openJournal: { ...summary, sections, createdAt },
+            saveStatus: { kind: 'saved', at: Date.parse(summary.updatedAt) },
+          }
+        : updated;
+    }
     case 'selectRibbonTab':
       return { ...state, ribbonTab: action.tab };
     case 'openBackstage':
@@ -174,11 +260,27 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'closeBackstage':
       return { ...state, backstage: null };
     case 'setSaveStatus':
-      return { ...state, saveStatus: action.status };
+      return state.openJournal?.id === action.journalId ? { ...state, saveStatus: action.status } : state;
+    case 'journalDetailWriteStarted':
+      if (state.openJournal?.id !== action.journalId) return state;
+      return { ...state, journalDetailSave: { active: state.journalDetailSave.active + 1, error: null } };
+    case 'journalDetailWriteFinished':
+      if (state.openJournal?.id !== action.journalId || !state.journalDetailSave.active) return state;
+      return {
+        ...state,
+        journalDetailSave: {
+          active: state.journalDetailSave.active - 1,
+          error: action.error ?? state.journalDetailSave.error,
+        },
+      };
     case 'notice':
       return { ...state, notice: action.text };
     case 'requestFocus':
-      return { ...state, focusRequest: action.target };
+      return {
+        ...state,
+        focusRequest: action.target,
+        journalDetailsOpen: state.journalDetailsOpen || !!action.target?.startsWith('journal-'),
+      };
     case 'projectState':
       return {
         ...state,
@@ -201,10 +303,15 @@ export function reducer(state: AppState, action: Action): AppState {
         wizardOpen: false,
         backstage: null,
         view: 'start',
+        saveStatus: { kind: 'idle' },
+        journalDetailSave: NO_DETAIL_WRITES,
         syncWarningDismissed: false,
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        journalTemplatesOpen: false,
+        journalDetailsOpen: false,
+        journalSectionForm: null,
         creatingJournal: null,
         newJournalTitle: null,
         openJournalLinks: EMPTY_LINKS,
@@ -223,10 +330,15 @@ export function reducer(state: AppState, action: Action): AppState {
         project: null,
         backstage: null,
         view: 'start',
+        saveStatus: { kind: 'idle' },
+        journalDetailSave: NO_DETAIL_WRITES,
         notice: null,
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        journalTemplatesOpen: false,
+        journalDetailsOpen: false,
+        journalSectionForm: null,
         creatingJournal: null,
         newJournalTitle: null,
         openJournalLinks: EMPTY_LINKS,
@@ -269,15 +381,30 @@ export function reducer(state: AppState, action: Action): AppState {
           ? { ...state.collection, ids: state.collection.ids.filter((x) => x !== action.id) }
           : state.collection,
         openJournal: state.openJournal?.id === action.id ? null : state.openJournal,
+        saveStatus: state.openJournal?.id === action.id ? { kind: 'idle' } : state.saveStatus,
+        journalDetailSave: state.openJournal?.id === action.id ? NO_DETAIL_WRITES : state.journalDetailSave,
         view: state.openJournal?.id === action.id ? 'journale' : state.view,
       };
     }
+    case 'openJournalTemplates':
+      return state.project && !state.creatingJournal ? { ...state, journalTemplatesOpen: true } : state;
+    case 'closeJournalTemplates':
+      return { ...state, journalTemplatesOpen: false };
+    case 'toggleJournalDetails':
+      return { ...state, journalDetailsOpen: !state.journalDetailsOpen };
+    case 'openJournalSectionForm':
+      return { ...state, journalSectionForm: { sectionId: action.sectionId } };
+    case 'closeJournalSectionForm':
+      return { ...state, journalSectionForm: null };
     case 'journalCreating':
       // Bisheriges Journal sofort ausblenden (es speichert beim Ausblenden
       // Ausstehendes), Platzhalter mit leerem Titelfeld zeigen
       return {
         ...state,
         creatingJournal: { title: '' },
+        journalTemplatesOpen: false,
+        journalDetailsOpen: false,
+        journalSectionForm: null,
         newJournalTitle: null,
         openJournal: null,
         openJournalLinks: EMPTY_LINKS,
@@ -285,6 +412,7 @@ export function reducer(state: AppState, action: Action): AppState {
         backstage: null,
         notice: null,
         saveStatus: { kind: 'idle' },
+        journalDetailSave: NO_DETAIL_WRITES,
       };
     case 'journalCreatingTitle':
       if (state.creatingJournal) return { ...state, creatingJournal: { title: action.title } };
@@ -299,6 +427,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if (!state.creatingJournal) return withList;
       return {
         ...reducer(withList, { type: 'journalOpened', journal: action.journal }),
+        ...(state.creatingJournal.title ? { saveStatus: { kind: 'pending' as const } } : {}),
         newJournalTitle: { journalId: action.journal.id, title: state.creatingJournal.title },
       };
     }
@@ -313,14 +442,23 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         creatingJournal: null,
         openJournal: action.journal,
+        journalDetailsOpen: state.openJournal?.id === action.journal.id && state.journalDetailsOpen,
+        journalSectionForm: null,
         // Gleiches Journal erneut geöffnet: bisherige Anzeige behalten, bis neu geladen
         openJournalLinks: state.openJournal?.id === action.journal.id ? state.openJournalLinks : EMPTY_LINKS,
         view: 'journal',
         backstage: null,
-        saveStatus: { kind: 'idle' },
+        saveStatus: { kind: 'saved', at: Date.parse(action.journal.updatedAt) },
+        journalDetailSave: NO_DETAIL_WRITES,
       };
     case 'journalClosed':
-      return { ...state, openJournal: null, openJournalLinks: EMPTY_LINKS, saveStatus: { kind: 'idle' } };
+      return {
+        ...state,
+        openJournal: null,
+        openJournalLinks: EMPTY_LINKS,
+        saveStatus: { kind: 'idle' },
+        journalDetailSave: NO_DETAIL_WRITES,
+      };
     case 'taxonomyLoaded':
       return { ...state, taxonomy: action.taxonomy };
     case 'linksLoaded':
@@ -335,9 +473,11 @@ export function reducer(state: AppState, action: Action): AppState {
       return action.journalIds.length
         ? {
             ...state,
-            exportDialog: action.collection
-              ? { journalIds: action.journalIds, collection: action.collection }
-              : { journalIds: action.journalIds },
+            exportDialog: {
+              journalIds: action.journalIds,
+              ...(action.format && { format: action.format }),
+              ...(action.collection && { collection: action.collection }),
+            },
             backstage: null,
           }
         : state;

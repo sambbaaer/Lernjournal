@@ -45,6 +45,9 @@ export const DEFAULT_COLLECTION_TITLE = 'Lerndokumentation';
 // Projekt über vier Lehrjahre hat typischerweise einige Dutzend Journale.
 export const COLLECTION_LIMITS = { maxJournals: 500, maxTitleLength: 150 } as const;
 
+export type ExportFormat = 'docx' | 'pdf';
+export const DEFAULT_QV_MINIMUM = 12; // QUELLEN 2.3 / R-08
+
 // Hinweis zum Inhaltsverzeichnis. Die Seitenzahlen kennt erst Word (es
 // berechnet den Umbruch); Lernjournal schreibt das Verzeichnis als Feld mit
 // den Titeln vor, Word füllt die Seitenzahlen beim Aktualisieren ein.

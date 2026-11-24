@@ -53,3 +53,22 @@ export function pickImageFiles(): Promise<File[]> {
     input.click();
   });
 }
+
+// Löst im fokussierten Editor den nativen Paste-Event aus (Standard: mit
+// bereinigter Formatierung und Bildern aus der Zwischenablage; plainText: nur
+// reiner Text ohne Formatierung wie «Nur den Text übernehmen» in Word).
+export function pasteFromClipboard(
+  editor: Editor | null,
+  dispatch: (a: Action) => void,
+  opts: { plainText?: boolean } = {},
+): void {
+  if (!editor || editor.isDestroyed) return;
+  editor.view.focus();
+  void window.lernjournal.app
+    .pasteInEditor(opts.plainText ? { plainText: true } : undefined)
+    .catch(() => null)
+    .then((result) => {
+      if (!result?.ok || !result.data)
+        dispatch({ type: 'notice', text: 'Einfügen war gerade nicht möglich.' });
+    });
+}

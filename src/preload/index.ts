@@ -10,6 +10,7 @@ const api: LernjournalApi = {
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
     closeReady: (req) => ipcRenderer.invoke('app:closeReady', req),
+    pasteInEditor: (req) => ipcRenderer.invoke('app:pasteInEditor', req),
     // Nur dieses eine Ereignis vom Hauptprozess, ohne Ereignisdaten weiterzugeben
     onBeforeClose: (listener) => {
       const wrapped = () => listener();
@@ -24,6 +25,7 @@ const api: LernjournalApi = {
     create: (req) => ipcRenderer.invoke('project:create', req),
     open: (req) => ipcRenderer.invoke('project:open', req),
     close: () => ipcRenderer.invoke('project:close'),
+    showFolder: () => ipcRenderer.invoke('project:showFolder'),
     snoozeExportReminder: () => ipcRenderer.invoke('project:snoozeExportReminder'),
   },
   profile: {
@@ -35,10 +37,11 @@ const api: LernjournalApi = {
   journal: {
     list: (req) => ipcRenderer.invoke('journal:list', req),
     get: (req) => ipcRenderer.invoke('journal:get', req),
-    create: () => ipcRenderer.invoke('journal:create'),
+    create: (req) => ipcRenderer.invoke('journal:create', req),
     updateMeta: (req) => ipcRenderer.invoke('journal:updateMeta', req),
     updateSections: (req) => ipcRenderer.invoke('journal:updateSections', req),
     setStatus: (req) => ipcRenderer.invoke('journal:setStatus', req),
+    setQvSelected: (req) => ipcRenderer.invoke('journal:setQvSelected', req),
     duplicate: (req) => ipcRenderer.invoke('journal:duplicate', req),
     delete: (req) => ipcRenderer.invoke('journal:delete', req),
     setCategories: (req) => ipcRenderer.invoke('journal:setCategories', req),
@@ -51,9 +54,23 @@ const api: LernjournalApi = {
     query: (req) => ipcRenderer.invoke('search:query', req),
     rebuild: () => ipcRenderer.invoke('search:rebuild'),
   },
+  mcp: {
+    status: () => ipcRenderer.invoke('mcp:status'),
+    setActive: (req) => ipcRenderer.invoke('mcp:setActive', req),
+    setDrafts: (req) => ipcRenderer.invoke('mcp:setDrafts', req),
+    copy: (req) => ipcRenderer.invoke('mcp:copy', req),
+    decide: (req) => ipcRenderer.invoke('mcp:decide', req),
+    onChanged: (listener) => {
+      const wrapped = () => listener();
+      ipcRenderer.on('lj:mcp-changed', wrapped);
+      return () => ipcRenderer.removeListener('lj:mcp-changed', wrapped);
+    },
+  },
   export: {
     journalDocx: (req) => ipcRenderer.invoke('export:journalDocx', req),
+    journalPdf: (req) => ipcRenderer.invoke('export:journalPdf', req),
     collectionDocx: (req) => ipcRenderer.invoke('export:collectionDocx', req),
+    collectionPdf: (req) => ipcRenderer.invoke('export:collectionPdf', req),
     showFile: () => ipcRenderer.invoke('export:showFile'),
   },
   archive: {

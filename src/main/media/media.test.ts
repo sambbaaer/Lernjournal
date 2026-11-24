@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { InvalidContentError } from '@shared/editor-schema';
-import type { Sections } from '@shared/journal';
+import { withSectionDocument, type Sections } from '@shared/journal';
 import { JournalService } from '../journal/journal-service';
 import { ProjectService } from '../project/project-service';
 import { sniffImage } from './image-info';
@@ -76,10 +76,11 @@ describe('Mediendienst', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  const withFigure = (s: Sections, mediaId: string, caption = ''): Sections => ({
-    ...s,
-    durchfuehrung: { type: 'doc', content: [{ type: 'figure', attrs: { mediaId, caption, alt: '' } }] },
-  });
+  const withFigure = (s: Sections, mediaId: string, caption = ''): Sections =>
+    withSectionDocument(s, 'durchfuehrung', {
+      type: 'doc',
+      content: [{ type: 'figure', attrs: { mediaId, caption, alt: '' } }],
+    });
 
   it('speichert ein Bild unter media/<uuid>.<ext> mit Prüfsumme', () => {
     const j = journals.create();

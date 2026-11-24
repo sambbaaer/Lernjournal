@@ -4,6 +4,7 @@ import { backup } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EMPTY_LEGACY_SECTIONS, newJournalSections } from '@shared/journal-templates';
 import { checkIntegrity, openDatabase, transaction, type Db } from './connection';
 import {
   getSchemaVersion,
@@ -17,11 +18,7 @@ import {
 let dir: string;
 let db: Db;
 const now = '2026-11-23T10:00:00.000Z';
-const emptySections = JSON.stringify({
-  auftrag: { type: 'doc' },
-  durchfuehrung: { type: 'doc' },
-  reflexion: { type: 'doc' },
-});
+const emptySections = JSON.stringify(newJournalSections());
 
 beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'lj-db-'));
@@ -81,6 +78,7 @@ describe('Schema v1: Datenintegrität', () => {
     rejects(() => insertJournal('d2', { work_date: '2026-02-30' }));
     rejects(() => insertJournal('y', { school_year_override: 5 }));
     rejects(() => insertJournal('j', { sections_json: '{kaputt' }));
+    rejects(() => insertJournal('t', { template: 'unbekannt' }));
     // «Abgeschlossen» ohne Abschlussdatum ist nicht erlaubt
     rejects(() => insertJournal('c', { status: 'completed' }));
     insertJournal('c2', { status: 'completed', completed_at: now });
@@ -153,6 +151,39 @@ describe('Schema v1: Datenintegrität', () => {
 });
 
 describe('Migrationen', () => {
+  it('übernimmt v4-Journale mit Vorlage, Inhalt und korrekter Reihenfolge', async () => {
+    const legacy = openDatabase(path.join(dir, 'v4.sqlite'));
+    try {
+      await migrate(legacy, { migrations: MIGRATIONS.filter(({ version }) => version <= 4) });
+      const documents = {
+        ...EMPTY_LEGACY_SECTIONS,
+        durchfuehrung: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Papierlauf prüfen' }] }],
+        },
+      };
+      legacy
+        .prepare(
+          `INSERT INTO journal (id, title, work_date, template, sections_json, created_at, updated_at)
+        VALUES ('j1', 'Ablauf', '2026-03-14', 'workflow', ?, ?, ?)`,
+        )
+        .run(JSON.stringify(documents), now, now);
+      expect(await migrate(legacy)).toMatchObject({ from: 4, to: LATEST_VERSION });
+      const row = legacy.prepare('SELECT sections_json, qv_selected FROM journal').get() as {
+        sections_json: string;
+        qv_selected: number;
+      };
+      expect(row.qv_selected).toBe(0);
+      const sections = JSON.parse(row.sections_json);
+      expect(sections).toEqual([
+        { id: 'auftrag', heading: 'Vorbereitung', doc: documents.auftrag },
+        { id: 'durchfuehrung', heading: 'Arbeitsschritte', doc: documents.durchfuehrung },
+        { id: 'reflexion', heading: 'Kontrolle und Ergebnis', doc: documents.reflexion },
+      ]);
+    } finally {
+      legacy.close();
+    }
+  });
   it('ist idempotent: zweiter Lauf ändert nichts und sichert nichts', async () => {
     let called = false;
     const r = await migrate(db, {

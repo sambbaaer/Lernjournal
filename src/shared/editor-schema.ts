@@ -9,7 +9,7 @@ import { getSchema, mergeAttributes, Node } from '@tiptap/core';
 import { TableKit } from '@tiptap/extension-table';
 import { Node as PMNode } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
-import { SECTION_KEYS, type Sections } from './journal';
+import type { Sections } from './journal';
 
 // Bild + Legende als EINE Einheit; Bilddatei liegt im Projektordner (AJ-07)
 export const Figure = Node.create({
@@ -68,17 +68,17 @@ export class InvalidContentError extends Error {
 // Höchstgrösse eines Journals als JSON (ohne Bilder, die liegen separat)
 export const MAX_SECTIONS_BYTES = 2_000_000;
 
-// Prüft alle drei Abschnitte. Wirft InvalidContentError mit verständlicher Meldung.
+// Prüft alle Abschnitte. Wirft InvalidContentError mit verständlicher Meldung.
 export function validateSections(sections: Sections): void {
   const size = JSON.stringify(sections).length;
   if (size > MAX_SECTIONS_BYTES) throw new InvalidContentError('Journal ist zu gross.');
-  for (const key of SECTION_KEYS) {
+  for (const { id, doc } of sections) {
     let node: PMNode;
     try {
-      node = PMNode.fromJSON(editorSchema, sections[key]);
+      node = PMNode.fromJSON(editorSchema, doc);
       node.check(); // Struktur gemäss Schema (z. B. Tabellenzeilen nur in Tabellen)
     } catch (err) {
-      throw new InvalidContentError(`Ungültiger Inhalt in «${key}»: ${(err as Error).message}`);
+      throw new InvalidContentError(`Ungültiger Inhalt im Abschnitt «${id}»: ${(err as Error).message}`);
     }
     node.descendants((n) => {
       // Überschriftenebene: Tiptap prüft Attribute beim Laden nicht – H1 ist dem Titel vorbehalten

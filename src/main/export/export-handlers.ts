@@ -1,66 +1,66 @@
-// IPC-Handler für den Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX).
-// Setzen ein geöffnetes Projekt voraus.
-//
-// Ablauf «Journal als Word exportieren»:
-//   1. Oberfläche zeigt den Exporthinweis (R-10) und schickt die Bestätigung mit
-//   2. Hauptprozess zeigt den nativen Speichern-Dialog (Windows fragt selbst
-//      nach, bevor eine bestehende Datei überschrieben wird – nie still)
-//   3. Dokument bauen, atomar schreiben, Name/Grösse/Hinweise zurückmelden
-// Der Renderer bekommt nie einen Pfad zum Schreiben in die Hand: Der Zielort
-// stammt ausschliesslich aus dem Dialog im Hauptprozess.
+// Einzeldokument und Sammlung, DOCX oder PDF. Nur der native Dialog im
+// Hauptprozess bestimmt den Speicherort. Der IPC-Vertrag verlangt R-10.
+import { existsSync } from 'node:fs';
 import path from 'node:path';
+import type { ExportFormat, ExportResult } from '@shared/export';
 import type { Handlers } from '../ipc-handler';
-import { ExportError, withDocxExtension, type ExportService } from './export-service';
+import { ExportError, withExportExtension, type ExportService, type PdfPrinter } from './export-service';
 
 export type ExportHandlerDeps = {
   service: ExportService;
-  // Nativer Speichern-Dialog; null = abgebrochen
-  chooseSavePath: (suggested: string) => Promise<string | null>;
-  // Datei im Explorer markieren (nur die zuletzt exportierte Datei)
+  printPdf: PdfPrinter;
+  chooseSavePath: (suggested: string, format: ExportFormat) => Promise<string | null>;
   showInFolder: (file: string) => void;
 };
 
-export function createExportHandlers(
-  deps: ExportHandlerDeps,
-): Pick<Handlers, 'export:journalDocx' | 'export:collectionDocx' | 'export:showFile'> {
-  // Immer nur ein Export zugleich (gilt für Einzel- und Sammel-DOCX gemeinsam)
+type ExportChannel =
+  | 'export:journalDocx'
+  | 'export:collectionDocx'
+  | 'export:journalPdf'
+  | 'export:collectionPdf'
+  | 'export:showFile';
+
+export function createExportHandlers(deps: ExportHandlerDeps): Pick<Handlers, ExportChannel> {
   let busy = false;
-  // «Im Ordner anzeigen» darf nur die zuletzt hier exportierte Datei zeigen –
-  // nie einen Pfad, den die Oberfläche schickt.
+  // Die Oberfläche darf nur die zuletzt hier exportierte Datei anzeigen.
   let lastFile: string | null = null;
+  const { service } = deps;
+
+  async function save(format: ExportFormat, ids: string[], title?: string): Promise<ExportResult> {
+    if (busy) throw new ExportError('Ein Export läuft bereits. Bitte einen Moment warten.');
+    busy = true;
+    try {
+      service.assertJournalsExist(ids);
+      const suggested =
+        title === undefined
+          ? service.suggestedName(ids[0]!, format)
+          : service.suggestedCollectionName(title, format);
+      const chosen = await deps.chooseSavePath(suggested, format);
+      if (!chosen) return { status: 'canceled' };
+      const target = withExportExtension(chosen, format);
+      if (target !== chosen && existsSync(target)) {
+        throw new ExportError(
+          'Eine Datei mit diesem Namen ist bereits vorhanden. Bitte wähle den vollständigen Namen mit Endung oder einen anderen Namen.',
+        );
+      }
+      const { bytes, warnings } =
+        format === 'pdf'
+          ? await service.exportPdf(ids, title, target, deps.printPdf)
+          : title === undefined
+            ? await service.exportJournalDocx(ids[0]!, target)
+            : await service.exportCollectionDocx(ids, title, target);
+      lastFile = target;
+      return { status: 'saved', fileName: path.basename(target), bytes, warnings };
+    } finally {
+      busy = false;
+    }
+  }
 
   return {
-    'export:journalDocx': async ({ id }) => {
-      if (busy) throw new ExportError('Ein Export läuft bereits. Bitte einen Moment warten.');
-      busy = true;
-      try {
-        const chosen = await deps.chooseSavePath(deps.service.suggestedName(id));
-        if (!chosen) return { status: 'canceled' as const };
-        const target = withDocxExtension(chosen);
-        const { bytes, warnings } = await deps.service.exportJournalDocx(id, target);
-        lastFile = target;
-        return { status: 'saved' as const, fileName: path.basename(target), bytes, warnings };
-      } finally {
-        busy = false;
-      }
-    },
-    // Sammel-DOCX: gleicher Ablauf; zuerst prüfen, ob es alle Journale noch
-    // gibt (Fehler VOR dem Speichern-Dialog), Reihenfolge = Reihenfolge der IDs
-    'export:collectionDocx': async ({ ids, title }) => {
-      if (busy) throw new ExportError('Ein Export läuft bereits. Bitte einen Moment warten.');
-      busy = true;
-      try {
-        deps.service.assertJournalsExist(ids);
-        const chosen = await deps.chooseSavePath(deps.service.suggestedCollectionName(title));
-        if (!chosen) return { status: 'canceled' as const };
-        const target = withDocxExtension(chosen);
-        const { bytes, warnings } = await deps.service.exportCollectionDocx(ids, title, target);
-        lastFile = target;
-        return { status: 'saved' as const, fileName: path.basename(target), bytes, warnings };
-      } finally {
-        busy = false;
-      }
-    },
+    'export:journalDocx': ({ id }) => save('docx', [id]),
+    'export:collectionDocx': ({ ids, title }) => save('docx', ids, title),
+    'export:journalPdf': ({ id }) => save('pdf', [id]),
+    'export:collectionPdf': ({ ids, title }) => save('pdf', ids, title),
     'export:showFile': () => {
       if (!lastFile) return { shown: false };
       deps.showInFolder(lastFile);

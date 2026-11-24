@@ -4,6 +4,7 @@ import type { JournalSummary } from '@shared/journal';
 import { DEFAULT_FILTER, matchesFilter, sanitizeFilter, type JournalFilter } from './journal-filter';
 
 const j = (over: Partial<JournalSummary>): JournalSummary => ({
+  template: 'report',
   id: 'x',
   title: 'Farbmessung',
   workDate: '2026-11-23',
@@ -12,6 +13,7 @@ const j = (over: Partial<JournalSummary>): JournalSummary => ({
   schoolYear: null,
   schoolYearOverride: null,
   updatedAt: '2026-11-23T10:00:00.000Z',
+  qvSelected: false,
   completedAt: null,
   categoryIds: [],
   tagIds: [],

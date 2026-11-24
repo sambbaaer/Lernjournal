@@ -192,7 +192,7 @@ export function NewProjectWizard() {
             aria-disabled={!canContinue || actions.busy ? true : undefined}
             className={`rounded-sm px-5 py-2 text-sm font-semibold text-white ${
               canContinue && !actions.busy
-                ? 'bg-accent hover:bg-accent-strong'
+                ? 'bg-action hover:bg-action-hover'
                 : 'cursor-default bg-ink-disabled'
             }`}
           >

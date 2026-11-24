@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_SECTIONS, type Sections } from './journal';
+import { SectionsSchema, withSectionDocument } from './journal';
+import { newJournalSections } from './journal-templates';
 import { InvalidContentError, validateSections } from './editor-schema';
 
-const withAuftrag = (content: unknown[]): Sections => ({
-  ...EMPTY_SECTIONS,
-  auftrag: { type: 'doc', content },
-});
+const withAuftrag = (content: unknown[]) =>
+  withSectionDocument(newJournalSections(), 'auftrag', { type: 'doc', content });
 const p = (...content: unknown[]) => ({ type: 'paragraph', content });
 const t = (text: string, marks?: unknown[]) => ({ type: 'text', text, ...(marks ? { marks } : {}) });
 
 describe('Editor-Schema (Whitelist)', () => {
+  it('erlaubt eigene Abschnittsüberschriften und verlangt eindeutige IDs', () => {
+    const original = newJournalSections('blank');
+    const added = {
+      ...original[0]!,
+      id: '0a19eaea-d50c-4421-9a7a-188118a1ae78',
+      heading: 'Eigene Messwerte',
+    };
+    expect(SectionsSchema.safeParse([...original, added]).success).toBe(true);
+    expect(SectionsSchema.safeParse([...original, original[0]]).success).toBe(false);
+  });
   it('akzeptiert leere Abschnitte und erlaubte Formatierungen', () => {
-    validateSections(EMPTY_SECTIONS);
+    validateSections(newJournalSections());
     validateSections(
       withAuftrag([
         { type: 'heading', attrs: { level: 2 }, content: [t('Vorgehen')] },

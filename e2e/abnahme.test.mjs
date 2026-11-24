@@ -11,7 +11,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
-import { launchApp, runAxe, waitForNewSave } from './helpers.mjs';
+import { launchApp, openJournalDetails, runAxe, waitForNewSave } from './helpers.mjs';
 
 let app;
 let page;
@@ -67,6 +67,7 @@ test('P0-1: Projekt mit Profil anlegen (Print vorgewählt, Lehrbeginn), Journal 
 });
 
 test('P0-2: drei Abschnitte, zwei Bilder mit Legenden, Lernort, Arbeitsdatum; Lehrjahr abgeleitet', async () => {
+  await openJournalDetails(page);
   // Lehrbeginn 4.8.2025: am 10.9.2026 im 2. Lehrjahr, am 1.3.2026 im 1. Lehrjahr
   await waitForNewSave(page, async () => {
     await page.getByLabel('Arbeitsdatum').fill('2026-03-01');
@@ -106,6 +107,7 @@ test('P0-2: drei Abschnitte, zwei Bilder mit Legenden, Lernort, Arbeitsdatum; Le
   await page.getByRole('row', { name: /Farbmessung am Druckbogen/ }).dblclick();
   await editor('Reflexion').waitFor();
   assert.equal(await title().inputValue(), 'Farbmessung am Druckbogen');
+  await openJournalDetails(page);
   assert.equal(await page.getByLabel('Arbeitsdatum').inputValue(), '2026-09-10');
   assert.equal(await page.getByLabel('Lernort').inputValue(), 'uek');
   assert.match(await lehrjahrAuto().textContent(), /2\. Lehrjahr/);

@@ -6,14 +6,18 @@ import path from 'node:path';
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   protocol,
   session,
   shell,
+  systemPreferences,
   type WebContents,
 } from 'electron';
+import windowIcon from '../../build/icon.png?asset';
 import { ipcContract } from '@shared/ipc';
 import { BACKUP_POLICY } from '@shared/backup';
 import { createArchiveHandlers } from './archive/archive-handlers';
@@ -24,12 +28,14 @@ import { createCloseGuard } from './close-guard';
 import { createExportHandlers } from './export/export-handlers';
 import { ExportService } from './export/export-service';
 import { convertWebpToPng } from './export/image-convert';
+import { printPdf } from './export/pdf-print';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
 import { JournalService } from './journal/journal-service';
 import { createLinkHandlers } from './links/link-handlers';
 import { LinkService } from './links/link-service';
 import { MediaService } from './media/media-service';
+import { LocalMcpServer } from './mcp/local-server';
 import { createProjectHandlers, OpenedProjects } from './project/project-handlers';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
 import { TaxonomyService } from './taxonomy/taxonomy-service';
@@ -39,6 +45,7 @@ import { SearchIndex } from './search/search-index';
 import {
   buildReport,
   checkDocxFile,
+  checkPdfFile,
   findArchive,
   readSelfTestConfig,
   rendererScript,
@@ -106,6 +113,9 @@ const projects: ProjectService = new ProjectService({
     backups.afterOpen();
   },
   beforeClose: () => backups.beforeClose(),
+  afterClose: () => {
+    mcp.stop();
+  },
 });
 const search = new SearchIndex(() => projects.db);
 const media = new MediaService(
@@ -126,6 +136,18 @@ const taxonomy = new TaxonomyService(
   () => new Date(),
   search,
 );
+const mcp = new LocalMcpServer({
+  version: app.getVersion(),
+  journals,
+  links,
+  search,
+  projectIdentity: () => (projects.isOpen ? projects.db : null),
+  changed: () => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.webContents.isDestroyed()) win.webContents.send('lj:mcp-changed');
+    }
+  },
+});
 // Word-Export (AJ-12): WebP-Bilder wandelt ein verborgenes Fenster in PNG um
 const exporter = new ExportService(() => projects.db, journals, media, convertWebpToPng);
 // Sicherungen im Projektordner (AJ-15)
@@ -329,26 +351,50 @@ function registerIpc() {
             defaultPath: app.getPath('documents'),
             properties: ['openDirectory', 'createDirectory'],
           }),
+        showFolder: (dir) => {
+          void shell.openPath(dir);
+        },
       }),
       'app:closeReady': async ({ saved }) => {
         await closeGuard?.onFlushResult(saved);
         return { ok: true };
       },
+      'app:pasteInEditor': (req) => {
+        const win = BrowserWindow.getFocusedWindow() ?? mainWindow();
+        if (!projects.isOpen || !win) return false;
+        // Chromium löst den normalen Paste-Event aus (oder pasteAndMatchStyle
+        // für reinen Text ohne fremde Formatierung). Die Bridge gibt keine
+        // Zwischenablagedaten zurück, und der Editor bereinigt den Inhalt.
+        if (req?.plainText) win.webContents.pasteAndMatchStyle();
+        else win.webContents.paste();
+        return true;
+      },
       ...createJournalHandlers(journals),
       ...createTaxonomyHandlers(taxonomy, journals),
       ...createLinkHandlers(links, journals),
       ...createSearchHandlers(search),
+      'mcp:status': () => mcp.status(),
+      'mcp:setActive': ({ enabled }) => (enabled ? mcp.start() : mcp.stop()),
+      'mcp:setDrafts': ({ allowed }) => mcp.setDrafts(allowed),
+      'mcp:copy': ({ field }) => {
+        const text = field === 'token' ? mcp.accessToken() : mcp.status().endpoint;
+        if (!text) return false;
+        clipboard.writeText(text);
+        return true;
+      },
+      'mcp:decide': ({ id, apply }) => mcp.decide(id, apply),
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
       ...createExportHandlers({
         service: exporter,
+        printPdf,
         // Nativer Speichern-Dialog, Vorschlag im Ordner «exports» des Projekts.
         // showOverwriteConfirmation: bestehende Datei nie still überschreiben.
-        chooseSavePath: (suggested) =>
+        chooseSavePath: (suggested, format) =>
           chooseSavePath({
-            title: 'Als Word-Dokument speichern',
+            title: format === 'pdf' ? 'Als PDF speichern' : 'Als Word-Dokument speichern',
             buttonLabel: 'Speichern',
             defaultPath: path.join(projects.dir, 'exports', suggested),
-            filters: [{ name: 'Word-Dokument', extensions: ['docx'] }],
+            filters: [{ name: format === 'pdf' ? 'PDF-Dokument' : 'Word-Dokument', extensions: [format] }],
             properties: ['showOverwriteConfirmation', 'createDirectory'],
           }),
         showInFolder: (file) => shell.showItemInFolder(file),
@@ -422,21 +468,103 @@ function hardenWebContents(contents: WebContents) {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
   // Kein <webview>
   contents.on('will-attach-webview', (event) => event.preventDefault());
+  // Natives Rechtsklick-Kontextmenü für Textfelder und Abschnitts-Editoren
+  // (vertraut wie in Word/Windows: Ausschneiden, Kopieren, Einfügen, Nur Text übernehmen).
+  contents.on('context-menu', (_event, params) => {
+    const hasSelection = params.selectionText.trim().length > 0;
+    if (!params.isEditable && !hasSelection) return;
+    const win = BrowserWindow.fromWebContents(contents);
+    const items: Electron.MenuItemConstructorOptions[] = [];
+    if (params.isEditable) {
+      items.push(
+        {
+          label: 'Rückgängig',
+          accelerator: 'CmdOrCtrl+Z',
+          enabled: params.editFlags.canUndo,
+          click: () => contents.undo(),
+        },
+        {
+          label: 'Wiederholen',
+          accelerator: 'CmdOrCtrl+Y',
+          enabled: params.editFlags.canRedo,
+          click: () => contents.redo(),
+        },
+        { type: 'separator' },
+        {
+          label: 'Ausschneiden',
+          accelerator: 'CmdOrCtrl+X',
+          enabled: params.editFlags.canCut,
+          click: () => contents.cut(),
+        },
+      );
+    }
+    items.push({
+      label: 'Kopieren',
+      accelerator: 'CmdOrCtrl+C',
+      enabled: params.editFlags.canCopy,
+      click: () => contents.copy(),
+    });
+    if (params.isEditable) {
+      items.push(
+        {
+          label: 'Einfügen',
+          accelerator: 'CmdOrCtrl+V',
+          enabled: params.editFlags.canPaste,
+          click: () => contents.paste(),
+        },
+        {
+          label: 'Nur Text übernehmen',
+          accelerator: 'CmdOrCtrl+Shift+V',
+          enabled: params.editFlags.canPaste,
+          click: () => contents.pasteAndMatchStyle(),
+        },
+      );
+    }
+    if (params.editFlags.canSelectAll) {
+      items.push(
+        { type: 'separator' },
+        {
+          label: 'Alles markieren',
+          accelerator: 'CmdOrCtrl+A',
+          click: () => contents.selectAll(),
+        },
+      );
+    }
+    Menu.buildFromTemplate(items).popup(win ? { window: win } : undefined);
+  });
 }
 
 app.on('web-contents-created', (_e, contents) => hardenWebContents(contents));
 
+function titleBarOverlay() {
+  const contrast = nativeTheme.shouldUseHighContrastColors;
+  return {
+    height: 40,
+    color: contrast ? systemPreferences.getColor('window') : '#4e4e5e',
+    symbolColor: contrast ? systemPreferences.getColor('window-text') : '#eae2d6',
+  };
+}
+
 function createMainWindow() {
+  const windows = process.platform === 'win32';
   const win = new BrowserWindow({
     title: 'Lernjournal',
+    icon: windowIcon,
     width: 1280,
     height: 800,
-    minWidth: 1024, // SPEC: Fenster ab 1024 × 640 px
-    minHeight: 640,
+    minWidth: 760,
+    minHeight: 480,
+    titleBarStyle: windows ? 'hidden' : 'default',
+    titleBarOverlay: windows ? titleBarOverlay() : false,
     show: false, // erst zeigen, wenn fertig gezeichnet → kein weisses Aufblitzen
-    backgroundColor: '#f3f3f3',
+    backgroundColor: '#f4f3f6',
     webPreferences: secureWebPreferences(preloadPath),
   });
+  if (windows) {
+    const updateTitleBar = () => win.setTitleBarOverlay(titleBarOverlay());
+    nativeTheme.on('updated', updateTitleBar);
+    win.once('closed', () => nativeTheme.removeListener('updated', updateTitleBar));
+  }
 
   win.once('ready-to-show', () => {
     if (!selfTest) win.show();
@@ -499,6 +627,7 @@ async function runSelfTest(win: BrowserWindow, run: SelfTestRun) {
   try {
     if (mode === 'create') {
       extra.push(...checkDocxFile(run.saved.find((f) => f.endsWith('.docx'))));
+      extra.push(...checkPdfFile(run.saved.find((f) => f.endsWith('.pdf'))));
     }
     if (mode === 'reopen' && dir) {
       // Projektübergabe auf einen «zweiten Computer»: .ajournal aus dem ersten
@@ -547,6 +676,7 @@ app.on('window-all-closed', () => app.quit());
 // abgebrochene Sicherung hinterlässt keine halbe Datei (fs-atomic.ts).
 let quitPrepared = false;
 app.on('will-quit', (event) => {
+  mcp.stop();
   if (!quitPrepared && projects.isOpen) {
     event.preventDefault();
     quitPrepared = true;

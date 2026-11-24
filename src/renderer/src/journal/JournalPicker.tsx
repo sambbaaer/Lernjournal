@@ -214,7 +214,7 @@ export function JournalPicker({
               type="button"
               aria-disabled={!current || disabled.has(current.id) ? true : undefined}
               onClick={() => pick(current?.id)}
-              className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong aria-disabled:opacity-60"
+              className="rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover aria-disabled:opacity-60"
             >
               {confirmLabel}
             </button>

@@ -14,7 +14,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { validateSections } from '@shared/editor-schema';
 import { COLLECTION_LIMITS, COLLECTION_TOC_HINT } from '@shared/export';
 import { ipcContract } from '@shared/ipc';
-import type { Sections } from '@shared/journal';
+import type { LegacySections, Sections } from '@shared/journal';
+import { sectionsFromLegacy } from '@shared/journal-templates';
 import { journalLinkHref } from '@shared/links';
 import { createIpcDispatcher, type Handlers } from '../ipc-handler';
 import { JournalService } from '../journal/journal-service';
@@ -308,16 +309,19 @@ describe('Sammel-DOCX mit echter Projektdatenbank und IPC', () => {
     const c = journals.create({ title: 'C Papier', workDate: '2026-06-20' });
     for (const j of [a, b, c]) {
       const m = media.add({ journalId: j.id, data: PNG, originalName: 'x.png' });
-      journals.updateSections(j.id, {
-        ...j.sections,
-        durchfuehrung: {
-          type: 'doc',
-          content: [{ type: 'figure', attrs: { mediaId: m.id, caption: `Bild ${j.title}`, alt: '' } }],
-        } as never,
-        reflexion: (j === b
-          ? para({ type: 'text', text: 'Siehe ' }, linkTo('Messung', a.id))
-          : para()) as never,
-      });
+      journals.updateSections(
+        j.id,
+        sectionsFromLegacy('report', {
+          auftrag: { type: 'doc', content: [{ type: 'paragraph' }] },
+          durchfuehrung: {
+            type: 'doc',
+            content: [{ type: 'figure', attrs: { mediaId: m.id, caption: `Bild ${j.title}`, alt: '' } }],
+          },
+          reflexion: (j === b
+            ? para({ type: 'text', text: 'Siehe ' }, linkTo('Messung', a.id))
+            : para()) as LegacySections['reflexion'],
+        }),
+      );
     }
     return { a, b, c };
   }
@@ -354,6 +358,9 @@ describe('Sammel-DOCX mit echter Projektdatenbank und IPC', () => {
     let dialogs = 0;
     const handlers = createExportHandlers({
       service,
+      printPdf: async () => {
+        throw new Error('Unerwarteter PDF-Aufruf');
+      },
       chooseSavePath: async () => {
         dialogs++;
         return null;
@@ -404,6 +411,9 @@ describe('Sammel-DOCX mit echter Projektdatenbank und IPC', () => {
     const shown: string[] = [];
     const handlers = createExportHandlers({
       service,
+      printPdf: async () => {
+        throw new Error('Unerwarteter PDF-Aufruf');
+      },
       chooseSavePath: async (s) => {
         suggested = s;
         return path.join(root, 'Sammlung');

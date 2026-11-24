@@ -145,3 +145,92 @@ test('Ansicht «Export»: Journal auswählen und exportieren', async () => {
   assert.ok(existsSync(target));
   await dialog().getByRole('button', { name: 'Schliessen' }).click();
 });
+
+const nav = (name) =>
+  page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('button', { name, exact: true });
+const mark = () =>
+  page
+    .getByRole('article', { name: 'Journal' })
+    .getByRole('button', { name: 'Für QV vormerken', exact: true });
+
+test('Einzel-PDF direkt aus dem Menüband enthält das Journal mit eingebettetem Bild', async () => {
+  await nav('Journale').click();
+  await page.getByRole('row', { name: /Farbmessung am Druckbogen/ }).dblclick();
+  await editor('Durchführung').waitFor();
+  const target = path.join(dir, 'Bericht.pdf');
+  await answerSaveDialog(target);
+  await page.getByRole('tab', { name: 'Exportieren', exact: true }).click();
+  await page.getByRole('button', { name: 'Dieses Journal als PDF' }).click();
+  const pdfDialog = page.getByRole('dialog', { name: 'Als PDF exportieren' });
+  await pdfDialog.getByText('Vor dem Weitergeben prüfen').waitFor();
+  await pdfDialog.getByRole('button', { name: /Verstanden, weiter/ }).click();
+  await pdfDialog.getByText('Bericht.pdf', { exact: true }).waitFor({ timeout: 30000 });
+  const pdf = readFileSync(target).toString('latin1');
+  assert.match(pdf, /^%PDF-/);
+  assert.match(pdf, /\/Subtype\s*\/Image\b/);
+  const [options] = await app.evaluate(() => globalThis.__savedDialogs);
+  assert.deepEqual(options.filters[0].extensions, ['pdf']);
+  await pdfDialog.getByRole('button', { name: 'Schliessen' }).click();
+});
+
+test('Dunkelmodus und Vormerkungen bleiben erhalten, nur die QV-Auswahl kommt ins Sammel-PDF', async () => {
+  await mark().click();
+  await page.locator('button[aria-pressed="true"]').filter({ hasText: 'Für QV vormerken' }).waitFor();
+
+  await page.getByRole('button', { name: 'Vorlagen', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Journalvorlage wählen' })
+    .getByRole('button', { name: /^Maschinenwerte/ })
+    .click();
+  await editor('Kennwerte').getByRole('table').waitFor();
+  await page.getByLabel('Titel des Journals').fill('Maschineneinrichtung');
+  await mark().click();
+  await page.locator('button[aria-pressed="true"]').filter({ hasText: 'Für QV vormerken' }).waitFor();
+  await page.keyboard.press('Control+S');
+  await page.getByRole('button', { name: 'Gespeichert', exact: true }).waitFor();
+
+  await page.keyboard.press('Control+N');
+  await page.getByLabel('Titel des Journals').fill('Nicht vorgemerkt');
+  await page.getByRole('button', { name: 'Gespeichert', exact: true }).waitFor();
+  await nav('Einstellungen').click();
+  const colorScheme = () => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+  assert.equal(await colorScheme(), 'light');
+  await page.getByLabel('Farbschema').selectOption('dark');
+  assert.equal(await colorScheme(), 'dark');
+  const minimum = page.getByLabel('Mindestanzahl Journale für das QV');
+  assert.equal(await minimum.inputValue(), '12');
+  await minimum.fill('13');
+  await minimum.press('Tab');
+  assert.deepEqual(await runAxe(page), []);
+
+  await app.close();
+  ({ app, page } = await launchApp({ dir }));
+  assert.equal(await colorScheme(), 'dark');
+  await nav('Export').click();
+  await page.getByRole('button', { name: 'Vorgemerkte QV-Journale übernehmen (2)', exact: true }).click();
+  await page.getByText('2 von mindestens 13 Journalen ausgewählt.', { exact: false }).waitFor();
+  const selected = page.getByRole('list', { name: 'Reihenfolge im Dokument' });
+  assert.equal(await selected.getByRole('listitem').count(), 2);
+  await selected.getByText('Farbmessung am Druckbogen', { exact: true }).waitFor();
+  await selected.getByText('Maschineneinrichtung', { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole('list', { name: 'Journale zur Auswahl' }).getByText('Nicht vorgemerkt').count(),
+    0,
+  );
+
+  const target = path.join(dir, 'QV-Mappe.pdf');
+  await answerSaveDialog(target);
+  await page.getByLabel('Titel auf der Titelseite').fill('QV-Mappe');
+  await page.getByRole('button', { name: 'Als PDF exportieren …', exact: true }).click();
+  const pdfDialog = page.getByRole('dialog', { name: 'Mehrere Journale als PDF exportieren' });
+  await pdfDialog.getByRole('button', { name: /Verstanden, weiter/ }).click();
+  await pdfDialog.getByText('QV-Mappe.pdf', { exact: true }).waitFor({ timeout: 30000 });
+  const pdf = readFileSync(target).toString('latin1');
+  assert.match(pdf, /^%PDF-/);
+  assert.match(pdf, /\/Outlines\b/);
+  assert.equal(
+    [...pdf.matchAll(/\/Type\s*\/Page\b/g)].length,
+    4,
+    'Titel, Inhaltsverzeichnis und zwei Journale',
+  );
+});

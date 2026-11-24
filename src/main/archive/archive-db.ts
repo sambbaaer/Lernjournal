@@ -22,8 +22,15 @@
 //   Journal-Inhalte nach dem Editor-Schema, Bildverweise nur auf media/.
 import { rm } from 'node:fs/promises';
 import { backup } from 'node:sqlite';
-import { InvalidContentError, validateSections } from '@shared/editor-schema';
-import { JournalId, SectionsSchema } from '@shared/journal';
+import { validateSections } from '@shared/editor-schema';
+import {
+  DEFAULT_JOURNAL_TEMPLATE,
+  JournalId,
+  LegacySectionsSchema,
+  SectionsSchema,
+  type JournalTemplateId,
+} from '@shared/journal';
+import { sectionsFromLegacy } from '@shared/journal-templates';
 import { checkIntegrity, openDatabase, type Db } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, MIGRATIONS } from '../db/migrations';
 import { EXT } from '../media/image-info';
@@ -259,15 +266,20 @@ export function verifyImportedDatabase(file: string, expectedVersion: number): V
     }
 
     // Journal-Inhalte nach denselben Regeln wie beim Speichern im Editor
-    const journals = db.prepare('SELECT title, sections_json FROM journal').all() as {
+    const templateColumn = version >= 4 ? 'template' : `'${DEFAULT_JOURNAL_TEMPLATE}' AS template`;
+    const journals = db.prepare(`SELECT title, sections_json, ${templateColumn} FROM journal`).all() as {
       title: string;
       sections_json: string;
+      template: JournalTemplateId;
     }[];
     for (const j of journals) {
       try {
-        const parsed = SectionsSchema.safeParse(JSON.parse(j.sections_json));
-        if (!parsed.success) throw new InvalidContentError('Abschnitte fehlen');
-        validateSections(parsed.data);
+        const json: unknown = JSON.parse(j.sections_json);
+        const sections =
+          version < 5
+            ? sectionsFromLegacy(j.template, LegacySectionsSchema.parse(json))
+            : SectionsSchema.parse(json);
+        validateSections(sections);
       } catch (err) {
         console.error('[archiv] ungültiger Journal-Inhalt:', (err as Error).message);
         throw new ArchiveError(

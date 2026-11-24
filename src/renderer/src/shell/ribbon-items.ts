@@ -14,8 +14,10 @@ import {
   BetweenVerticalStart,
   Bold,
   CircleCheck,
+  ClipboardPaste,
   Columns2,
   FileDown,
+  FileText,
   Files,
   PackageOpen,
   FolderTree,
@@ -28,6 +30,7 @@ import {
   List,
   ListOrdered,
   PanelTop,
+  PanelTopOpen,
   Pilcrow,
   Redo2,
   Rows2,
@@ -38,7 +41,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { journalIdFromHref } from '@shared/links';
-import { insertImages, pickImageFiles } from '../editor/insert-image';
+import { insertImages, pasteFromClipboard, pickImageFiles } from '../editor/insert-image';
 import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
 
@@ -127,6 +130,25 @@ export function inTable(c: RibbonCtx): boolean {
 export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
   start: [
     {
+      id: 'zwischenablage',
+      label: 'Zwischenablage',
+      items: [
+        {
+          ...editorItem('paste', 'Einfügen', ClipboardPaste, () => {}, {
+            iconOnly: false,
+            shortcut: 'Ctrl+V',
+          }),
+          run: ({ editor, dispatch }) => pasteFromClipboard(editor, dispatch),
+        },
+        {
+          ...editorItem('paste-plain', 'Nur Text', FileText, () => {}, {
+            shortcut: 'Ctrl+Shift+V',
+          }),
+          run: ({ editor, dispatch }) => pasteFromClipboard(editor, dispatch, { plainText: true }),
+        },
+      ],
+    },
+    {
       id: 'verlauf',
       label: 'Rückgängig',
       items: [
@@ -191,6 +213,20 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
   ],
   einfuegen: [
     {
+      id: 'struktur',
+      label: 'Struktur',
+      items: [
+        {
+          id: 'section',
+          label: 'Abschnitt hinzufügen',
+          icon: PanelTopOpen,
+          iconOnly: false,
+          disabledReason: onlyInJournal,
+          run: ({ dispatch }) => dispatch({ type: 'openJournalSectionForm' }),
+        },
+      ],
+    },
+    {
       id: 'medien',
       label: 'Medien',
       items: [
@@ -203,6 +239,12 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
             void pickImageFiles().then((files) => insertImages(editor, files, journalId, dispatch));
           },
         },
+      ],
+    },
+    {
+      id: 'tabellen',
+      label: 'Tabellen',
+      items: [
         editorItem(
           'table',
           'Tabelle',
@@ -289,8 +331,19 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
   exportieren: [
     {
       id: 'word',
-      label: 'Word',
+      label: 'Dokumente',
       items: [
+        {
+          id: 'pdf-single',
+          label: 'Dieses Journal als PDF',
+          icon: FileDown,
+          iconOnly: false,
+          disabledReason: onlyInJournal,
+          run: ({ state, dispatch }) => {
+            if (state.openJournal)
+              dispatch({ type: 'openExport', format: 'pdf', journalIds: [state.openJournal.id] });
+          },
+        },
         {
           // Einzel-DOCX (AJ-12): öffnet den Exportdialog mit Hinweis (R-10)
           id: 'export-single',
@@ -305,7 +358,7 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
         {
           // Sammel-DOCX (AJ-13): Auswahl und Reihenfolge in der Ansicht «Export»
           id: 'export-collection',
-          label: 'Mehrere Journale als Word',
+          label: 'Mehrere Journale exportieren',
           icon: Files,
           iconOnly: false,
           disabledReason: () => null,

@@ -17,3 +17,15 @@ Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist mass
 - Ein Journal entspricht einer «Lerndokumentation» nach BiVo Art. 12; der Bildungsbericht ist Sache des Betriebs und kein App-Feature.
 - Architekturentscheide als ADR unter docs/adr/; Spike-Code nur überführt (TS, Tests) übernehmen.
 - Pro Ticket Tests und Dokumentationspflege; aktuelle Bibliotheksversionen erst bei Implementierung prüfen.
+
+## Current Focus: Native Windows-Integration & Word-inspiriertes Einfügen
+## Status: Completed
+## Last Actions:
+- «Einfügen»-Knopf mit Menü direkt neben «Abschnitt hinzufügen» am Ende der Journalseite eingebaut (Zwischenablage Text/Bild, Nur Text übernehmen, Bilddatei wählen, Tabelle einfügen).
+- Menüband «Start → Zwischenablage» um «Nur Text» (`Strg+Umschalt+V` via `pasteAndMatchStyle`) ergänzt.
+- Natives Windows-Rechtsklick-Kontextmenü im Editor und in Eingabefeldern (Rückgängig, Wiederholen, Ausschneiden, Kopieren, Einfügen, Nur Text übernehmen, Alles markieren) im Hauptprozess ergänzt.
+- «Im Explorer öffnen» für den Projektordner in Statusleiste und Einstellungen (`project:showFolder` via `shell.openPath`) umgesetzt – kompatibel mit Store-MSIX und Portable-EXE.
+## Next Steps:
+- Manuelle Prüfungen (Word 365, zweiter PC, verwaltetes Windows) und Pilot mit Lernenden gemäss `docs/PILOT.md`.
+## Active Plans:
+- `docs/SPEC.md`, `docs/BACKLOG.md`, `docs/ABNAHME.md`

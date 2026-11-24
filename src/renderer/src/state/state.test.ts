@@ -82,6 +82,7 @@ describe('Zustand', () => {
 
 describe('Anzahl Journale (Einstellungen)', () => {
   const summary = (id: string, status: JournalSummary['status'] = 'draft'): JournalSummary => ({
+    template: 'report',
     id,
     title: id,
     workDate: '2026-11-23',
@@ -90,6 +91,7 @@ describe('Anzahl Journale (Einstellungen)', () => {
     schoolYear: null,
     schoolYearOverride: null,
     updatedAt: '2026-11-23T10:00:00.000Z',
+    qvSelected: false,
     completedAt: null,
     categoryIds: [],
     tagIds: [],

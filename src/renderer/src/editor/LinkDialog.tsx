@@ -98,7 +98,7 @@ export function LinkDialog({
             </button>
             <button
               type="submit"
-              className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong"
+              className="rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover"
             >
               Übernehmen
             </button>

@@ -4,6 +4,8 @@
 // Editor-Schema geprüft – es ist also echtes Tiptap-JSON, kein Fantasieformat.
 import type { TiptapNode } from './docx-content';
 import type { ExportAuthor, ExportJournal } from './docx-journal';
+import type { LegacySectionKey } from '@shared/journal';
+import { JOURNAL_TEMPLATES } from '@shared/journal-templates';
 
 // Kleine Bauhelfer, damit die Testdaten lesbar bleiben
 const t = (text: string, ...marks: string[]): TiptapNode => ({
@@ -18,6 +20,8 @@ const link = (text: string, href: string): TiptapNode => ({
 });
 const p = (...content: TiptapNode[]): TiptapNode => ({ type: 'paragraph', content });
 const doc = (...content: TiptapNode[]): TiptapNode => ({ type: 'doc', content });
+const reportSections = (docs: Record<LegacySectionKey, TiptapNode>): ExportJournal['sections'] =>
+  JOURNAL_TEMPLATES.report.sections.map(({ key, heading }) => ({ id: key, heading, doc: docs[key] }));
 const li = (...content: TiptapNode[]): TiptapNode => ({ type: 'listItem', content });
 const cell = (type: 'tableHeader' | 'tableCell', text: string): TiptapNode => ({
   type,
@@ -46,7 +50,7 @@ export const JOURNAL: ExportJournal = {
   learningPlace: 'betrieb',
   categories: ['e – Ausführen von Druckaufträgen'],
   tags: ['Farbmessung', 'ISO 12647-2', 'Spektralfotometer'],
-  sections: {
+  sections: reportSections({
     auftrag: doc(
       p(
         t('Für einen Flyer (A5, 4/4-farbig, 135 g/m² Bilderdruck matt) musste ich die '),
@@ -102,7 +106,7 @@ export const JOURNAL: ExportJournal = {
       ),
     ),
     reflexion: doc({ type: 'paragraph' }),
-  },
+  }),
 };
 
 export const LINK_TITLES = new Map([[IDS.linked, 'ICC-Profile im Workflow']]);
@@ -128,7 +132,7 @@ export const COLLECTION_2: ExportJournal = {
   learningPlace: 'uek',
   categories: ['d – Vorbereiten von Druckaufträgen'],
   tags: ['CtP'],
-  sections: {
+  sections: reportSections({
     auftrag: doc(p(t('Platten für einen Auftrag mit vier Farben belichten.'))),
     durchfuehrung: doc(
       {
@@ -145,7 +149,7 @@ export const COLLECTION_2: ExportJournal = {
         t('.'),
       ),
     ),
-  },
+  }),
 };
 
 export const COLLECTION_3: ExportJournal = {
@@ -157,7 +161,7 @@ export const COLLECTION_3: ExportJournal = {
   learningPlace: 'schule',
   categories: [],
   tags: [],
-  sections: {
+  sections: reportSections({
     auftrag: doc(p(t('Laufrichtung verschiedener Papiere bestimmen.'))),
     durchfuehrung: doc(
       p(
@@ -169,5 +173,5 @@ export const COLLECTION_3: ExportJournal = {
       ),
     ),
     reflexion: doc({ type: 'paragraph' }),
-  },
+  }),
 };

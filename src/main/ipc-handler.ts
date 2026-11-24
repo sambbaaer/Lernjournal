@@ -49,9 +49,15 @@ export function createIpcDispatcher(handlers: Handlers, isTrustedUrl: (url: stri
       if (
         err instanceof InvalidContentError ||
         (err instanceof Error &&
-          ['MediaError', 'TaxonomyError', 'LinkError', 'ExportError', 'ArchiveError', 'BackupError'].includes(
-            err.name,
-          ))
+          [
+            'MediaError',
+            'TaxonomyError',
+            'LinkError',
+            'ExportError',
+            'ArchiveError',
+            'BackupError',
+            'McpError',
+          ].includes(err.name))
       ) {
         return { ok: false, error: { code: 'INVALID_REQUEST', message: err.message } };
       }

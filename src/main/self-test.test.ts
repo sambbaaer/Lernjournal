@@ -9,6 +9,7 @@ import vm from 'node:vm';
 import { zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import type { LernjournalApi } from '@shared/api';
+import { newJournalSections } from '@shared/journal-templates';
 import {
   buildReport,
   checkDocxFile,
@@ -39,6 +40,7 @@ function fakeApi(overrides: Record<string, unknown> = {}) {
       return fn(...a);
     };
   let projectOpen = false;
+  let mcpEndpoint: string | null = null;
   let sections: unknown = null;
   const api = {
     app: { getInfo: track('getInfo', () => ok({ name: 'Lernjournal', version: '0.1.0' })) },
@@ -54,10 +56,13 @@ function fakeApi(overrides: Record<string, unknown> = {}) {
         projectOpen = true;
         return ok({ status: 'opened', project: { path: '/Dokumente/Lernjournal' } });
       }),
-      close: track('close', () => ok({ closed: true })),
+      close: track('close', () => {
+        mcpEndpoint = null;
+        return ok({ closed: true });
+      }),
     },
     journal: {
-      create: track('journal.create', () => ok({ id: journalId })),
+      create: track('journal.create', () => ok({ id: journalId, sections: newJournalSections() })),
       updateMeta: track('updateMeta', () => ok({})),
       updateSections: track('updateSections', (req: { sections: unknown }) => {
         sections = req.sections;
@@ -68,10 +73,18 @@ function fakeApi(overrides: Record<string, unknown> = {}) {
     },
     media: { add: track('media.add', () => ok({ id: 'bild', width: 64, height: 48, mime: 'image/webp' })) },
     search: { query: track('search', () => ok({ hits: [{ id: journalId }], truncated: false })) },
+    mcp: {
+      status: track('mcp.status', () => ok({ endpoint: mcpEndpoint, allowDrafts: false, proposals: [] })),
+      setActive: track('mcp.setActive', () => {
+        mcpEndpoint = 'http://127.0.0.1:47651/mcp';
+        return ok({ endpoint: mcpEndpoint, allowDrafts: false, proposals: [] });
+      }),
+    },
     export: {
       journalDocx: track('docx', () =>
         ok({ status: 'saved', fileName: 'a.docx', bytes: 9000, warnings: [] }),
       ),
+      journalPdf: track('pdf', () => ok({ status: 'saved', fileName: 'a.pdf', bytes: 8000, warnings: [] })),
     },
     archive: {
       export: track('archive', () =>
@@ -151,8 +164,12 @@ describe('Ablauf «create»', () => {
       'updateSections',
       'search',
       'docx',
+      'pdf',
       'archive',
+      'mcp.status',
+      'mcp.setActive',
       'close',
+      'mcp.status',
     ]);
     expect(r.steps).toMatchObject({ project: '/Dokumente/Lernjournal', docx: { fileName: 'a.docx' } });
   });
@@ -162,6 +179,7 @@ describe('Ablauf «create»', () => {
       search: { query: () => ok({ hits: [], truncated: false }) },
       export: {
         journalDocx: () => ok({ status: 'saved', fileName: 'a.docx', bytes: 1, warnings: ['Bild fehlt'] }),
+        journalPdf: () => ok({ status: 'saved', fileName: 'a.pdf', bytes: 8000, warnings: [] }),
       },
     });
     const r = await createFlow(ctxWith(f.api, { noProcess: false, uiReady: false }));

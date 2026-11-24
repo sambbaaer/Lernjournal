@@ -42,10 +42,14 @@ after(async () => {
   await app?.close().catch(() => {});
 });
 
-test('Jetzt sichern: Eintrag in der Liste, ohne Änderung «aktuell»', async () => {
-  await nav('Einstellungen').click();
+test('«Gespeichert» öffnet die Sicherungsliste. «Jetzt sichern» legt einen Stand an', async () => {
+  const status = page.getByRole('button', { name: 'Gespeichert', exact: true });
+  await status.focus();
+  await page.keyboard.press('Enter');
+  const heading = page.getByRole('heading', { name: 'Sicherungen', level: 2 });
+  await heading.waitFor();
+  assert.equal(await heading.evaluate((el) => el === document.activeElement), true);
   projectDir = (await page.getByTestId('project-path').textContent()).trim();
-  await page.getByRole('heading', { name: 'Sicherungen', level: 2 }).waitFor();
   await page.getByText('Noch keine Sicherung.').waitFor();
   await page.getByRole('button', { name: 'Jetzt sichern' }).click();
   await rows().first().waitFor();
@@ -60,7 +64,7 @@ test('Jetzt sichern: Eintrag in der Liste, ohne Änderung «aktuell»', async ()
 
 test('Wiederherstellen durch Ersetzen: Vorschau, Sicherheitskopie, alter Stand', async () => {
   await newJournal('Zweiter Stand');
-  await nav('Einstellungen').click();
+  await page.getByRole('button', { name: 'Gespeichert', exact: true }).click();
   await rows().first().waitFor();
   await page.getByRole('button', { name: /^Sicherung vom .* wiederherstellen$/ }).click();
   await dialog().getByRole('heading', { name: 'Sicherung wiederherstellen' }).waitFor();

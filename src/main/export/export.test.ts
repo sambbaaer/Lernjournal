@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { validateSections } from '@shared/editor-schema';
 import { EXPORT_NOTICE, formatFileSize } from '@shared/export';
 import { ipcContract } from '@shared/ipc';
-import type { Sections } from '@shared/journal';
+import { withSectionDocument, type Sections } from '@shared/journal';
 import { journalLinkHref } from '@shared/links';
 import { createIpcDispatcher, type Handlers } from '../ipc-handler';
 import { JournalService } from '../journal/journal-service';
@@ -38,7 +38,7 @@ import {
 import { buildJournalDocument, packDocx } from './docx-document';
 import { schoolYearText, type ExportJournal } from './docx-journal';
 import { createExportHandlers } from './export-handlers';
-import { ExportService, suggestFileName, withDocxExtension, writeFileAtomic } from './export-service';
+import { ExportService, suggestFileName, withExportExtension, writeFileAtomic } from './export-service';
 import { AUTHOR, IDS, JOURNAL, LINK_TITLES } from './fixtures';
 import { convertWithLibreOffice, count, normalize, soffice } from './test-utils';
 
@@ -68,9 +68,9 @@ async function parts(
     core: get('docProps/core.xml'),
   };
 }
-const withSection = (key: keyof ExportJournal['sections'], doc: TiptapNode): ExportJournal => ({
+const withSection = (id: string, doc: TiptapNode): ExportJournal => ({
   ...JOURNAL,
-  sections: { ...JOURNAL.sections, [key]: doc },
+  sections: JOURNAL.sections.map((section) => (section.id === id ? { ...section, doc } : section)),
 });
 const para = (text: string, marks?: TiptapNode['marks']): TiptapNode => ({
   type: 'doc',
@@ -270,8 +270,8 @@ describe('Hilfsfunktionen', () => {
     );
     expect(suggestFileName('  ', '2026-03-14')).toBe('2026-03-14 Ohne Titel.docx');
     expect(suggestFileName('Plattenbelichter...', '2026-03-14')).toBe('2026-03-14 Plattenbelichter.docx');
-    expect(withDocxExtension('C:\\x\\Bericht')).toBe('C:\\x\\Bericht.docx');
-    expect(withDocxExtension('Bericht.DOCX')).toBe('Bericht.DOCX');
+    expect(withExportExtension('C:\\x\\Bericht')).toBe('C:\\x\\Bericht.docx');
+    expect(withExportExtension('Bericht.DOCX')).toBe('Bericht.DOCX');
   });
 
   it('Exporthinweis (R-10) nennt Geschäftsgeheimnisse, Kundendaten, Personen auf Bildern', () => {
@@ -350,6 +350,34 @@ describe('Exportdienst mit echter Projektdatenbank', () => {
     attrs: { mediaId, caption, alt: '' },
   });
 
+  it('übernimmt die Vorlage und ihre Inhalte im Einzel-DOCX', async () => {
+    const blank = journals.create({ template: 'blank', title: 'Papierprobe' });
+    journals.updateSections(
+      blank.id,
+      withSectionDocument(blank.sections, 'durchfuehrung', { ...para('Freie Notiz'), type: 'doc' }),
+    );
+    const machine = journals.create({ template: 'machine', title: 'Druckmaschine' });
+    const xml = async (id: string) =>
+      strFromU8(unzipSync((await service.journalDocx(id)).data)['word/document.xml']!);
+    const blankXml = await xml(blank.id);
+    expect(blankXml).toContain('Freie Notiz');
+    expect(blankXml).not.toContain('Heading2');
+    const machineXml = await xml(machine.id);
+    expect(machineXml).toContain('Maschine und Einsatz');
+    expect(machineXml).toContain('<w:tbl>');
+    expect(machineXml).toContain('Maximale Geschwindigkeit');
+    const custom = {
+      id: 'f7a16200-a90d-4a74-a39f-1048597cbe49',
+      heading: 'Eigene Prüfschritte',
+      doc: { ...para('Kontrollbogen geprüft.'), type: 'doc' as const },
+    };
+    journals.updateSections(machine.id, [custom, ...machine.sections]);
+    const changed = await xml(machine.id);
+    expect(changed).toContain('Kontrollbogen geprüft.');
+    expect(changed.indexOf('Eigene Prüfschritte')).toBeGreaterThanOrEqual(0);
+    expect(changed.indexOf('Eigene Prüfschritte')).toBeLessThan(changed.indexOf('Maschine und Einsatz'));
+  });
+
   it('exportiert Metadaten, Zuordnungen und Bilder (PNG direkt, WebP umgewandelt)', async () => {
     const j = journals.create({ title: 'Druckplatte belichten', workDate: '2026-03-14' });
     journals.updateMeta(j.id, {
@@ -363,10 +391,13 @@ describe('Exportdienst mit echter Projektdatenbank', () => {
     taxonomy.setJournalTags(j.id, ['CtP']);
     const png = media.add({ journalId: j.id, data: PNG, originalName: 'a.png' });
     const webp = media.add({ journalId: j.id, data: fixture('bild.webp'), originalName: 'b.webp' });
-    journals.updateSections(j.id, {
-      ...j.sections,
-      durchfuehrung: { type: 'doc', content: [figure(png.id, 'Belichter'), figure(webp.id, 'Platte')] },
-    });
+    journals.updateSections(
+      j.id,
+      withSectionDocument(j.sections, 'durchfuehrung', {
+        type: 'doc',
+        content: [figure(png.id, 'Belichter'), figure(webp.id, 'Platte')],
+      }),
+    );
 
     const { data, warnings } = await service.journalDocx(j.id);
     expect(warnings).toEqual([]);
@@ -405,10 +436,13 @@ describe('Exportdienst mit echter Projektdatenbank', () => {
   it('Titel verlinkter Journale für den Hinweis im Text', () => {
     const target = journals.create({ title: 'ICC-Profile', workDate: '2026-03-01' });
     const j = journals.create({ title: 'Mit Link', workDate: '2026-03-14' });
-    journals.updateSections(j.id, {
-      ...j.sections,
-      reflexion: para('Profil', [{ type: 'link', attrs: { href: journalLinkHref(target.id) } }]) as never,
-    });
+    journals.updateSections(
+      j.id,
+      withSectionDocument(j.sections, 'reflexion', {
+        ...para('Profil', [{ type: 'link', attrs: { href: journalLinkHref(target.id) } }]),
+        type: 'doc',
+      }),
+    );
     expect(service.linkTitles(service.loadJournal(j.id))).toEqual(new Map([[target.id, 'ICC-Profile']]));
   });
 
@@ -416,10 +450,13 @@ describe('Exportdienst mit echter Projektdatenbank', () => {
     const j = journals.create({ title: 'B', workDate: '2026-03-14' });
     const png = media.add({ journalId: j.id, data: PNG, originalName: 'a.png' });
     const webp = media.add({ journalId: j.id, data: fixture('bild.webp'), originalName: 'b.webp' });
-    journals.updateSections(j.id, {
-      ...j.sections,
-      durchfuehrung: { type: 'doc', content: [figure(png.id, 'weg'), figure(webp.id, 'kaputt')] },
-    });
+    journals.updateSections(
+      j.id,
+      withSectionDocument(j.sections, 'durchfuehrung', {
+        type: 'doc',
+        content: [figure(png.id, 'weg'), figure(webp.id, 'kaputt')],
+      }),
+    );
     rmSync(media.resolve(png.id)!.file);
     const failing = new ExportService(
       () => projects.db,
@@ -456,6 +493,9 @@ describe('Exportdienst mit echter Projektdatenbank', () => {
     const shown: string[] = [];
     const handlers = createExportHandlers({
       service,
+      printPdf: async () => {
+        throw new Error('Unerwarteter PDF-Aufruf');
+      },
       chooseSavePath: async (s) => {
         suggested = s;
         return answer;

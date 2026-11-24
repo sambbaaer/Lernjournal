@@ -37,6 +37,7 @@ export type ServiceDeps = {
   // (Sicherung beim Schliessen, AJ-15). Fehler werden protokolliert und
   // verhindern das Schliessen nicht.
   beforeClose?: () => Promise<void>;
+  afterClose?: () => void;
 };
 
 // Ergebnis von targetFolderFor: ein verwendbarer Ordner oder der Grund, warum nicht
@@ -214,6 +215,7 @@ export class ProjectService {
     } finally {
       db.close();
       lock.release();
+      this.deps.afterClose?.();
     }
     return true;
   }

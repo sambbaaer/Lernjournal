@@ -20,7 +20,8 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BACKUP_TEXTS, EXPORT_REMINDER } from '@shared/backup';
 import { ipcContract } from '@shared/ipc';
-import { EMPTY_SECTIONS } from '@shared/journal';
+import { withSectionDocument } from '@shared/journal';
+import { EMPTY_LEGACY_SECTIONS, newJournalSections } from '@shared/journal-templates';
 import { checkIntegrity, openDatabase, transaction } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, migrate, MIGRATIONS } from '../db/migrations';
 import { createIpcDispatcher, type Handlers } from '../ipc-handler';
@@ -202,7 +203,9 @@ describe('Sicherung anlegen', () => {
     // Grössere Datenbank (rund 2,4 MB), damit die Kopie lange genug dauert,
     // dass mehrere Speichervorgänge hineinfallen – aber nicht grösser, weil
     // unter Windows jedes COMMIT (synchronous=FULL) auf den Datenträger wartet
-    const filler = JSON.stringify({ ...EMPTY_SECTIONS, durchfuehrung: doc(paragraph('x'.repeat(4000))) });
+    const filler = JSON.stringify(
+      withSectionDocument(newJournalSections(), 'durchfuehrung', doc(paragraph('x'.repeat(4000)))),
+    );
     const ins = db.prepare(
       "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, ?, '2026-01-01', ?, ?, ?)",
     );
@@ -228,7 +231,7 @@ describe('Sicherung anlegen', () => {
           ins.run(
             `11111111-0000-4000-8000-${String(n).padStart(12, '0')}`,
             `Neu ${n}`,
-            JSON.stringify(EMPTY_SECTIONS),
+            JSON.stringify(newJournalSections()),
             START.toISOString(),
             START.toISOString(),
           );
@@ -436,7 +439,7 @@ describe('Wiederherstellen als neues Lernjournal', () => {
         '7d4b1a2c-3e4f-4a5b-8c6d-7e8f9a0b1c2d',
         'Aus alter Zeit',
         '2026-01-10',
-        JSON.stringify(EMPTY_SECTIONS),
+        JSON.stringify(EMPTY_LEGACY_SECTIONS),
         ts,
         ts,
       );

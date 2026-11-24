@@ -26,7 +26,7 @@ npm run dev
 | `npm run dist:dir` | Nur entpackter Build (schneller, zum Ausprobieren) |
 | `npm run verify:package` | Fertiges Paket in `dist/` prüfen (Fuses, Inhalt, Adminrechte) |
 | `npm run test:packaged -- <Programm>` | Selbsttest des gepackten Programms inkl. Netzwerkprotokoll |
-| `npm run icon` | Programmsymbol aus `build/icon.svg` neu erzeugen |
+| `npm run icon` | Programm- und Dateisymbol aus den SVGs in `assets/` erzeugen |
 
 ## Ordnerstruktur
 ```
@@ -37,7 +37,8 @@ src/
   shared/     Typen und IPC-Vertrag für alle drei Teile
 e2e/          Ende-zu-Ende-Tests gegen die gebaute App
 scripts/      Paketprüfung, Selbsttest von aussen, Programmsymbol (AJ-16)
-build/        Programmsymbol (icon.svg ist die Quelle, .ico/.png erzeugt)
+assets/       Vektorquellen für Programm- und Dateisymbol
+build/        Erzeugte Programm- und Dateisymbole (.ico/.png)
 spikes/       Phase-0-Prototypen (nicht App-Code)
 ```
 
@@ -169,6 +170,8 @@ src/renderer/src/export/collection-logic.ts Auswahl/Filter/Reihenfolge als reine
 ```
 - **Einweg:** DOCX wird nur geschrieben, nie gelesen oder abgeglichen. Vor dem Export speichert die Oberfläche Ausstehendes (`saveIfNeeded`), sonst fehlte eben Getipptes.
 - **Hinweis R-10** erscheint bei jedem Export; der Kanal verlangt `noticeAccepted: true`. Den Zielpfad bestimmt ausschliesslich der Speichern-Dialog im Hauptprozess; «Im Ordner anzeigen» zeigt nur die zuletzt exportierte Datei.
+
+**PDF und QV (AJ-18/AJ-20):** `pdf-document.ts` baut das HTML-Drucklayout aus derselben Datenaufbereitung wie DOCX. `pdf-print.ts` rendert es in einer flüchtigen und netzgesperrten Electron-Session. Der Pack-Selbsttest erzeugt auch ein PDF mit Bild. Die QV-Vormerkung in `journal.qv_selected` (Schema v6) ist Bestandteil von `.ajournal` und Sicherungen. Sie wird in der Exportansicht in die bestehende Zusammenstellung übernommen. Farbschema und konfigurierbare QV-Mindestanzahl liegen in den lokalen App-Einstellungen. [ADR 0010](adr/0010-pdf-qv-und-farbschema.md)
 - **Neuer Editor-Knoten?** Abbildung in `docx-content.ts` ergänzen (sonst: Text + Hinweis «unbekannter Inhalt»), Testfall in `fixtures.ts` aufnehmen, Golden Files neu schreiben.
 - **Golden Files** (`src/main/export/__golden__/`): schlägt der Vergleich fehl, zuerst prüfen, ob die Änderung gewollt ist (z. B. `docx`-Update), dann `npx vitest run src/main/export -u` und den Git-Diff der XML-Dateien ansehen.
 - **Sammel-DOCX (AJ-13):** `buildCollectionDocument()` nutzt einen Kontext (`createContentContext` mit allen Journal-IDs in `inDocument`) für alle Journale – Abbildungsnummern laufen durch, Links zwischen den Journalen werden zu Sprüngen. Je Journal `journalBlocks(…, { pageBreakBefore: true })` (Absatzeigenschaft statt leerem Umbruch-Absatz), davor Titelseite und Inhaltsverzeichnis (`TableOfContents`, nur Überschrift 1), dann `buildDocument({ updateFields: true, titlePage: true })`. Die Reihenfolge der IDs im IPC-Aufruf ist die Reihenfolge im Dokument; geprüft werden Anzahl (`COLLECTION_LIMITS`), Doppelte und Titellänge, unbekannte Journale meldet der Dienst noch vor dem Speichern-Dialog. Die Zusammenstellung (IDs, Titel) liegt im App-Zustand `collection`, damit sie beim Ansichtswechsel erhalten bleibt.
@@ -217,12 +220,16 @@ src/renderer/src/backup/                   BackupSection (Einstellungen), Restor
 - **Node-Version:** Vitest läuft mit dem Node der Entwicklungsumgebung, die App mit dem Node in Electron (24). Beispiel: `backup(…, { rate: -1 })` geht unter Node 22, Electron lehnt es ab – darum E2E-Test `e2e/backup.test.mjs` nach Änderungen an der Kopie laufen lassen.
 - **Tests:** `src/main/backup/backup.test.ts` (Inhalt, WAL, Konsistenz unter Schreiblast, unverändert, Rotation mit Bildvorrat und verstellter Uhr, beide Wiederherstellungsarten, Sicherheitskopie, beschädigte/manipulierte Sicherungen, Sicherung vor Update, Zeitpunkte, Aufräumen, IPC, Schema v3), `rotation.test.ts`, `src/shared/backup.test.ts` (Erinnerung: genau 30 Tage, nie übergeben, «Später erinnern», Uhr verstellt), `backup-actions.test.ts`, `e2e/backup.test.mjs` (Jetzt sichern, Ersetzen mit Vorschau, Sicherung beim Beenden, Erinnerung, axe).
 
+## Lokaler MCP-Zugang
+
+`src/main/mcp` stellt mit dem offiziellen TypeScript-SDK Streamable HTTP bereit. Der Listener und seine Vorschläge gehören zum aktuell geöffneten Projekt. Electron-IPC dient zur Aktivierung, zum Kopieren der Verbindungsdaten und zur Freigabe einzelner Vorschläge in der App. Bearbeitungen verwenden eine Revision des gespeicherten Journals und die bestehende Editor-Validierung. `e2e/mcp.test.mjs` prüft den vollständigen Arbeitsablauf über HTTP und die Oberfläche. [ADR 0011](adr/0011-lokaler-mcp-zugang.md)
+
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.
 - **Anzeige:** «Speichert …» → «Gespeichert» erst nach Bestätigung durch den Hauptprozess (`synchronous=FULL`). Bei Fehlern «Speichern fehlgeschlagen» mit Knopf «Erneut versuchen» und automatischem Wiederholversuch nach 2/5/10/30 s – die Änderungen bleiben im Speicher und gehen nicht verloren.
 - **Schliessen:** `src/main/close-guard.ts` hält das Schliessen an, die Oberfläche speichert (`app.onBeforeClose` → `app.closeReady`), bei Fehler fragt ein Windows-Dialog nach. Antwortet die Oberfläche nicht innert 5 s, wird trotzdem geschlossen.
 - **Tests:** `src/main/db/crash.test.ts` (Schreibprozess hart beenden) und `e2e/autosave.test.mjs` (App schliessen, SIGKILL, gesperrte Datenbank). In E2E-Tests mit `waitForNewSave()` auf einen *neuen* Speichervorgang warten.
-- **Statusanzeige:** Die erste ungespeicherte Änderung nimmt ein «Gespeichert» weg; nach dem Speichern erscheint es nur, wenn inzwischen nichts Neues dazukam (`JournalDocument.flush`). Ein Fehler bleibt sichtbar, bis erneut gespeichert ist.
+- **Statusanzeige:** Ein geladenes Journal zeigt «Gespeichert». Ausstehende und laufende Schreibvorgänge für den Inhalt, die Zuordnungen und Verknüpfungen werden getrennt erfasst. «Gespeichert» erscheint nach der Bestätigung im Hauptprozess wieder und führt zur Sicherungsliste. Ein Fehler bleibt sichtbar, bis erneut gespeichert ist.
 - **Neues Journal (Strg+N, AJ-17):** `createJournal` setzt zuerst `journalCreating` – das bisherige Journal wird ausgeblendet (und speichert dabei), `NewJournalPending` zeigt ein Titelfeld mit Fokus. Erst `journalCreated` öffnet das neue Journal; den Titel aus dem Platzhalter (`state.newJournalTitle`) übernimmt `JournalDocument` beim ersten Anzeigen und speichert ihn. Fokus per `useLayoutEffect`, damit keine Taste zwischen Platzhalter und Journal verloren geht. Ohne das landete, wer sofort tippte, im vorherigen Journal. E2E: `journal` «Strg+N und sofort tippen …» verzögert dafür `journal:create` direkt an der Handler-Tabelle von `ipcMain`.
 
 ## Abnahme und Tests unter Windows (AJ-17)
@@ -243,7 +250,7 @@ src/renderer/src/
 - **Befehle** stehen genau einmal in `state/commands.ts` (Text, Kürzel, Verfügbarkeit). Menüband, Tooltips und Tastatur lesen daraus – nie Kürzel doppelt verdrahten.
 - **Nicht verfügbare Befehle** bekommen `aria-disabled` und einen Grund (Tooltip), nicht `disabled` – so bleiben sie per Tastatur erreichbar.
 - **Farben** nur über die Tokens in `styles.css` (Kontraste dort dokumentiert). Auswahl immer zusätzlich mit Rahmen/Balken markieren (Windows-Kontrastmodus).
-- **Speicherstatus** nur anzeigen, wenn er zutrifft (`saveStatus`), sonst nichts.
+- **Speicherstatus:** «Gespeichert» und «Sicherungen» nutzen denselben Weg zur Sicherungsliste wie «Datei → Info» (`showBackups`).
 - **E2E** (`e2e/shell.test.mjs`) prüft Tastatur, Fokus und Barrierefreiheit mit axe-core (WCAG 2.2 AA). Neue Ansichten in den axe-Test aufnehmen.
 
 ## Einen neuen IPC-Befehl hinzufügen (Muster)
@@ -261,7 +268,7 @@ src/main/self-test.ts        Selbsttest im Programm (LERNJOURNAL_SMOKE_TEST, Ber
 scripts/self-test.mjs        Selbsttest von aussen: Phasen fuses/create/reopen + Netzwerkprotokoll
 scripts/verify-package.mjs   Paket prüfen: Fuses, app.asar, Manifest asInvoker, SHA256SUMS.txt
 scripts/package-checks.ts    reine Prüffunktionen (Vitest: scripts/packaging.test.ts)
-scripts/render-icon.mjs      build/icon.svg → icon.png + icon.ico (Electron zeichnet, scripts/icon.ts schreibt ICO)
+scripts/render-icon.mjs      assets/*.svg → icon.png, icon.ico, ajournal.ico (Electron und ICO-Encoder)
 docs/IT-MERKBLATT.md         Merkblatt für Schul-IT und Lehrbetriebe
 ```
 Gründe und Abwägungen: [ADR 0007](adr/0007-paketierung-und-signing.md).
@@ -292,7 +299,7 @@ Ergebnis in `dist/`: `Lernjournal-Setup-<Version>.exe`, `Lernjournal-Portable-<V
 
 **Paketinhalt:** Neue Laufzeitabhängigkeit → in `dependencies`, `npm run verify:package` prüft, dass sie (samt ihren Abhängigkeiten) in `app.asar` liegt und nichts aus `devDependencies`. Ballast einer Abhängigkeit (Browser-Fassungen, Quellen) über `files` in `electron-builder.ts` ausschliessen – der Selbsttest zeigt, ob das Programm danach noch läuft.
 
-**Programmsymbol:** `build/icon.svg` bearbeiten, dann `npm run icon` (unter Linux ohne Bildschirm: `xvfb-run -a npx electron --no-sandbox scripts/render-icon.mjs`) und die erzeugten `build/icon.ico` und `build/icon.png` committen.
+**Symbole:** `assets/app-icon.svg` und `assets/file-icon.svg` aus Illustrator aktualisieren, dann `npm run icon` ausführen. Die erzeugten Dateien in `build/` zusammen mit den Vektorquellen versionieren. Die `.ajournal`-Grafik erscheint in den Projektdialogen. Das ICO für die Dateizuordnung liegt als `build/ajournal.ico` vor.
 
 ## Sicherheitsregeln (Kurzfassung, Details SPEC)
 - Renderer importiert nie `electron` oder `node:*` – ESLint verhindert das.
@@ -301,7 +308,7 @@ Ergebnis in `dist/`: `Lernjournal-Setup-<Version>.exe`, `Lernjournal-Portable-<V
 - Die gepackte App hat Debug- und Node-Schalter per Electron-Fuses abgeschaltet (`electron-builder.ts`); die CI prüft sie an der fertigen EXE und versucht den Missbrauch (Selbsttest-Phase `fuses`).
 
 ## Abhängigkeiten
-- `dependencies`: nur, was der **Hauptprozess zur Laufzeit** braucht (aktuell `zod`, `docx`). Nur das (samt eigenen Abhängigkeiten) landet im Installer – geprüft mit `npm run verify:package`. ZIP für `.ajournal` braucht keine Bibliothek (`node:zlib`, ADR 0005); `fflate` ist nur Testabhängigkeit.
+- `dependencies`: nur, was der **Hauptprozess zur Laufzeit** braucht (`zod`, `docx`, `@modelcontextprotocol/server`). Diese Pakete und ihre Abhängigkeiten landen im Installer. `npm run verify:package` prüft den Inhalt. ZIP für `.ajournal` verwendet `node:zlib` (ADR 0005).
 - `devDependencies`: alles andere, auch React – Vite bündelt die Oberfläche ohnehin in eine Datei.
 - Versionen sind exakt gepinnt. Aktualisieren bewusst und mit `npm run check` + `npm run test:e2e`.
 - Bekannt: `npm audit` meldet eine mittlere Schwachstelle in `minimatch` innerhalb von electron-builder (nur Build-Zeit, nicht im Installer).

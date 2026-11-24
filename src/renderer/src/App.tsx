@@ -16,6 +16,31 @@ function ProjectLoader() {
   return null;
 }
 
+function McpLoader() {
+  const { dispatch } = useApp();
+  useEffect(() => {
+    let active = true;
+    let version = 0;
+    const refresh = () => {
+      const request = ++version;
+      void window.lernjournal.mcp
+        .status()
+        .then((result) => {
+          if (active && request === version && result.ok)
+            dispatch({ type: 'mcpStatus', status: result.data });
+        })
+        .catch(() => {});
+    };
+    const unsubscribe = window.lernjournal.mcp.onChanged(refresh);
+    refresh();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [dispatch]);
+  return null;
+}
+
 export function App() {
   const [version, setVersion] = useState<string | null>(null);
 
@@ -29,6 +54,7 @@ export function App() {
   return (
     <AppProvider>
       <ProjectLoader />
+      <McpLoader />
       <AppShell version={version} />
     </AppProvider>
   );

@@ -2,7 +2,7 @@
 // der Liste, verwalten in den Einstellungen, dauerhaft nach Neustart.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { launchApp, runAxe } from './helpers.mjs';
+import { launchApp, openJournalDetails, runAxe } from './helpers.mjs';
 
 let app;
 let page;
@@ -33,6 +33,7 @@ async function openFromList(title) {
   await nav('Journale').click();
   await row(title).dblclick();
   await page.getByLabel('Titel des Journals').waitFor();
+  await openJournalDetails(page);
 }
 
 test('Kategorien im Journal wählen: mehrere, sofort gespeichert, per Tastatur', async () => {
@@ -68,12 +69,12 @@ test('Neue Kategorie direkt im Journal anlegen und zuordnen', async () => {
   await page.getByRole('button', { name: 'Auswählen' }).click();
   await picker().waitFor();
   await page.getByPlaceholder('Neue Kategorie').fill('Qualitätssicherung');
-  await page.getByRole('button', { name: 'Hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
   await picker().getByLabel('Qualitätssicherung').waitFor();
   assert.equal(await picker().getByLabel('Qualitätssicherung').isChecked(), true);
   // Gleicher Name in anderer Schreibweise legt nichts Doppeltes an
   await page.getByPlaceholder('Neue Kategorie').fill('qualitätssicherung');
-  await page.getByRole('button', { name: 'Hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
   await page.getByRole('button', { name: 'Fertig' }).click();
   assert.equal(await page.getByText('Qualitätssicherung', { exact: true }).count(), 1);
 });
@@ -93,6 +94,7 @@ test('Schlagwörter: Enter und Komma fügen hinzu, bestehende Schreibweise wird 
 
   // Zweites Journal: «farbmessung» wird zum bestehenden «Farbmessung»
   await newJournal('Papierlaufrichtung bestimmen');
+  await openJournalDetails(page);
   await page.getByRole('button', { name: 'Auswählen' }).click();
   await picker()
     .getByLabel(/^c – Planen/)

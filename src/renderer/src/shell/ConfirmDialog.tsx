@@ -67,7 +67,7 @@ export function ConfirmDialog({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
-            className={`rounded-sm px-4 py-2 text-sm font-semibold text-white ${danger ? 'bg-danger hover:opacity-90' : 'bg-accent hover:bg-accent-strong'}`}
+            className={`rounded-sm px-4 py-2 text-sm font-semibold text-white ${danger ? 'bg-action-danger hover:opacity-90' : 'bg-action hover:bg-action-hover'}`}
           >
             {confirmLabel}
           </button>

@@ -82,7 +82,7 @@ export function Backstage({
       className="flex min-h-0 flex-1"
       onKeyDown={onKeyDown}
     >
-      <div className="flex w-56 shrink-0 flex-col bg-accent-strong py-2 text-white">
+      <div className="flex w-56 shrink-0 flex-col bg-action-hover py-2 text-white">
         <button
           type="button"
           onClick={onClose}
@@ -160,9 +160,10 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
           </p>
           <h3 className="pt-2 text-base font-semibold">Datenschutz</h3>
           <p>
-            Alle Daten bleiben auf deinem Computer. Lernjournal braucht kein Konto, sendet nichts ins Internet
-            und sammelt keine Nutzungsdaten. Achte beim Weitergeben von Exporten auf Kundendaten,
-            Geschäftsgeheimnisse deines Lehrbetriebs und Personen auf Fotos.
+            Lernjournal speichert die Projektdaten auf deinem Computer und sammelt keine Nutzungsdaten. Wenn
+            du MCP freigibst, erhält der verbundene Client Zugriff auf die Journaltexte und kann sie je nach
+            Anbieter weitergeben. Achte beim Freigeben und beim Export auf Kundendaten, Geschäftsgeheimnisse
+            deines Lehrbetriebs und Personen auf Fotos.
           </p>
         </div>
       );
@@ -178,15 +179,21 @@ function ExportPage() {
   return (
     <div className="max-w-2xl space-y-4 text-sm">
       <h2 className="text-2xl font-semibold">Exportieren</h2>
-      <p>
-        Journale als Word-Dokument ausgeben, z. B. für die Besprechung mit deiner Berufsbildnerin oder deinem
-        Berufsbildner. Änderungen in Word fliessen nicht in Lernjournal zurück.
-      </p>
+      <p>Journale als PDF zum Weitergeben oder als bearbeitbares Word-Dokument exportieren.</p>
       <div className="flex flex-wrap gap-2">
         {open && (
           <button
             type="button"
             className={primaryButton}
+            onClick={() => dispatch({ type: 'openExport', format: 'pdf', journalIds: [open.id] })}
+          >
+            «{open.title.trim() || 'Ohne Titel'}» als PDF exportieren …
+          </button>
+        )}
+        {open && (
+          <button
+            type="button"
+            className={secondaryButton}
             onClick={() => dispatch({ type: 'openExport', journalIds: [open.id] })}
           >
             «{open.title.trim() || 'Ohne Titel'}» als Word exportieren …
@@ -245,8 +252,7 @@ function ImportPage() {
 }
 
 const secondaryButton = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
-const primaryButton =
-  'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
+const primaryButton = 'rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover';
 
 // Info → Sicherungen (AJ-15): kurzer Hinweis und Sprung zu Einstellungen → Sicherungen
 function BackupLine() {
@@ -262,14 +268,7 @@ function BackupLine() {
         {BACKUP_TEXTS.intro} Letzte Projektübergabe (.ajournal):{' '}
         <strong>{last ? formatDateTime(last) : 'noch nie'}</strong>.
       </p>
-      <button
-        type="button"
-        className={secondaryButton}
-        onClick={() => {
-          dispatch({ type: 'navigate', view: 'einstellungen' });
-          dispatch({ type: 'requestFocus', target: 'settings-backups' });
-        }}
-      >
+      <button type="button" className={secondaryButton} onClick={() => dispatch({ type: 'showBackups' })}>
         Sicherungen und Wiederherstellung …
       </button>
     </section>

@@ -1,5 +1,6 @@
 // Menüband: «Datei»-Knopf, Register und eine kompakte Befehlszeile.
 import { useId, useState } from 'react';
+import { LayoutTemplate } from 'lucide-react';
 import { journalIdFromHref, journalLinkHref } from '@shared/links';
 import { useActiveEditor } from '../editor/EditorContext';
 import { LinkDialog } from '../editor/LinkDialog';
@@ -41,7 +42,7 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
         <button
           ref={fileButtonRef}
           type="button"
-          className="mb-1 rounded-sm bg-accent px-3 py-1 text-sm font-semibold text-white hover:bg-accent-strong"
+          className="mb-1 rounded-sm bg-action px-3 py-1 text-sm font-semibold text-white hover:bg-action-hover"
           aria-haspopup="dialog"
           aria-expanded={state.backstage !== null}
           aria-keyshortcuts={fileCmd.shortcut}
@@ -73,16 +74,29 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
                 onFocus={() => dispatch({ type: 'selectRibbonTab', tab: tab.id })}
                 onClick={() => dispatch({ type: 'selectRibbonTab', tab: tab.id })}
                 className={`border-b-[3px] px-3 py-1 text-sm ${
-                  selected
-                    ? 'border-accent font-semibold text-ink'
-                    : 'border-transparent text-ink-muted hover:text-ink'
-                } ${tab.contextual ? 'text-accent-strong' : ''}`}
+                  selected ? 'border-accent font-semibold' : 'border-transparent'
+                } ${
+                  tab.contextual
+                    ? 'ribbon-tab-contextual'
+                    : selected
+                      ? 'text-ink'
+                      : 'text-ink-muted hover:text-ink'
+                }`}
               >
                 {tab.label}
               </button>
             );
           })}
         </div>
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          disabled={state.creatingJournal !== null}
+          onClick={() => dispatch({ type: 'openJournalTemplates' })}
+          className="mb-1 ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium text-accent-strong hover:bg-selected disabled:opacity-50"
+        >
+          <LayoutTemplate aria-hidden="true" size={16} /> Vorlagen
+        </button>
       </div>
       <div
         role="tabpanel"

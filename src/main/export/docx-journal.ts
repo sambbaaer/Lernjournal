@@ -1,10 +1,10 @@
 // Ein Journal als Folge von Word-Blöcken: Titel, Metadaten-Kopfblock und die
-// drei Abschnitte Auftrag / Durchführung / Reflexion (SPEC «Word-Export»).
+// Abschnitte der gewählten Vorlage (SPEC «Word-Export»).
 //
 // Wiederverwendbar: Das Einzel-DOCX (AJ-12) enthält genau ein Journal, das
 // Sammel-DOCX (AJ-13) reiht mehrere mit gemeinsamem Kontext aneinander.
 import { Bookmark, HeadingLevel, Paragraph, TextRun } from 'docx';
-import { SECTION_KEYS, SECTION_TITLES, type LearningPlace } from '@shared/journal';
+import type { LearningPlace } from '@shared/journal';
 import {
   bookmarkFor,
   cleanText,
@@ -28,7 +28,7 @@ export type ExportJournal = {
   learningPlace: LearningPlace;
   categories: string[]; // in der Reihenfolge der Kategorienliste
   tags: string[]; // alphabetisch
-  sections: Record<(typeof SECTION_KEYS)[number], TiptapNode>;
+  sections: { id: string; heading: string | null; doc: TiptapNode }[];
 };
 
 // Angaben zur lernenden Person aus dem Profil (Kopfblock, Fusszeile, Dateieigenschaften)
@@ -66,6 +66,10 @@ function metaLine(pairs: [label: string, value: string][]): Paragraph {
 // Metadaten-Kopfblock: Name, Lehrbetrieb, Arbeitsdatum, Lehrjahr, Lernort,
 // Kategorien, Schlagwörter. Leere Angaben fallen weg (alles ist freiwillig).
 export function metaBlocks(j: ExportJournal, author: ExportAuthor): Paragraph[] {
+  return journalMetaLines(j, author).map(metaLine);
+}
+
+export function journalMetaLines(j: ExportJournal, author: ExportAuthor): [string, string][][] {
   const lines: [string, string][][] = [];
   const person: [string, string][] = [];
   if (author.displayName.trim()) person.push(['Name', author.displayName.trim()]);
@@ -78,7 +82,7 @@ export function metaBlocks(j: ExportJournal, author: ExportAuthor): Paragraph[] 
   lines.push(when);
   if (j.categories.length) lines.push([['Kategorien', j.categories.join(', ')]]);
   if (j.tags.length) lines.push([['Schlagwörter', j.tags.join(', ')]]);
-  return lines.map(metaLine);
+  return lines;
 }
 
 // Das ganze Journal. Titel = «Überschrift 1» mit Textmarke (Sprungziel für
@@ -105,19 +109,15 @@ export function journalBlocks(
     }),
     ...metaBlocks(j, author),
   ];
-  for (const key of SECTION_KEYS) {
-    out.push(
-      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(SECTION_TITLES[key])] }),
-    );
-    const section = j.sections[key];
+  for (const { heading, doc } of j.sections) {
+    if (heading) {
+      out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(heading)] }));
+    }
     // Leerer Abschnitt: ein grauer Strich statt nichts – so sieht man in Word,
     // dass der Abschnitt bewusst leer ist, und kann direkt dort weiterschreiben.
     // Hilfetexte des Editors sind nur Platzhalter und werden nie exportiert.
-    out.push(
-      ...(hasContent(section)
-        ? contentBlocks(section, ctx)
-        : [new Paragraph({ children: [new TextRun({ text: '–', color: '808080' })] })]),
-    );
+    if (hasContent(doc)) out.push(...contentBlocks(doc, ctx));
+    else if (heading) out.push(new Paragraph({ children: [new TextRun({ text: '–', color: '808080' })] }));
   }
   return out;
 }

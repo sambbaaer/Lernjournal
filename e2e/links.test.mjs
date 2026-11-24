@@ -3,7 +3,7 @@
 // Leere, dauerhaft nach Neustart.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { launchApp, runAxe } from './helpers.mjs';
+import { launchApp, openJournalDetails, runAxe } from './helpers.mjs';
 
 let app;
 let page;
@@ -36,6 +36,7 @@ async function openFromList(name) {
   await nav('Journale').click();
   await page.getByRole('row', { name: new RegExp(name) }).dblclick();
   await title().waitFor();
+  await openJournalDetails(page);
 }
 
 test('Journal verknüpfen: Auswahl per Suche (ohne Umlaute), Rückverweis im anderen Journal', async () => {
@@ -74,6 +75,7 @@ test('Journal verknüpfen: Auswahl per Suche (ohne Umlaute), Rückverweis im and
   // Klick auf den Titel öffnet das Journal: dort steht der Rückverweis
   await linkedList().getByRole('button', { name: 'Überfüller anlegen', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#journal-title')?.value === 'Überfüller anlegen');
+  await openJournalDetails(page);
   await linkedList().getByRole('button', { name: 'Druckauftrag Flyer', exact: true }).waitFor();
 });
 
@@ -121,6 +123,7 @@ test('Link zu Journal im Text: einfügen, Strg+Klick öffnet, Ziel zeigt «Erwä
   // Strg+Klick öffnet das Ziel; dort erscheint die Quelle als Rückverweis
   await link.click({ modifiers: ['Control'] });
   await page.waitForFunction(() => document.querySelector('#journal-title')?.value === 'Farbprofil wählen');
+  await openJournalDetails(page);
   await mentionList().getByRole('button', { name: 'Druckauftrag Flyer', exact: true }).waitFor();
   const results = await runAxe(page);
   assert.deepEqual(results, [], JSON.stringify(results, null, 2));

@@ -58,10 +58,12 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 
 | ID | Umsetzung | Abnahme | Grundlage |
 |---|---|---|---|
-| AJ-18 | PDF-Export (zuerst) | Einzel- und Sammel-PDF offline via `printToPDF`; Schriften eingebettet, Text durchsuchbar, Bilder moderat komprimiert, Dateigrösse angezeigt; Layout entspricht DOCX sinngemäss | R-08 |
-| AJ-20 | QV-Mappe | Auswahl + Reihenfolge, Filter für IPA-Bezug, Zähler «x von mindestens 12» (alle Fachrichtungen, konfigurierbar), Hinweis «mit der Aufgabenstellung einreichen», Titelseite, TOC; **PDF für PkOrg**, DOCX optional | R-08, R-15 |
+| AJ-18 ✔ | PDF-Export | Einzel- und Sammel-PDF offline via `printToPDF` mit eingebetteten Schriften, durchsuchbarem Text, Druckbildern und Dateigrösse. Sammlung mit Titelseite, verlinktem Inhaltsverzeichnis und Lesezeichen. | R-08 |
+| AJ-20 (Vormerkung und Export umgesetzt) | QV-Mappe | Dauerhafte Vormerkung je Journal (Schema v6), Vorauswahl im Sammelexport übernehmen, filtern und sortieren, konfigurierbare Mindestanzahl, Abgabehinweis und PDF. Kompetenzfilter gemäss R-15 bleibt beim späteren Kompetenzkatalog. | R-08, R-15 |
+| ✔ | Dunkelmodus | Hell, Dunkel und Systemeinstellung als lokale App-Einstellung. | Produktentscheid |
+| ✔ | Lokaler MCP-Zugang | Pro geöffnetem Projekt und Sitzung freischaltbar. Suche, Lesen, Vorschläge zur Überarbeitung und Verknüpfung, optional neue Entwürfe mit separater Freigabe. Änderungsprüfung in der App. | Produktentscheid, R-11 |
 | AJ-21 | Kompetenzkatalog | versionierter Katalog 34200 offline inkl. Wortlaut, freiwillige Zuordnung Journal ↔ Handlungskompetenz/Leistungsziel, Standardfilter Print + Betrieb | R-09 |
 | AJ-22 | Abdeckungsübersicht | Matrix Bereiche a–g × Lehrjahr, Hinweis «Orientierung, keine amtliche Zuordnung» | R-09 |
-| AJ-23 | Qualitätshinweise und Vorlagen | nicht blockierende Hinweise (leere Reflexion, Bild ohne Legende); 2–3 Vorlagen (z. B. Maschine einrichten, Kundenauftrag, Störung beheben) | Bildungsplan |
+| AJ-23 (Vorlagen umgesetzt) | Qualitätshinweise und Vorlagen | Lernbericht, freier Eintrag, Maschinenwerte und Arbeitsablauf verfügbar. Offen sind nicht blockierende Hinweise, z. B. leere Reflexion oder Bild ohne Legende. | Bildungsplan und Produktentscheid |
 
 **Definition of Done:** besteht das Leitprinzip «Einfachheit vor Vollständigkeit» (SPEC); offline ohne Anmeldung; sichere IPC; persistente Daten; Tests für Fehler und Normalfall; UI Schweizer Hochdeutsch, Office-vertraut, zugänglich (WCAG 2.2 AA sinngemäss); Dokumentation (SPEC/README/ADR) nachgeführt; keine vorgezogenen Funktionen aus späteren Prioritäten.

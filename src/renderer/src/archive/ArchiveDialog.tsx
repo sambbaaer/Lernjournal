@@ -10,6 +10,7 @@
 //              bleibt stehen, bis das Ergebnis gelesen ist.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CircleAlert, FileCheck2, FolderInput, LoaderCircle, PackageCheck } from 'lucide-react';
+import fileIcon from '../../../../assets/file-icon.svg';
 import { ARCHIVE_TEXTS, type ArchiveProgress, type ArchiveSummary } from '@shared/archive';
 import { formatFileSize } from '@shared/export';
 import type { ProjectInfo } from '@shared/ipc';
@@ -42,7 +43,7 @@ type Step =
   | { kind: 'imported'; project: ProjectInfo; journals: number; media: number; warnings: string[] }
   | { kind: 'error'; message: string };
 
-const primary = 'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
+const primary = 'rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover';
 const secondary = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
 
 export function ArchiveDialog({ mode }: { mode: ArchiveDialogMode }) {
@@ -159,8 +160,9 @@ export function ArchiveDialog({ mode }: { mode: ArchiveDialogMode }) {
         tabIndex={-1}
         className="max-h-[calc(100vh-4rem)] w-full max-w-lg overflow-auto rounded-md bg-surface p-6 shadow-xl"
       >
-        <h2 id={`${baseId}-title`} className="text-lg font-semibold">
-          {heading}
+        <h2 id={`${baseId}-title`} className="flex items-center gap-3 text-lg font-semibold">
+          <img src={fileIcon} alt="" width="28" height="28" className="shrink-0" />
+          <span>{heading}</span>
         </h2>
         {mode === 'export' && state.project && (
           <p className="mt-1 truncate text-sm text-ink-muted">«{state.project.title}»</p>

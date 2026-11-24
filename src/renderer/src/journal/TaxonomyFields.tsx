@@ -195,7 +195,7 @@ function CategoryField({ journal }: { journal: JournalSummary }) {
               <button
                 type="button"
                 onClick={() => close()}
-                className="rounded-sm bg-accent px-3 py-1 font-semibold text-white hover:bg-accent-strong"
+                className="rounded-sm bg-action px-3 py-1 font-semibold text-white hover:bg-action-hover"
               >
                 Fertig
               </button>

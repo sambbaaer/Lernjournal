@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { InvalidContentError } from '@shared/editor-schema';
+import { withSectionDocument } from '@shared/journal';
 import { ProjectService } from '../project/project-service';
 import { copyTitle, JournalNotFoundError, JournalService } from './journal-service';
 
@@ -47,13 +48,47 @@ describe('Journal-Dienst', () => {
     const j = journals.create();
     expect(j).toMatchObject({
       title: '',
+      template: 'report',
       workDate: '2026-03-14',
       status: 'draft',
       learningPlace: 'betrieb',
       schoolYear: 1,
     });
-    expect(Object.keys(j.sections)).toEqual(['auftrag', 'durchfuehrung', 'reflexion']);
+    expect(j.sections.map(({ id }) => id)).toEqual(['auftrag', 'durchfuehrung', 'reflexion']);
     expect(journals.list({ includeArchived: false })).toHaveLength(1);
+  });
+
+  it.each([
+    ['machine', 'table'],
+    ['workflow', 'orderedList'],
+  ] as const)('speichert und dupliziert Vorlage %s mit editierbarem Inhalt', (template, firstNode) => {
+    const j = journals.create({ template });
+    expect(j.template).toBe(template);
+    expect(j.sections.find(({ id }) => id === 'durchfuehrung')?.doc.content).toHaveProperty(
+      '0.type',
+      firstNode,
+    );
+    expect(journals.updateSections(j.id, j.sections).template).toBe(template);
+    expect(journals.duplicate(j.id)).toMatchObject({ template, sections: j.sections });
+  });
+
+  it('erweitert und ordnet den freien Eintrag und durchsucht eigene Überschriften', () => {
+    const j = journals.create({ template: 'blank' });
+    const text = {
+      type: 'doc' as const,
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Papierprobe' }] }],
+    };
+    expect(j.sections).toHaveLength(1);
+    const sections = [
+      { id: 'c8324b73-f6f0-4100-8c59-44253d8703d1', heading: 'Porositätsmessung', doc: text },
+      ...j.sections,
+    ];
+    journals.updateSections(j.id, sections);
+    expect(journals.get(j.id)).toMatchObject({ template: 'blank', sections });
+    expect(
+      projects.db.prepare("SELECT journal_id FROM journal_fts WHERE journal_fts MATCH 'porositat'").all(),
+    ).toEqual([{ journal_id: j.id }]);
+    expect(journals.duplicate(j.id).sections).toEqual(sections);
   });
 
   it('Metadaten ändern; Lehrjahr berechnet und manuell überschreibbar', () => {
@@ -102,6 +137,7 @@ describe('Journal-Dienst', () => {
     db.prepare("INSERT INTO journal_tag VALUES (?, 't1')").run(a.id);
     db.prepare('INSERT INTO journal_link VALUES (?, ?, ?)').run(a.id, b.id, clock.toISOString());
     journals.setStatus(a.id, 'completed');
+    expect(journals.setQvSelected(a.id, true).qvSelected).toBe(true);
 
     const c = journals.duplicate(a.id);
     expect(c).toMatchObject({
@@ -109,6 +145,7 @@ describe('Journal-Dienst', () => {
       status: 'draft',
       workDate: '2026-03-14',
       completedAt: null,
+      qvSelected: false,
     });
     expect(c.id).not.toBe(a.id);
     expect(db.prepare('SELECT count(*) n FROM journal_category WHERE journal_id = ?').get(c.id)).toEqual({
@@ -139,15 +176,12 @@ describe('Journal-Dienst', () => {
 
   it('Inhalt speichern: geprüft, Suchindex enthält den Text', () => {
     const j = journals.create({ title: 'Farbe' });
-    const sections = {
-      ...j.sections,
-      reflexion: {
-        type: 'doc' as const,
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Feuchtwasser früher prüfen' }] }],
-      },
-    };
+    const sections = withSectionDocument(j.sections, 'reflexion', {
+      type: 'doc' as const,
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Feuchtwasser früher prüfen' }] }],
+    });
     journals.updateSections(j.id, sections);
-    expect(journals.get(j.id).sections.reflexion).toEqual(sections.reflexion);
+    expect(journals.get(j.id).sections).toEqual(sections);
     expect(
       projects.db.prepare("SELECT count(*) n FROM journal_fts WHERE journal_fts MATCH 'feuchtwasser'").get(),
     ).toEqual({ n: 1 });
@@ -155,20 +189,17 @@ describe('Journal-Dienst', () => {
 
   it('Inhalt mit gefährlichem Link wird abgelehnt, alter Inhalt bleibt', () => {
     const j = journals.create();
-    const bad = {
-      ...j.sections,
-      auftrag: {
-        type: 'doc' as const,
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              { type: 'text', text: 'x', marks: [{ type: 'link', attrs: { href: 'javascript:alert(1)' } }] },
-            ],
-          },
-        ],
-      },
-    };
+    const bad = withSectionDocument(j.sections, 'auftrag', {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'x', marks: [{ type: 'link', attrs: { href: 'javascript:alert(1)' } }] },
+          ],
+        },
+      ],
+    });
     expect(() => journals.updateSections(j.id, bad)).toThrow(InvalidContentError);
     expect(journals.get(j.id).sections).toEqual(j.sections);
   });

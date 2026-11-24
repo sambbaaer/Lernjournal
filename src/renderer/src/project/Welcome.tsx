@@ -1,10 +1,43 @@
 // Startbildschirm ohne geöffnetes Projekt (wie die Office-Startseite):
 // neues Lernjournal anlegen, vorhandenes öffnen, zuletzt verwendete.
-import { FileInput, FilePlus, FolderOpen, NotebookPen } from 'lucide-react';
+import { NotebookPen } from 'lucide-react';
+import appIcon from '../../../../assets/app-icon.svg';
+import fileIcon from '../../../../assets/file-icon.svg';
+import newIcon from '../../../../assets/new-icon.svg';
+import oldIcon from '../../../../assets/old-icon.svg';
 import { useApp } from '../state/AppContext';
 import { formatDateTime } from './messages';
 import { ConfirmForce, ErrorMessage, UnofficialHint } from './Notices';
 import { useProjectActions } from './useProjectActions';
+
+function WelcomeAction({
+  icon,
+  title,
+  description,
+  onClick,
+  disabled,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4 text-left shadow-sm hover:border-accent hover:bg-paper/40 disabled:opacity-60 sm:flex-col lg:gap-4 lg:p-5"
+    >
+      <img src={icon} alt="" width="64" height="64" className="size-14 shrink-0 object-contain lg:size-16" />
+      <span>
+        <span className="block font-semibold text-accent-strong">{title}</span>
+        <span className="mt-1 block text-sm text-ink-muted">{description}</span>
+      </span>
+    </button>
+  );
+}
 
 export function Welcome() {
   const { state, dispatch } = useApp();
@@ -18,56 +51,39 @@ export function Welcome() {
       className="min-h-0 flex-1 relative overflow-auto bg-canvas"
       aria-labelledby="welcome-title"
     >
-      <div className="mx-auto max-w-3xl space-y-8 px-8 py-12">
-        <div>
-          <h1 id="welcome-title" className="text-3xl font-semibold">
-            Lernjournal
-          </h1>
-          <p className="mt-2 text-ink-muted">
-            Halte deine Arbeiten aus Lehrbetrieb, üK und Schule als Lernberichte fest – daraus entsteht dein
-            persönliches Fachbuch.
-          </p>
+      <div className="mx-auto max-w-4xl space-y-5 px-5 py-6 sm:px-8 lg:space-y-6 lg:py-10">
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-paper p-5 lg:gap-5 lg:p-6">
+          <img src={appIcon} alt="" width="80" height="80" className="size-16 shrink-0 lg:size-20" />
+          <div className="min-w-0 flex-1 basis-64">
+            <h1 id="welcome-title" className="text-2xl font-semibold text-accent-strong lg:text-3xl">
+              Lernjournal
+            </h1>
+            <p className="mt-2 text-ink-muted">
+              Halte deine Arbeiten aus Lehrbetrieb, üK und Schule als Lernberichte fest – daraus entsteht dein
+              persönliches Fachbuch.
+            </p>
+          </div>
         </div>
-        <UnofficialHint />
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <button
-            type="button"
+        <div className="grid gap-4 sm:grid-cols-3">
+          <WelcomeAction
+            icon={newIcon}
+            title="Neues Lernjournal anlegen"
+            description="Projektordner, Profil und Kategorien einrichten."
             onClick={() => dispatch({ type: 'openWizard' })}
-            className="flex items-start gap-4 rounded-md border border-border bg-surface p-5 text-left hover:border-accent hover:bg-selected"
-          >
-            <FilePlus aria-hidden="true" size={28} className="shrink-0 text-accent" />
-            <span>
-              <span className="block font-semibold">Neues Lernjournal anlegen</span>
-              <span className="mt-1 block text-sm text-ink-muted">In drei kurzen Schritten startklar.</span>
-            </span>
-          </button>
-          <button
-            type="button"
+          />
+          <WelcomeAction
+            icon={oldIcon}
+            title="Vorhandenes öffnen"
+            description="Einen Lernjournal-Ordner auswählen."
             onClick={() => void actions.chooseAndOpen()}
             disabled={actions.busy}
-            className="flex items-start gap-4 rounded-md border border-border bg-surface p-5 text-left hover:border-accent hover:bg-selected"
-          >
-            <FolderOpen aria-hidden="true" size={28} className="shrink-0 text-accent" />
-            <span>
-              <span className="block font-semibold">Vorhandenes öffnen …</span>
-              <span className="mt-1 block text-sm text-ink-muted">Einen Lernjournal-Ordner auswählen.</span>
-            </span>
-          </button>
-          {/* Umzug auf einen neuen Computer (AJ-14) */}
-          <button
-            type="button"
+          />
+          <WelcomeAction
+            icon={fileIcon}
+            title="Projekt importieren"
+            description="Ein Lernjournal aus einer .ajournal-Datei übernehmen."
             onClick={() => dispatch({ type: 'openArchive', mode: 'import' })}
-            className="flex items-start gap-4 rounded-md border border-border bg-surface p-5 text-left hover:border-accent hover:bg-selected sm:col-span-2"
-          >
-            <FileInput aria-hidden="true" size={28} className="shrink-0 text-accent" />
-            <span>
-              <span className="block font-semibold">Projekt importieren (.ajournal) …</span>
-              <span className="mt-1 block text-sm text-ink-muted">
-                Ein übergebenes Lernjournal übernehmen, z. B. nach dem Wechsel auf einen neuen Computer.
-              </span>
-            </span>
-          </button>
+          />
         </div>
 
         {actions.error && <ErrorMessage>{actions.error}</ErrorMessage>}
@@ -78,6 +94,8 @@ export function Welcome() {
             onCancel={() => actions.setConfirmForce(null)}
           />
         )}
+
+        <UnofficialHint />
 
         {state.recent.length > 0 && (
           <section aria-labelledby="recent-title">

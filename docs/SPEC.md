@@ -1,4 +1,12 @@
-# Lernjournal – MVP-Spezifikation v1.11
+# Lernjournal – Spezifikation v1.15
+
+**v1.15** ergänzt den optionalen lokalen MCP-Zugang mit Überarbeitungs- und Verknüpfungsvorschlägen. [ADR 0011](adr/0011-lokaler-mcp-zugang.md)
+
+**v1.14** ergänzt Einzel- und Sammel-PDF, QV-Vormerkungen (Schema v6) und ein einstellbares Farbschema. [ADR 0010](adr/0010-pdf-qv-und-farbschema.md)
+
+**v1.13** ergänzt frei gestaltbare Journalabschnitte (Schema v5), einen kompakten Journalkopf und den Zwischenablage-Befehl im Menüband. [ADR 0009](adr/0009-freie-abschnitte-und-journalkopf.md)
+
+**v1.12** ergänzt vier Journalvorlagen (Schema v4) und die Windows-Titelleiste mit eigenen Symbolen. [ADR 0008](adr/0008-journalvorlagen-und-titelleiste.md)
 
 Stand: 2026-11-24 (v1.0 → v1.1: Abgleich mit offiziellen Vorgaben, siehe [QUELLEN.md](QUELLEN.md); v1.2: geklärte Fragen eingearbeitet – Fokus Print, PDF für PkOrg, inoffizielles Hilfsmittel; v1.3: Semesterbesprechung nach P2, Katalog nur Bildungsplan 2018; v1.4: Phase 0 abgeschlossen – Original-Quellen gegengelesen, ADR 0001/0002; v1.5: Suche mit Trigramm-Tokenizer für Wortteile, ADR 0004; v1.6: Einzel-DOCX umgesetzt – WebP wird beim Export zu PNG, Journal-Link im Einzel-DOCX mit Hinweis auf den Titel; v1.7: Sammel-DOCX umgesetzt – Titelseite festgelegt, Inhaltsverzeichnis nur über die Journaltitel; v1.8: `.ajournal` umgesetzt – Aufbau, Grenzen und Prüfungen festgelegt, ADR 0005; v1.9: Sicherungen umgesetzt – ZIP je Stand mit gemeinsamem Bildvorrat, Zeitpunkte, Wiederherstellung als neues Lernjournal oder durch Ersetzen mit Sicherheitskopie, Erinnerung mit «Später erinnern», Schema v3, ADR 0006; v1.10: Paketierung umgesetzt – Installer pro Benutzer mit einem Klick, portable EXE, nur x64, keine Dateizuordnung, Signing über Umgebungsvariablen, Selbsttest der gepackten App mit Netzwerkprotokoll, Wörterbuch-Download der Rechtschreibprüfung und Proxy-Suche unterbunden, IT-Merkblatt, ADR 0007; v1.11: P0-Abnahme automatisiert – Nachweise in ABNAHME.md, Pilot in PILOT.md; Strg+N zeigt bis zum Anlegen einen Platzhalter mit Titelfeld; «Gespeichert» nur, wenn nichts mehr aussteht). **MUSS=P0, SOLL=P1, SPÄTER=P2.** Verweise `R-xx` zeigen auf abgeleitete Anforderungen in QUELLEN.md.
 
@@ -39,8 +47,8 @@ Bildungsbericht (R-12), Notenberechnung, Prüfungsbewertung, Klassen- und Benutz
 1. **Start:** zuletzt bearbeitet, Entwürfe, abgeschlossene Journale, neues Journal.
 2. **Journale:** Liste, Sortierung, Filter (Status, Lehrjahr, Semester, Lernort, Kategorie, Tag), Bearbeiten und Organisation.
 3. **Fachbuch:** Themen (Kategorien, «Ohne Kategorie»), Schlagwörter, Volltext und verwandte Schlagwörter; Suche lässt sich auf ein Thema einschränken, Archiv wählbar. Verwandte Journale zeigt das Journal selbst («Verknüpft mit», «Erwähnt in»).
-4. **Export:** Einzel- und Sammel-DOCX mit Reihenfolge; P1: PDF und QV-Mappe.
-5. **Einstellungen:** Profil, Speicherort, Word-Design, Backups und Wiederherstellung, Datenschutzhinweis.
+4. **Export:** Einzel- und Sammelexport als PDF und DOCX mit eigener Reihenfolge. Vorgemerkte QV-Journale lassen sich übernehmen.
+5. **Einstellungen:** «Allgemein» mit Farbschema, QV-Mindestanzahl, Profil, Speicherort und Sicherungen. «MCP» für den optionalen lokalen Zugang und die Prüfung von Vorschlägen.
 
 ## Journal
 Minimale Metadaten: UUID, Titel, Arbeitsdatum, Status, Lernort (`betrieb|uek|schule`, Standard `betrieb`), Erstell-/Änderungszeit. Profil: Name, Fachrichtung (`print|printmediatechnik|siebdruck`, Standard `print`), optional Lehrbetrieb, Lehrbeginn.
@@ -54,14 +62,30 @@ Mehrere Kategorien und Tags sowie Journal-Links möglich. **Journal-Links (AJ-10
 
 Hilfetexte statt Pflichtformularen; Hilfetexte als Platzhalter, die beim Export nicht erscheinen. Status `draft|completed|archived`; `completed` ist Selbstauskunft, keine amtliche Freigabe. Automatisch speichern, sichtbarer Status und Fehlermeldung.
 
+**Journalvorlagen:** «Neues Journal» und Strg+N legen direkt einen Lernbericht mit den drei genannten Abschnitten an. «Vorlagen» im Menüband öffnet die Auswahl für ein neues Journal. «Freier Eintrag» hat einen leeren Rich-Text-Bereich. «Maschinenwerte» bietet eine editierbare Kennwerttabelle und Abschnitte für Einsatz und Praxishinweise. «Arbeitsablauf» enthält Vorbereitung, eine nummerierte Liste und eine Ergebniskontrolle. «Abschnitt hinzufügen» hängt einen einzelnen leeren Abschnitt oder eine ganze Vorlage mit allen Abschnitten und Startinhalten unter dem bestehenden Inhalt an. Lernende können Abschnitte umbenennen, verschieben und nach Bestätigung entfernen. Eine Überschrift ist freiwillig. Abschnitte werden in Schema v5 in ihrer aktuellen Reihenfolge gespeichert, durchsucht und in Einzel- und Sammel-DOCX ausgegeben.
+
 **Qualitätshinweise (P1, nicht blockierend):** z. B. «Reflexion ist leer», «Bild ohne Legende», «kein Arbeitsdatum». Nie als Bewertung formuliert.
 
 ## UI/UX – vertraut wie Microsoft Office
 Office als **Interaktionsvorbild**, nicht als Markenkopie. Desktop-Titelleiste, Datei-Menü (Backstage-ähnlich), Ribbon-/Register-ähnliche **kompakte** Werkzeugleiste, linke Navigation, zentrale helle Dokumentfläche, untere Statusleiste. Editor-Register: **Start** (Text/Absatz), **Einfügen** (Bilder/Tabellen/Links), **Journal** (Metadaten/Beziehungen), **Exportieren**. Eigene, frei lizenzierte Symbole (z. B. Lucide/Fluent-UI-Icons nach Lizenzprüfung), keine Microsoft-Logos oder -Assets. Kontextuelle Befehle; keine riesige leere Ribbon-Fläche. Ruhige Typografie, sichtbare Seitenstruktur, klare visuelle Hierarchie. Native Windows-Dateidialoge.
 
-Tastatur: Alt+D (Datei-Menü, Esc schliesst), Ctrl+S (sofort speichern), Ctrl+Klick (Journal-Link im Text öffnen), Ctrl+N, Ctrl+F (im Journal), Ctrl+Shift+F (Fachbuch-Suche), Ctrl+B/I/U, Ctrl+Z/Y, F6 (zwischen Navigation, Ribbon, Dokument wechseln), Alt (Ribbon-Tastentipps, P1). Sichtbarer Tastaturfokus, Tooltips mit Tastenkürzel, kontrastreiche Zustände (WCAG 2.2 AA, R-13), Windows-Kontrastdesigns respektieren, Klickziele ≥ 24 px, brauchbare Skalierung 100–200 %, Fenster ab 1024 × 640 px. Texte in Schweizer Hochdeutsch («…», ss). Status «Speichert…», «Gespeichert», «Speichern fehlgeschlagen» nur bei zutreffendem Zustand («Gespeichert» verschwindet bei der ersten neuen Änderung). Strg+N blendet das bisherige Journal sofort aus und zeigt bis zur Antwort des Hauptprozesses einen Platzhalter mit Titelfeld; was dort getippt wird, übernimmt das neue Journal – nie landet eine Eingabe im vorherigen Journal.
+Tastatur: Alt+D (Datei-Menü, Esc schliesst), Ctrl+S (sofort speichern), Ctrl+Klick (Journal-Link im Text öffnen), Ctrl+N, Ctrl+F (im Journal), Ctrl+Shift+F (Fachbuch-Suche), Ctrl+B/I/U, Ctrl+Z/Y, F6 (zwischen Navigation, Ribbon, Dokument wechseln), Alt (Ribbon-Tastentipps, P1). Sichtbarer Tastaturfokus, Tooltips mit Tastenkürzel, kontrastreiche Zustände (WCAG 2.2 AA, R-13), Windows-Kontrastdesigns respektieren, Klickziele ≥ 24 px, brauchbare Skalierung 100–200 %, Fenster ab 760 × 480 logischen Pixeln. Texte in Schweizer Hochdeutsch («…», ss). Status «Speichert…», «Gespeichert», «Speichern fehlgeschlagen» nur bei zutreffendem Zustand («Gespeichert» verschwindet bei der ersten neuen Änderung). Strg+N blendet das bisherige Journal sofort aus und zeigt bis zur Antwort des Hauptprozesses einen Platzhalter mit Titelfeld; was dort getippt wird, übernimmt das neue Journal – nie landet eine Eingabe im vorherigen Journal.
 
 **Erster Start (Onboarding):** Hinweis «inoffizielles Hilfsmittel» (R-14), dann 3 Schritte – Projektordner wählen (Empfehlung: lokaler Ordner, nicht OneDrive-Root), Profil (Name, Fachrichtung, Lehrbeginn), Vorschlag-Kategorien übernehmen. Danach Beispieljournal anbieten (abwählbar).
+
+Der Startbildschirm verwendet den hellen Markenakzent `#EAE2D6` und eigene Motive für Projektanlage, Öffnen und `.ajournal`-Import. Im Kopfbereich steht das farbige App-Symbol.
+
+**Windows-Titelleiste:** Diese zeigt das weisse Lernjournal-Symbol und den aktuellen Ansichts- oder Journaltitel. Electron reserviert den Platz für die nativen Fensterknöpfe. Im Windows-Kontrastdesign verwenden Titelleiste und Knöpfe Systemfarben. Das weisse Symbol erhält dort einen dunklen Hintergrund.
+
+**Journalkopf und Einfügen:** Titel, Status, Datum, Lernort und berechnetes Lehrjahr stehen oberhalb des Inhalts. «Journaldetails» klappt die editierbaren Felder, Kategorien, Schlagwörter und Verknüpfungen auf. Die Befehle des Registers «Journal» klappen bei Bedarf die passende Gruppe auf. «Start → Einfügen» (Strg+V) und «Nur Text» (Strg+Umschalt+V) sowie das Rechtsklick-Kontextmenü und der «Einfügen»-Knopf neben «Abschnitt hinzufügen» fügen über den sicheren Editorpfad aus der Zwischenablage (Text, bereinigter Rich Text oder Bilder/Screenshots) bzw. per Dateidialog oder Tabelle ein. Das Register «Einfügen» bündelt Abschnitte, Bilder, Tabellen und Links. Der geöffnete Projektordner lässt sich aus der Statusleiste und den Einstellungen direkt im Windows-Explorer öffnen.
+
+**Kontextuelles Register:** Sobald die Einfügemarke in einer Tabelle steht, erscheint «Tabelle» mit farbigem Hintergrund. Das aktive Register ist weiterhin an der unteren Linie erkennbar. Im Windows-Kontrastdesign hebt ein Rahmen das kontextuelle Register hervor.
+
+**Statusleiste:** Rechts steht «Gespeichert», wenn das Journal geladen oder alle Änderungen bestätigt sind. Die Anzeige wechselt bei ausstehenden Änderungen, laufendem Speichern und Fehlern. «Gespeichert» führt direkt zur Liste der Projektsicherungen in den Einstellungen. Aus dieser Liste lässt sich ein Stand mit Vorschau wiederherstellen. Vor dem Öffnen eines Journals führt «Sicherungen» zur gleichen Liste.
+
+**Farbschema:** «Hell», «Dunkel» oder «Systemeinstellung» in den Einstellungen. Die Wahl gilt für die App auf diesem Computer. Das PDF verwendet ein helles Drucklayout.
+
+**MCP:** Lernende können den lokalen Zugang pro Sitzung für das geöffnete Projekt freigeben. Ein MCP-Client mit Zugangsschlüssel darf Journale suchen und lesen und Textkorrekturen oder Verknüpfungen vorschlagen. Alle Vorschläge bleiben bis zur Bestätigung in Lernjournal unverbindlich. Neue Entwürfe brauchen zusätzlich eine eigene Freigabe. Projektwechsel, Schliessen oder Deaktivieren widerrufen den Zugang. [Einrichtung und Werkzeuge](MCP.md)
 
 ## Architektur
 - **Electron Main:** Fenster, Dateioperationen, SQLite, Export, Backups. Einziger Ort mit FS-/DB-Rechten.
@@ -83,7 +107,7 @@ Absatz, Überschrift H2–H3, Fett, Kursiv, Unterstrichen, Aufzählung, Nummerie
 project(id,schema_version,title,created_at,
         last_export_at?,export_reminder_snoozed_until?)   -- Schema v3
 profile(id,display_name,company,apprenticeship_start,specialization)
-journal(id,title,work_date,status,learning_place,school_year_override,
+journal(id,title,template,work_date,status,qv_selected,learning_place,school_year_override,
         sections_json,created_at,updated_at,completed_at?)
 category(id,name,source,sort_order)          -- source: 'bipla'|'user'
 journal_category(journal_id,category_id)
@@ -125,11 +149,11 @@ Electron: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, s
 ## Word-Export
 `docx` erzeugt echte Word-Absätze, Überschriften, Listen, Tabellen, Bilder und Bildlegenden statt HTML-Pseudoexport. Abbildung: Abschnittstitel → Formatvorlage «Überschrift 1/2», Absatz → «Standard», Listen → Word-Nummerierung, Bild + Legende → Bild + Formatvorlage «Beschriftung» (mit `SEQ Abbildung`-Feld inkl. vorberechneter Nummer), Überschriften und Bilder «mit nächstem Absatz zusammenhalten», Tabelle → Word-Tabelle mit Kopfzeile, interner Link → Text, ergänzt um «(siehe Journal «Titel»)», wenn der Linktext den Titel nicht schon nennt (bzw. Sprung zur Textmarke im Sammel-DOCX). Bilder als PNG/JPEG (WebP wird beim Export in PNG umgewandelt, Word zeigt WebP nicht zuverlässig an), auf den Satzspiegel verkleinert, höchstens 12 cm hoch. Metadaten-Kopfblock (Titel, Name, Lehrbetrieb, Datum, Lehrjahr/Semester, Lernort, Kategorien, Schlagwörter; leere Angaben entfallen), Fusszeile «Lerndokumentation – Name» mit «Seite X von Y». Sammel-DOCX mit ausgewählter Reihenfolge (Standard chronologisch nach Arbeitsdatum, frei änderbar; Auswahl mit Filter nach Text und Zeitraum), Titelseite (frei wählbarer Titel, Standard «Lerndokumentation»; Name, Lehrbetrieb, Beruf/Fachrichtung, Zeitraum der Journale, Anzahl, Erstelldatum mit Vermerk «inoffizielles Hilfsmittel»; ohne Fusszeile), klaren Journal-Grenzen (jedes Journal beginnt auf einer neuen Seite), durchlaufenden Abbildungsnummern und aktualisierbarem Inhaltsverzeichnis-Feld über die Journaltitel (Überschrift 1; die in jedem Journal gleich benannten Abschnitte würden es nur verlängern). Hinweis im Exportdialog: Word fragt beim Öffnen nach dem Aktualisieren der Felder, sonst «Felder aktualisieren». Einfache konfigurierbare Standardgestaltung (Schrift, Grösse, Rand); beliebiger Word-Template-Import nicht P0. Export mit sicherem Dateidialog (Vorschlag: Projektordner `exports/`, Dateiname «JJJJ-MM-TT Titel.docx», beim Sammel-DOCX mit dem Exportdatum), ohne stilles Überschreiben; Datei wird atomar geschrieben. Vor jedem Export erscheint der Hinweis R-10 im Exportdialog (einmal bestätigen, kein «nicht mehr anzeigen»). Änderungen in Word gehen **nicht** zurück in die App. Kein Word als Laufzeitvoraussetzung; Ergebnis zusätzlich mit LibreOffice prüfen. Details und Knoten-Abbildung: [ADR 0002](adr/0002-docx-export.md), Referenzcode `spikes/aj-00b-docx/`.
 
-**PDF (P1, erstes P1-Ticket):** Hauptformat für die QV-Einreichung in PkOrg (keine Maximalgrösse bekannt). Aus derselben Dokumentstruktur über ein HTML-Druckbild und Electron `printToPDF` (offline, ohne Word). Schriften einbetten, Bilder für Druck/Bildschirm moderat komprimieren (Ziel ca. 150–200 ppi), Dateigrösse nach Export anzeigen, durchsuchbarer Text, Lesezeichen je Journal wenn technisch möglich. PDF ist Ausgabe, nicht Datenformat.
+**PDF (AJ-18):** Einzel-PDF direkt im Register «Exportieren», in der Journalliste, unter «Datei» oder in der Exportansicht. Sammel-PDF mit Titelseite, verlinktem Inhaltsverzeichnis und neuem Seitenanfang je Journal. Aus derselben Dokumentstruktur entsteht ein helles HTML-Druckbild. Electron `printToPDF` erzeugt das PDF offline mit eingebetteten Schriften, durchsuchbarem Text, Seitenzahlen und Lesezeichen. Bilder werden für den Druck auf ungefähr 180 ppi begrenzt. Nach dem Speichern erscheint die Dateigrösse.
 
 **Besprechung mit Berufsbildner/in:** im MVP über den normalen Sammel-Export (Filter nach Zeitraum); eigenes Besprechungs-Feature erst P2.
 
-**QV-Mappe (P1, R-08, R-15):** Auswahl mit Reihenfolge, Filter nach Stichwort/Kategorie/Tag, um Lernberichte mit Bezug zur geplanten IPA zu finden; Zähler «x von mindestens 12» (Standard für alle Fachrichtungen, in den Einstellungen änderbar, keine harte Sperre); Hinweis «wird zusammen mit der Aufgabenstellung eingereicht»; Titelseite, Inhaltsverzeichnis; **PDF als Hauptausgabe**, DOCX optional.
+**QV-Mappe (AJ-20, R-08, R-15):** «Für QV vormerken» in der Journalansicht und -liste speichert eine freiwillige Vorauswahl im Projekt (Schema v6). Im Sammelexport lässt sich die Auswahl filtern, komplett übernehmen und vor dem Export anpassen und sortieren. Der Zähler verwendet die in den Einstellungen konfigurierbare Mindestanzahl (Standard 12), ohne den Export zu sperren. Die App erinnert an die Abgabe zusammen mit der Aufgabenstellung vor der IPA. PDF ist das Abgabeformat, DOCX bleibt als bearbeitbarer Export verfügbar. Die Filter für Text, Kategorie und Tag wirken in der bestehenden Suche der Exportansicht.
 
 ## Betrieb unter Windows
 - Installer per Benutzer **ohne Adminrechte** (NSIS, `perMachine: false`) plus portable EXE.

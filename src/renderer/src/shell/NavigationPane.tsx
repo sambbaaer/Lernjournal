@@ -40,7 +40,7 @@ export function NavigationPane() {
     <nav
       data-region="navigation"
       aria-label="Hauptnavigation"
-      className="flex w-52 shrink-0 flex-col justify-between border-r border-border bg-surface py-2"
+      className="flex w-40 shrink-0 flex-col justify-between border-r border-border bg-surface py-2 lg:w-52"
       onKeyDown={(e) => handleRovingKeys(e, 'vertical')}
     >
       <ul>{ITEMS.map((i) => button(i.view, i.icon))}</ul>

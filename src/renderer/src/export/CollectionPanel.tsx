@@ -122,6 +122,7 @@ export function CollectionPanel() {
   const tooMany = order.length > COLLECTION_LIMITS.maxJournals;
   const chronological = isChronological(order, index);
   const candidateIds = candidates.map((j) => j.id);
+  const qvIds = state.journals.filter((j) => j.qvSelected).map((j) => j.id);
   const allShownSelected = candidateIds.length > 0 && candidateIds.every((id) => selected.has(id));
 
   return (
@@ -142,6 +143,34 @@ export function CollectionPanel() {
         <p className="text-sm text-ink-muted">Noch keine Journale zum Exportieren.</p>
       ) : (
         <>
+          <div className="flex flex-wrap items-center gap-3 rounded-sm border border-border bg-canvas p-3">
+            <button
+              type="button"
+              className={secondary}
+              aria-disabled={qvIds.length === 0 || undefined}
+              onClick={() => {
+                if (!qvIds.length) return;
+                setFilter({ ...DEFAULT_COLLECTION_FILTER, includeArchived: true, qvOnly: true });
+                setOrder(sortChronologically(qvIds, index));
+                setAnnouncement(`${countText(qvIds.length)} für die QV-Auswahl übernommen.`);
+              }}
+            >
+              Vorgemerkte QV-Journale übernehmen ({qvIds.length})
+            </button>
+            {filter.qvOnly && (
+              <div className="space-y-1 text-sm">
+                <p
+                  aria-live="polite"
+                  className={order.length < state.qvMinimum ? 'font-semibold text-warning' : 'text-ink'}
+                >
+                  {order.length} von mindestens {state.qvMinimum} Journalen ausgewählt.
+                </p>
+                <p className="text-ink-muted">
+                  Reiche die Auswahl zusammen mit der Aufgabenstellung vor der IPA als PDF in PkOrg ein.
+                </p>
+              </div>
+            )}
+          </div>
           <div className="flex flex-col gap-1 text-sm">
             <label htmlFor="collection-title" className="font-semibold">
               Titel auf der Titelseite
@@ -216,6 +245,15 @@ export function CollectionPanel() {
                   />
                   Archivierte anzeigen
                 </label>
+                <label className="flex items-center gap-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    checked={filter.qvOnly ?? false}
+                    onChange={(e) => setFilter({ ...filter, qvOnly: e.target.checked })}
+                    className="size-4 accent-accent"
+                  />
+                  Nur fürs QV vorgemerkte
+                </label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p aria-live="polite" className="text-xs text-ink-muted">
@@ -255,6 +293,9 @@ export function CollectionPanel() {
                         {displayTitle(j.title)}
                       </span>
                       <span className="shrink-0 tabular-nums text-ink-muted">{formatDate(j.workDate)}</span>
+                      {j.qvSelected && (
+                        <span className="shrink-0 text-xs font-semibold text-warning">QV</span>
+                      )}
                       {j.status === 'archived' && <StatusBadge status={j.status} />}
                     </label>
                   </li>
@@ -381,11 +422,26 @@ export function CollectionPanel() {
               onClick={() =>
                 dispatch({
                   type: 'openExport',
+                  format: 'pdf',
                   journalIds: order,
                   collection: { title: state.collection.title },
                 })
               }
-              className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:cursor-default disabled:opacity-50 disabled:hover:bg-accent"
+              className="rounded-sm bg-action px-4 py-2 text-sm font-semibold text-white hover:bg-action-hover disabled:opacity-50"
+            >
+              Als PDF exportieren …
+            </button>
+            <button
+              type="button"
+              disabled={order.length === 0 || tooMany}
+              onClick={() =>
+                dispatch({
+                  type: 'openExport',
+                  journalIds: order,
+                  collection: { title: state.collection.title },
+                })
+              }
+              className="rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover disabled:cursor-default disabled:opacity-50"
             >
               Als Word exportieren …
             </button>

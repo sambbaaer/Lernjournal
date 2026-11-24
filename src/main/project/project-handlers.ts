@@ -14,6 +14,7 @@ export type ProjectHandlerDeps = {
   recentFile: string;
   documentsDir: string;
   chooseFolder: (purpose: 'create' | 'open') => Promise<string | null>;
+  showFolder?: (dir: string) => void;
   now?: () => Date;
   // Gemeinsam mit anderen Handlern, die Projekte öffnen (Import .ajournal, AJ-14)
   opened?: OpenedProjects;
@@ -69,6 +70,7 @@ type ProjectChannels =
   | 'project:create'
   | 'project:open'
   | 'project:close'
+  | 'project:showFolder'
   | 'project:snoozeExportReminder'
   | 'profile:update';
 
@@ -139,6 +141,13 @@ export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, 
 
     // Mit Sicherung beim Schliessen (AJ-15), falls etwas geändert wurde
     'project:close': async () => ({ closed: await deps.service.closeGracefully() }),
+
+    // Geöffneten Projektordner im Explorer zeigen (kein Pfad vom Renderer)
+    'project:showFolder': () => {
+      if (!deps.service.isOpen || !deps.showFolder) return { shown: false };
+      deps.showFolder(deps.service.dir);
+      return { shown: true };
+    },
 
     // «Später erinnern» an die Projektübergabe (AJ-15)
     'project:snoozeExportReminder': () => ({

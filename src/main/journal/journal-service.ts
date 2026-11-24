@@ -5,12 +5,14 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import {
-  EMPTY_SECTIONS,
+  DEFAULT_JOURNAL_TEMPLATE,
   type JournalDetail,
   type JournalMeta,
   type JournalSummary,
+  type JournalTemplateId,
   type Sections,
 } from '@shared/journal';
+import { newJournalSections } from '@shared/journal-templates';
 import { validateSections } from '@shared/editor-schema';
 import { effectiveSchoolYear, localIsoDate } from '@shared/school-year';
 import { transaction, type Db } from '../db/connection';
@@ -21,8 +23,10 @@ import { SearchIndex } from '../search/search-index';
 type Row = {
   id: string;
   title: string;
+  template: JournalTemplateId;
   work_date: string;
   status: JournalSummary['status'];
+  qv_selected: 0 | 1;
   learning_place: JournalSummary['learningPlace'];
   school_year_override: number | null;
   sections_json: string;
@@ -34,7 +38,7 @@ type Row = {
 type Assigned = { categoryIds: string[]; tagIds: string[] };
 
 const COLUMNS =
-  'id, title, work_date, status, learning_place, school_year_override, sections_json, created_at, updated_at, completed_at';
+  'id, title, template, work_date, status, qv_selected, learning_place, school_year_override, sections_json, created_at, updated_at, completed_at';
 
 export class JournalNotFoundError extends Error {
   constructor(id: string) {
@@ -97,8 +101,10 @@ export class JournalService {
     return {
       id: r.id,
       title: r.title,
+      template: r.template,
       workDate: r.work_date,
       status: r.status,
+      qvSelected: r.qv_selected === 1,
       learningPlace: r.learning_place,
       schoolYear: effectiveSchoolYear(start, r.work_date, r.school_year_override),
       schoolYearOverride: r.school_year_override,
@@ -112,6 +118,15 @@ export class JournalService {
   // Zusammenfassung eines Journals (z. B. nach dem Zuordnen von Kategorien)
   summary(id: string): JournalSummary {
     return this.toSummary(this.row(id), this.apprenticeshipStart());
+  }
+
+  setQvSelected(id: string, selected: boolean): JournalSummary {
+    // Vormerken ändert weder den redaktionellen Stand noch den Suchtext.
+    const result = this.db
+      .prepare('UPDATE journal SET qv_selected = ? WHERE id = ?')
+      .run(Number(selected), id);
+    if (!result.changes) throw new JournalNotFoundError(id);
+    return this.summary(id);
   }
 
   private row(id: string): Row {
@@ -145,20 +160,25 @@ export class JournalService {
     };
   }
 
-  create(input: { title?: string; workDate?: string } = {}): JournalDetail {
+  create(
+    input: { title?: string; workDate?: string; template?: JournalTemplateId; sections?: Sections } = {},
+  ): JournalDetail {
     const id = randomUUID();
     const ts = this.now().toISOString();
+    const template = input.template ?? DEFAULT_JOURNAL_TEMPLATE;
+    if (input.sections) validateSections(input.sections);
     transaction(this.db, () => {
       this.db
         .prepare(
-          `INSERT INTO journal (id, title, work_date, status, learning_place, sections_json, created_at, updated_at)
-           VALUES (?, ?, ?, 'draft', 'betrieb', ?, ?, ?)`,
+          `INSERT INTO journal (id, title, template, work_date, status, learning_place, sections_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'draft', 'betrieb', ?, ?, ?)`,
         )
         .run(
           id,
           input.title ?? '',
+          template,
           input.workDate ?? localIsoDate(this.now()),
-          JSON.stringify(EMPTY_SECTIONS),
+          JSON.stringify(input.sections ?? newJournalSections(template)),
           ts,
           ts,
         );
@@ -188,7 +208,7 @@ export class JournalService {
     return this.toSummary(this.row(id), this.apprenticeshipStart());
   }
 
-  // Inhalt der drei Abschnitte speichern – nur nach Prüfung gegen das Editor-Schema
+  // Inhalt und Anordnung speichern – nur nach Prüfung gegen das Editor-Schema
   updateSections(id: string, sections: Sections): JournalSummary {
     this.row(id);
     validateSections(sections); // wirft InvalidContentError
@@ -233,12 +253,13 @@ export class JournalService {
       transaction(this.db, () => {
         this.db
           .prepare(
-            `INSERT INTO journal (id, title, work_date, status, learning_place, school_year_override, sections_json, created_at, updated_at)
-           VALUES (?, ?, ?, 'draft', ?, NULL, ?, ?, ?)`,
+            `INSERT INTO journal (id, title, template, work_date, status, learning_place, school_year_override, sections_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'draft', ?, NULL, ?, ?, ?)`,
           )
           .run(
             newId,
             copyTitle(src.title),
+            src.template,
             localIsoDate(this.now()),
             src.learning_place,
             src.sections_json,

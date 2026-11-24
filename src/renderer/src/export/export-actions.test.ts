@@ -1,7 +1,7 @@
 // Ablauf des Word-Exports in der Oberfläche (AJ-12): zuerst speichern, dann
 // exportieren; Meldungen für Lernende. window.lernjournal wird ersetzt.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { exportCollectionDocx, exportJournalDocx, outcomeOf } from './export-actions';
+import { exportCollection, exportJournal, outcomeOf } from './export-actions';
 
 const ID = '3f2a9c1e-6b7d-4e21-9a4f-0c5d8e7b1a23';
 
@@ -24,7 +24,7 @@ describe('Word-Export aus der Oberfläche', () => {
       ok: true,
       data: { status: 'saved', fileName: 'a.docx', bytes: 48 * 1024, warnings: [] },
     });
-    const out = await exportJournalDocx(ID, async () => {
+    const out = await exportJournal(ID, async () => {
       calls.push('save');
       return true;
     });
@@ -35,7 +35,7 @@ describe('Word-Export aus der Oberfläche', () => {
 
   it('exportiert nicht, wenn Ausstehendes nicht gespeichert werden konnte', async () => {
     const bridge = fakeBridge({ ok: true, data: { status: 'canceled' } });
-    const out = await exportJournalDocx(ID, async () => false);
+    const out = await exportJournal(ID, async () => false);
     expect(bridge).not.toHaveBeenCalled();
     expect(out.kind).toBe('error');
   });
@@ -64,7 +64,7 @@ describe('Word-Export aus der Oberfläche', () => {
       ok: true,
       data: { status: 'saved', fileName: 's.docx', bytes: 2.4 * 1024 * 1024, warnings: ['«A»: Bild fehlt'] },
     });
-    const out = await exportCollectionDocx(ids, 'Semester 3', async () => {
+    const out = await exportCollection(ids, 'Semester 3', async () => {
       calls.push('save');
       return true;
     });
@@ -73,12 +73,12 @@ describe('Word-Export aus der Oberfläche', () => {
     expect(out).toEqual({ kind: 'saved', fileName: 's.docx', size: '2,4 MB', warnings: ['«A»: Bild fehlt'] });
     // Nicht gespeichert → kein Export
     bridge.mockClear();
-    expect((await exportCollectionDocx(ids, '', async () => false)).kind).toBe('error');
+    expect((await exportCollection(ids, '', async () => false)).kind).toBe('error');
     expect(bridge).not.toHaveBeenCalled();
     // Bridge wirft → verständlicher Fehler statt Absturz
     vi.stubGlobal('window', {
       lernjournal: { export: { collectionDocx: () => Promise.reject(new Error('weg')) } },
     });
-    expect((await exportCollectionDocx(ids, '', async () => true)).kind).toBe('error');
+    expect((await exportCollection(ids, '', async () => true)).kind).toBe('error');
   });
 });

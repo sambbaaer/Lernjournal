@@ -30,6 +30,7 @@
     "icon": "electron scripts/render-icon.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "docx": "9.16.0",
     "zod": "4.6.7"
   },

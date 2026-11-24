@@ -144,21 +144,25 @@ export async function createFlow(ctx: FlowContext): Promise<FlowResult> {
     }),
   );
   const paragraph = (text: string) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+  const documents = {
+    auftrag: { type: 'doc' as const, content: [paragraph(`Auftrag mit ${texts.marker}`)] },
+    durchfuehrung: {
+      type: 'doc' as const,
+      content: [
+        paragraph('Ohne Netzwerk geschrieben.'),
+        { type: 'figure', attrs: { mediaId: image.id, caption: `Bild zu ${texts.marker}`, alt: '' } },
+      ],
+    },
+    reflexion: { type: 'doc' as const, content: [paragraph('Alles lokal gespeichert.')] },
+  };
   data(
     'journal:updateSections',
     await api.journal.updateSections({
       id: journal.id,
-      sections: {
-        auftrag: { type: 'doc', content: [paragraph(`Auftrag mit ${texts.marker}`)] },
-        durchfuehrung: {
-          type: 'doc',
-          content: [
-            paragraph('Ohne Netzwerk geschrieben.'),
-            { type: 'figure', attrs: { mediaId: image.id, caption: `Bild zu ${texts.marker}`, alt: '' } },
-          ],
-        },
-        reflexion: { type: 'doc', content: [paragraph('Alles lokal gespeichert.')] },
-      },
+      sections: journal.sections.map((section) => ({
+        ...section,
+        doc: documents[section.id as keyof typeof documents] ?? section.doc,
+      })),
     }),
   );
   steps.journal = journal.id;
@@ -179,6 +183,16 @@ export async function createFlow(ctx: FlowContext): Promise<FlowResult> {
     need(docx.warnings.length === 0, `Word-Export mit Hinweisen: ${docx.warnings.join('; ')}`);
   }
 
+  const pdf = data(
+    'export:journalPdf',
+    await api.export.journalPdf({ id: journal.id, noticeAccepted: true }),
+  );
+  need(pdf.status === 'saved', 'PDF-Export nicht gespeichert');
+  if (pdf.status === 'saved') {
+    steps.pdf = { fileName: pdf.fileName, bytes: pdf.bytes, warnings: pdf.warnings };
+    need(pdf.warnings.length === 0, `PDF-Export mit Hinweisen: ${pdf.warnings.join('; ')}`);
+  }
+
   const archive = data('archive:export', await api.archive.export());
   need(archive.status === 'saved', '.ajournal-Export nicht gespeichert');
   if (archive.status === 'saved') {
@@ -186,8 +200,15 @@ export async function createFlow(ctx: FlowContext): Promise<FlowResult> {
     need(archive.journals === 1 && archive.media === 1, '.ajournal enthält nicht 1 Journal und 1 Bild');
   }
 
+  const mcpOff = data('mcp:status', await api.mcp.status());
+  need(mcpOff.endpoint === null, 'MCP ist vor der Freigabe aktiv');
+  const local = data('mcp:setActive', await api.mcp.setActive({ enabled: true }));
+  need(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/.test(local.endpoint ?? ''), 'MCP lauscht nicht lokal');
+  need(!local.allowDrafts, 'Neue MCP-Entwürfe sind standardmässig freigegeben');
+  steps.mcp = local.endpoint;
   const closed = data('project:close', await api.project.close());
   need(closed.closed, 'Projekt liess sich nicht schliessen');
+  need(data('mcp:status', await api.mcp.status()).endpoint === null, 'MCP blieb nach dem Schliessen aktiv');
   return { steps, problems };
 }
 
@@ -294,6 +315,15 @@ export function checkDocxFile(file: string | undefined): string[] {
   if (bytes.subarray(0, 2).toString('latin1') !== 'PK') problems.push('Word-Export ist keine ZIP-Datei');
   if (!bytes.includes('word/document.xml')) problems.push('Word-Export ohne word/document.xml');
   if (!bytes.includes('word/media/')) problems.push('Word-Export ohne Bild');
+  return problems;
+}
+
+export function checkPdfFile(file: string | undefined): string[] {
+  if (!file || !existsSync(file)) return ['PDF-Export fehlt'];
+  const bytes = readFileSync(file);
+  const problems: string[] = [];
+  if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') problems.push('PDF-Dateikopf fehlt');
+  if (!bytes.includes('/Subtype /Image')) problems.push('PDF-Export ohne Bild');
   return problems;
 }
 

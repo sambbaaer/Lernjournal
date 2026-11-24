@@ -35,6 +35,32 @@ test('Navigation wechselt Ansicht und Fenstertitel', async () => {
   assert.equal(winTitle, 'Journale – Lernjournal');
 });
 
+test(
+  'Windows-Titelleiste rendert das Lernjournal-Symbol neben dem Bereich der nativen Fensterknöpfe',
+  {
+    skip: process.platform !== 'win32',
+  },
+  async () => {
+    await reset();
+    await page.waitForFunction(() => navigator.windowControlsOverlay?.visible);
+    const titlebar = await page.evaluate(() => {
+      const overlay = navigator.windowControlsOverlay.getTitlebarAreaRect();
+      const content = document.querySelector('.window-titlebar-content').getBoundingClientRect();
+      const icon = document.querySelector('.window-titlebar img');
+      return {
+        height: content.height,
+        right: content.right,
+        overlayRight: overlay.right,
+        innerWidth,
+        iconWidth: icon.naturalWidth,
+      };
+    });
+    assert.ok(titlebar.height >= 32);
+    assert.ok(titlebar.right <= titlebar.overlayRight && titlebar.overlayRight < titlebar.innerWidth);
+    assert.ok(titlebar.iconWidth > 0);
+  },
+);
+
 test('Pfeiltasten wandern in der Navigation', async () => {
   await reset();
   await page
@@ -74,6 +100,7 @@ test('Register im Menüband mit Pfeiltasten wechseln', async () => {
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.getByRole('tab', { name: 'Einfügen' }).getAttribute('aria-selected'), 'true');
   await page.getByRole('tabpanel').getByRole('button', { name: 'Bild' }).waitFor();
+  assert.equal(await page.getByRole('tabpanel').getByText('Medien', { exact: true }).count(), 0);
   await page.keyboard.press('End');
   assert.equal(await page.getByRole('tab', { name: 'Exportieren' }).getAttribute('aria-selected'), 'true');
   await page.getByRole('tab', { name: 'Start' }).click();
@@ -125,13 +152,13 @@ test('Barrierefreiheit (axe, WCAG 2.2 AA): Start, Fachbuch, Datei-Menü ohne Ver
   }
 });
 
-test('Mindestgrösse 1024 × 640, 150 % und 200 % Zoom ohne horizontales Scrollen', async () => {
+test('Kompakte Fenstergrösse, 150 % und 200 % Zoom ohne horizontales Scrollen', async () => {
   await reset();
   const noHorizontalScroll = () =>
     page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1024, 640));
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(760, 480));
   await page.waitForTimeout(300);
-  assert.equal(await noHorizontalScroll(), true, 'bei 1024 × 640');
+  assert.equal(await noHorizontalScroll(), true, 'bei 760 × 480');
   await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
     w.setContentSize(1600, 960);
@@ -140,12 +167,11 @@ test('Mindestgrösse 1024 × 640, 150 % und 200 % Zoom ohne horizontales Scrolle
   await page.waitForTimeout(300);
   assert.equal(await noHorizontalScroll(), true, 'bei 150 % Zoom');
 
-  // 200 % (SPEC: Skalierung 100–200 %, P0-Abnahme 11): Fenster so gross, dass
-  // bei 200 % genau die Mindestfläche von 1024 × 640 Bildpunkten bleibt.
+  // 200 % auf einer Fläche in Full-HD-Grösse (ohne Windows-Taskleiste).
   // Menüband, Navigation und Statusleiste müssen ganz sichtbar sein.
   await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
-    w.setContentSize(2048, 1280);
+    w.setContentSize(1920, 1000);
     w.webContents.setZoomFactor(2);
   });
   await page.waitForTimeout(300);

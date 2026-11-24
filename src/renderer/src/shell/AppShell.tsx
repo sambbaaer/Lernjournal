@@ -19,6 +19,7 @@ import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
+import { JournalTemplateDialog } from '../journal/JournalTemplateDialog';
 import { NewJournalPending } from '../journal/NewJournalPending';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
@@ -27,6 +28,7 @@ import { Backstage } from './Backstage';
 import { NavigationPane } from './NavigationPane';
 import { Ribbon } from './Ribbon';
 import { StatusBar } from './StatusBar';
+import { WindowTitleBar } from './WindowTitleBar';
 
 // Erstes sinnvolles Fokusziel eines Bereichs
 function focusRegion(region: Region) {
@@ -35,8 +37,9 @@ function focusRegion(region: Region) {
   const preferred =
     el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
     el.querySelector<HTMLElement>('[aria-current="page"]') ??
-    (region === 'document' || region === 'statusbar' ? el : null) ??
-    el.querySelector<HTMLElement>('button, [href], input, [tabindex="0"]');
+    (region === 'document' ? el : null) ??
+    el.querySelector<HTMLElement>('button, [href], input, [tabindex="0"]') ??
+    (region === 'statusbar' ? el : null);
   preferred?.focus();
 }
 
@@ -44,6 +47,16 @@ function currentRegion(): Region | null {
   const el = document.activeElement?.closest<HTMLElement>('[data-region]');
   const r = el?.dataset['region'];
   return REGIONS.includes(r as Region) ? (r as Region) : null;
+}
+
+function windowContextOf(state: AppState): string | null {
+  if (state.wizardOpen) return 'Neues Lernjournal';
+  if (!state.project) return null;
+  if (state.backstage) return 'Datei';
+  if (state.view === 'journal') {
+    return state.creatingJournal ? 'Neues Journal' : state.openJournal?.title.trim() || 'Ohne Titel';
+  }
+  return VIEW_LABELS[state.view];
 }
 
 export function AppShell({ version }: { version: string | null }) {
@@ -55,22 +68,17 @@ export function AppShell({ version }: { version: string | null }) {
     stateRef.current = state;
   }, [state]);
 
-  // Fenstertitel: «Fachbuch – Lernjournal» (Electron übernimmt ihn in die Titelleiste)
+  const windowContext = windowContextOf(state);
+
+  // Auch der System-Fenstertitel (z. B. Alt+Tab) folgt dem aktuellen Inhalt.
   useEffect(() => {
-    document.title = !state.project
-      ? state.wizardOpen
-        ? 'Neues Lernjournal – Lernjournal'
-        : 'Lernjournal'
-      : state.backstage
-        ? 'Datei – Lernjournal'
-        : state.view === 'journal' && state.openJournal
-          ? `${state.openJournal.title.trim() || 'Ohne Titel'} – Lernjournal`
-          : `${VIEW_LABELS[state.view]} – Lernjournal`;
-  }, [state.view, state.backstage, state.project, state.wizardOpen, state.openJournal]);
+    document.title = windowContext ? `${windowContext} – Lernjournal` : 'Lernjournal';
+  }, [windowContext]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const s = stateRef.current;
+      if (s.journalTemplatesOpen || s.journalSectionForm) return;
       // Esc schliesst das Datei-Menü, egal wo der Fokus gerade ist
       if (e.key === 'Escape' && s.backstage) {
         e.preventDefault();
@@ -122,12 +130,12 @@ export function AppShell({ version }: { version: string | null }) {
     void loadTaxonomy(dispatch);
   }, [projectKey, dispatch]);
 
-  // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»
+  // Ohne neues Fokusziel kehrt der Fokus nach dem Datei-Menü zu «Datei» zurück.
   const wasOpen = useRef(false);
   useEffect(() => {
-    if (wasOpen.current && !state.backstage) fileButtonRef.current?.focus();
+    if (wasOpen.current && !state.backstage && !state.focusRequest) fileButtonRef.current?.focus();
     wasOpen.current = state.backstage !== null;
-  }, [state.backstage]);
+  }, [state.backstage, state.focusRequest]);
 
   const views = {
     start: <StartView />,
@@ -147,10 +155,11 @@ export function AppShell({ version }: { version: string | null }) {
   return (
     <EditorProvider>
       <div className="flex h-full flex-col">
+        <WindowTitleBar context={windowContext} />
         {/* «Zum Inhalt springen» für Tastatur und Screenreader */}
         <a
           href="#document"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-surface focus:p-2"
+          className="skip-link sr-only focus:not-sr-only focus:absolute focus:left-2 focus:z-50 focus:bg-surface focus:p-2"
         >
           Zum Inhalt springen
         </a>
@@ -203,6 +212,7 @@ export function AppShell({ version }: { version: string | null }) {
               <ExportDialog
                 journalIds={state.exportDialog.journalIds}
                 collection={state.exportDialog.collection}
+                format={state.exportDialog.format}
               />
             )}
           </>
@@ -210,6 +220,7 @@ export function AppShell({ version }: { version: string | null }) {
         <StatusBar version={version} />
         {/* Projektübergabe .ajournal (AJ-14): auch auf dem Startbildschirm (Import) */}
         {state.archiveDialog && <ArchiveDialog mode={state.archiveDialog} />}
+        {state.journalTemplatesOpen && <JournalTemplateDialog />}
         {/* Wiederherstellung (AJ-15): bleibt über das erneute Öffnen hinweg stehen */}
         {state.restoreDialog && (
           <RestoreDialog key={state.restoreDialog.backupId} backupId={state.restoreDialog.backupId} />

@@ -1,10 +1,12 @@
 // Einstellungen: Profil bearbeiten, Kategorien/Schlagwörter verwalten,
 // Suchindex neu aufbauen, Sicherungen (AJ-15), Speicherort anzeigen, Projekt schliessen.
 import { useState, type FormEvent } from 'react';
+import { COLLECTION_LIMITS } from '@shared/export';
 import type { Profile } from '@shared/ipc';
 import { BackupSection } from '../backup/BackupSection';
 import { useApp } from '../state/AppContext';
 import { journalCounts } from '../state/app-state';
+import type { Appearance } from '../state/app-state';
 import { ErrorMessage, SyncWarning } from './Notices';
 import { ProfileFields } from './ProfileFields';
 import { TaxonomyManager } from './TaxonomyManager';
@@ -36,6 +38,41 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-8">
+      <section aria-labelledby="settings-appearance" className="max-w-xl space-y-3">
+        <h2 id="settings-appearance" className="text-lg font-semibold">
+          Darstellung und QV
+        </h2>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <label className="flex flex-col gap-1">
+            Farbschema
+            <select
+              value={state.appearance}
+              onChange={(e) => dispatch({ type: 'setAppearance', appearance: e.target.value as Appearance })}
+              className="rounded-sm border border-border-strong bg-surface px-3 py-2"
+            >
+              <option value="light">Hell</option>
+              <option value="dark">Dunkel</option>
+              <option value="system">Systemeinstellung</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            Mindestanzahl Journale für das QV
+            <input
+              type="number"
+              min={1}
+              max={COLLECTION_LIMITS.maxJournals}
+              defaultValue={state.qvMinimum}
+              onBlur={(e) => {
+                const count = e.target.valueAsNumber;
+                if (e.target.validity.valid && Number.isInteger(count))
+                  dispatch({ type: 'setQvMinimum', minimum: count });
+                else e.target.value = String(state.qvMinimum);
+              }}
+              className="w-24 rounded-sm border border-border-strong bg-surface px-3 py-2"
+            />
+          </label>
+        </div>
+      </section>
       <section aria-labelledby="settings-profile" className="max-w-xl">
         <h2 id="settings-profile" className="mb-3 text-lg font-semibold">
           Profil
@@ -47,7 +84,7 @@ export function SettingsPanel() {
             type="submit"
             aria-disabled={!dirty || saving ? true : undefined}
             className={`rounded-sm px-4 py-2 text-sm font-semibold text-white ${
-              dirty && !saving ? 'bg-accent hover:bg-accent-strong' : 'cursor-default bg-ink-disabled'
+              dirty && !saving ? 'bg-action hover:bg-action-hover' : 'cursor-default bg-ink-disabled'
             }`}
           >
             {saving ? 'Speichert …' : 'Profil speichern'}
@@ -79,13 +116,22 @@ export function SettingsPanel() {
           </dd>
         </dl>
         {project.syncProvider && <SyncWarning provider={project.syncProvider} />}
-        <button
-          type="button"
-          onClick={() => void actions.close()}
-          className="rounded-sm border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-hover"
-        >
-          Projekt schliessen
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void window.lernjournal.project.showFolder()}
+            className="rounded-sm border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-hover"
+          >
+            Im Explorer öffnen
+          </button>
+          <button
+            type="button"
+            onClick={() => void actions.close()}
+            className="rounded-sm border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-hover"
+          >
+            Projekt schliessen
+          </button>
+        </div>
       </section>
     </div>
   );

@@ -12,10 +12,14 @@ Offlinefähige Windows-Desktop-App für Lernende Medientechnolog*innen EFZ zum F
 ## Fixe Entscheidungen
 - Electron, React, TypeScript, Tiptap, SQLite (`node:sqlite`), Tailwind CSS, `docx`, electron-builder.
 - Windows-Installer und portable EXE; offline-first, ohne Konto, Server oder KI.
-- Geführte Journalabschnitte mit frei editierbarem Rich Text.
+- Vier Journalvorlagen mit frei editierbarem Rich Text. «Neues Journal» und Strg+N legen einen Lernbericht an. Im Menüband «Vorlagen» stehen zusätzlich ein freier Eintrag, Maschinenwerte und ein Arbeitsablauf bereit.
+- Über «Abschnitt hinzufügen» lassen sich leere Abschnitte oder ganze Vorlagen an einen bestehenden Eintrag anhängen. Direkt daneben bietet der «Einfügen»-Knopf (sowie das Menüband und das Rechtsklick-Kontextmenü) schnelles Einfügen aus der Zwischenablage, «Nur Text übernehmen», Bilder und Tabellen. Überschriften und Reihenfolge sind frei änderbar. Datum, Lernort und Status stehen kompakt am Titel. Weitere Felder lassen sich unter «Journaldetails» öffnen.
+- «Gespeichert» in der Statusleiste zeigt den bestätigten Speicherstand an und öffnet die Liste der Projektsicherungen zur Wiederherstellung.
 - Lokaler Projektordner; vollständiger portabler `.ajournal`-ZIP-Export.
-- Word als editierbarer **Einweg-Export**, nicht als internes Datenformat.
-- UI im vertrauten Stil von Microsoft Office (Ribbon/Toolbar, Datei-Menü, Dokumentfläche), ohne Microsoft-Branding zu kopieren.
+- PDF und bearbeitbares Word als Einzel- oder Sammelexport. Für die IPA/QV vorgemerkte Journale lassen sich im Export übernehmen und als PDF zusammenstellen.
+- Einstellbares Farbschema mit Hell, Dunkel und Systemeinstellung.
+- Optionaler lokaler MCP-Zugang unter «Einstellungen → MCP». Vorhandene Journale suchen, lesen, überarbeiten und verknüpfen. Neue Entwürfe lassen sich separat freigeben. [MCP einrichten](docs/MCP.md).
+- Eigenständige Windows-Titelleiste mit App-Symbol und nativen Fensterknöpfen, kompaktes Menüband, Datei-Menü und Dokumentfläche.
 - Schweizer Hochdeutsch: «…», ss statt ß.
 
 ## Für Coding-Agents

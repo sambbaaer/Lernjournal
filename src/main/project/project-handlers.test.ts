@@ -27,13 +27,15 @@ function setup(chosen: string | null = null) {
   const recentFile = path.join(root, 'recent.json');
   const docs = path.join(root, 'Dokumente');
   mkdirSync(docs, { recursive: true });
+  const shownFolders: string[] = [];
   const h = createProjectHandlers({
     service,
     recentFile,
     documentsDir: docs,
     chooseFolder: async () => chosen,
+    showFolder: (dir) => shownFolders.push(dir),
   });
-  return { h, service, recentFile, docs };
+  return { h, service, recentFile, docs, shownFolders };
 }
 
 beforeEach(() => {
@@ -123,5 +125,19 @@ describe('Projekt-Handler', () => {
       status: 'not-a-project',
     });
     expect(readRecent(second.recentFile)).toHaveLength(0);
+  });
+
+  it('zeigt nur den geöffneten Projektordner im Explorer an (ohne Pfad vom Renderer)', async () => {
+    const { h, shownFolders } = setup();
+    expect(h['project:showFolder'](undefined)).toEqual({ shown: false });
+    const state = await h['project:getState'](undefined);
+    await h['project:create']({
+      path: state.suggestedLocation,
+      title: 'Lehre',
+      profile,
+      seedCategories: false,
+    });
+    expect(h['project:showFolder'](undefined)).toEqual({ shown: true });
+    expect(shownFolders).toEqual([state.suggestedLocation]);
   });
 });
