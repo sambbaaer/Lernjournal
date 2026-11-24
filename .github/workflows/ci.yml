@@ -7,6 +7,8 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Zwei unabhängige Jobs: Tests und Paket. So zeigt die CI auch dann, ob
+# Installer und portable EXE funktionieren, wenn ein Test rot ist (und umgekehrt).
 jobs:
   windows:
     runs-on: windows-latest
@@ -22,25 +24,123 @@ jobs:
       # 1) Typen, Lint, Formatierung, Unit-Tests
       - run: npm run check
 
-      # 2) App bauen und Ende-zu-Ende-Test mit Playwright (Sicherheitsgrenzen)
+      # 2) App bauen und Ende-zu-Ende-Test mit Playwright (Sicherheitsgrenzen, Abläufe)
       - run: npm run test:e2e
 
-      # 3) Installer + portable EXE bauen (mit Fuses)
-      - run: npx electron-builder --win nsis portable --publish never
+  # Paketierung (AJ-16): bauen, prüfen, gepackt starten, installieren, deinstallieren
+  paket:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
 
-      # 4) Gepackte EXE starten: Rauchtest prüft Preload-Brücke und Sandbox
-      - name: Rauchtest gepackte App
+      # 3) Installer + portable EXE bauen (Fuses, Symbol). Unsigniert, solange kein
+      #    Zertifikat hinterlegt ist – siehe docs/ENTWICKLUNG.md «Code-Signing».
+      - name: Installer und portable EXE bauen
+        run: npm run dist:win
+
+      # 4) Paket prüfen: Fuses wie konfiguriert, app.asar ohne Quellen/Tests/Spikes,
+      #    Installer, portable EXE und Programm verlangen keine Adminrechte
+      - name: Paket prüfen
+        run: node scripts/verify-package.mjs --require-installers --checksums
+
+      - name: Fuses anzeigen (@electron/fuses)
+        run: npx electron-fuses read --app dist/win-unpacked/Lernjournal.exe
+
+      # 5) Offline-Test: ausgehende Verbindungen der App sperren. Der eigentliche
+      #    Nachweis ist das Netzwerkprotokoll (--log-net-log), das der Selbsttest
+      #    auswertet – es muss leer sein, auch wenn die Firewall aus ist.
+      - name: Ausgehende Verbindungen der App sperren (Windows-Firewall)
         shell: pwsh
-        env:
-          LERNJOURNAL_SMOKE_TEST: '1'
         run: |
-          $p = Start-Process -FilePath 'dist/win-unpacked/Lernjournal.exe' -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Rauchtest fehlgeschlagen (Exitcode $($p.ExitCode))" }
-          Write-Host 'Rauchtest OK'
+          Get-NetFirewallProfile | Format-Table Name, Enabled
+          $temp = (Get-Item $env:TEMP).FullName
+          $programs = @(
+            (Join-Path $PWD 'dist\win-unpacked\Lernjournal.exe'),
+            (Join-Path $env:LOCALAPPDATA 'Programs\Lernjournal\Lernjournal.exe'),
+            (Join-Path $temp 'Lernjournal-Portable\Lernjournal.exe')
+          )
+          foreach ($p in $programs) {
+            New-NetFirewallRule -DisplayName "Lernjournal offline: $p" -Direction Outbound -Program $p -Action Block | Out-Null
+            Write-Host "Gesperrt: $p"
+          }
+
+      # 6) Gepackte App starten: Fuse-Angriff (RunAsNode, NODE_OPTIONS, --inspect)
+      #    wirkungslos, Projekt anlegen, Journal mit Bild, Suche, Word- und
+      #    .ajournal-Export, Neustart, Import – ohne Verbindung ins Netz
+      - name: Selbsttest entpackte App
+        run: node scripts/self-test.mjs dist/win-unpacked/Lernjournal.exe --dir "${{ runner.temp }}\selbsttest-entpackt" --phases fuses,create,reopen
+
+      # 7) Installer pro Benutzer: Ziel %LOCALAPPDATA%\Programs, Einträge nur unter HKCU
+      - name: Installer ohne Adminrechte installieren
+        shell: pwsh
+        run: |
+          $setup = (Get-Item dist\Lernjournal-Setup-*.exe).FullName
+          $p = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer: Exitcode $($p.ExitCode)" }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Lernjournal\Lernjournal.exe'
+          if (-not (Test-Path $exe)) { throw "Nicht installiert: $exe" }
+          $uninstall = 'Software\Microsoft\Windows\CurrentVersion\Uninstall'
+          $user = Get-ChildItem "HKCU:\$uninstall" | Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -like 'Lernjournal*' }
+          if (-not $user) { throw 'Kein Deinstallationseintrag unter HKEY_CURRENT_USER' }
+          $machine = Get-ChildItem "HKLM:\$uninstall" | Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -like 'Lernjournal*' }
+          if ($machine) { throw 'Eintrag unter HKEY_LOCAL_MACHINE – Installation war nicht pro Benutzer' }
+          $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Lernjournal.lnk'
+          if (-not (Test-Path $startMenu)) { throw "Startmenü-Verknüpfung fehlt: $startMenu" }
+          $user | ForEach-Object { Get-ItemProperty $_.PSPath } | Format-List DisplayName, DisplayVersion, Publisher, InstallLocation, UninstallString
+          Write-Host "Installiert: $exe"
+
+      - name: Selbsttest installierte App
+        run: node scripts/self-test.mjs "$env:LOCALAPPDATA\Programs\Lernjournal\Lernjournal.exe" --dir "${{ runner.temp }}\selbsttest-installiert" --phases fuses,create,reopen
+
+      - name: Selbsttest portable EXE
+        shell: pwsh
+        run: |
+          $portable = (Get-Item dist\Lernjournal-Portable-*.exe).FullName
+          node scripts/self-test.mjs $portable --dir "${{ runner.temp }}\selbsttest-portabel" --phases create,reopen
+          if ($LASTEXITCODE -ne 0) { throw 'Selbsttest portable EXE fehlgeschlagen' }
+
+      # 8) Deinstallieren entfernt nur das Programm: Projektordner und App-Daten bleiben
+      - name: Deinstallieren – Daten der Lernenden bleiben
+        shell: pwsh
+        run: |
+          $appData = Join-Path $env:APPDATA 'Lernjournal'
+          New-Item -ItemType Directory -Force $appData | Out-Null
+          Set-Content (Join-Path $appData 'markierung.txt') 'bleibt'
+          $project = Join-Path '${{ runner.temp }}' 'selbsttest-installiert\Dokumente\Lernjournal\journal.sqlite'
+          if (-not (Test-Path $project)) { throw "Projekt fehlt vor dem Deinstallieren: $project" }
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Lernjournal'
+          Start-Process -FilePath (Join-Path $dir 'Uninstall Lernjournal.exe') -ArgumentList '/S' -Wait
+          $uninstall = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
+          $entry = { Get-ChildItem $uninstall | Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -like 'Lernjournal*' } }
+          for ($i = 0; $i -lt 60 -and ((Test-Path (Join-Path $dir 'Lernjournal.exe')) -or (& $entry)); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path (Join-Path $dir 'Lernjournal.exe')) { throw 'Programm nach dem Deinstallieren noch vorhanden' }
+          if (& $entry) { throw 'Deinstallationseintrag noch vorhanden' }
+          if (-not (Test-Path $project)) { throw 'Projektordner wurde beim Deinstallieren gelöscht' }
+          if (-not (Test-Path (Join-Path $appData 'markierung.txt'))) { throw 'App-Daten wurden beim Deinstallieren gelöscht' }
+          Write-Host 'Deinstallation OK – Projektordner und App-Daten unberührt'
+
+      - name: Prüfberichte hochladen
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: lernjournal-pruefberichte
+          path: |
+            ${{ runner.temp }}/selbsttest-*/selbsttest-*.json
+            ${{ runner.temp }}/selbsttest-*/fuses/selbsttest-*.json
+            ${{ runner.temp }}/selbsttest-*/netzwerk-*.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - uses: actions/upload-artifact@v5
         with:
           name: lernjournal-windows
           path: |
             dist/*.exe
+            dist/SHA256SUMS.txt
           retention-days: 14
