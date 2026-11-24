@@ -85,6 +85,8 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "Installer: Exitcode $($p.ExitCode)" }
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\Lernjournal\Lernjournal.exe'
           if (-not (Test-Path $exe)) { throw "Nicht installiert: $exe" }
+          $elevate = Join-Path (Split-Path $exe) 'resources\elevate.exe'
+          if (Test-Path $elevate) { throw "Hilfsprogramm für Adminrechte installiert: $elevate" }
           $uninstall = 'Software\Microsoft\Windows\CurrentVersion\Uninstall'
           $user = Get-ChildItem "HKCU:\$uninstall" | Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -like 'Lernjournal*' }
           if (-not $user) { throw 'Kein Deinstallationseintrag unter HKEY_CURRENT_USER' }

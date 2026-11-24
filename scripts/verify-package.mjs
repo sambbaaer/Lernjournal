@@ -72,11 +72,19 @@ for (const u of unpacked) {
     existsSync(asarPath) ? checkAppFiles(files, packages) : ['app.asar fehlt (asar: true?)'],
   );
 
+  // elevate.exe: electron-builder legt sein Hilfsprogramm zum Anfordern von
+  // Adminrechten immer in die portable EXE (dort gibt es keine Einstellung dafür)
+  // und kopiert es danach nach win-unpacked. Lernjournal ruft es nie auf; der
+  // Installer hat es nicht (packElevateHelper: false, in der CI geprüft).
+  const known = u.dir === 'win-unpacked' ? ['elevate.exe'] : [];
   const resources = readdirSync(path.join(base, 'resources'));
+  for (const f of resources.filter((r) => known.includes(r))) {
+    console.log(`HINWEIS ${f} neben app.asar (aus der portablen EXE, wird nie aufgerufen)`);
+  }
   report(
     'Ordner resources',
     resources
-      .filter((f) => f !== 'app.asar')
+      .filter((f) => f !== 'app.asar' && !known.includes(f))
       .map((f) => `Unerwartet neben app.asar: ${f} (Update-Konfiguration? ausgepackt?)`),
   );
 

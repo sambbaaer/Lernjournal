@@ -22,8 +22,11 @@ npm run dev
 | `npm run format` | Code automatisch formatieren (Prettier) |
 | `npm test` | Unit-Tests (Vitest) |
 | `npm run test:e2e` | App bauen und Ende-zu-Ende-Test (Playwright) |
-| `npm run dist:win` | Installer + portable EXE nach `dist/` |
+| `npm run dist:win` | Installer + portable EXE nach `dist/` (nur unter Windows, siehe «Paketierung») |
 | `npm run dist:dir` | Nur entpackter Build (schneller, zum Ausprobieren) |
+| `npm run verify:package` | Fertiges Paket in `dist/` prüfen (Fuses, Inhalt, Adminrechte) |
+| `npm run test:packaged -- <Programm>` | Selbsttest des gepackten Programms inkl. Netzwerkprotokoll |
+| `npm run icon` | Programmsymbol aus `build/icon.svg` neu erzeugen |
 
 ## Ordnerstruktur
 ```
@@ -33,6 +36,8 @@ src/
   renderer/   Oberfläche (React + Tailwind), läuft in der Sandbox
   shared/     Typen und IPC-Vertrag für alle drei Teile
 e2e/          Ende-zu-Ende-Tests gegen die gebaute App
+scripts/      Paketprüfung, Selbsttest von aussen, Programmsymbol (AJ-16)
+build/        Programmsymbol (icon.svg ist die Quelle, .ico/.png erzeugt)
 spikes/       Phase-0-Prototypen (nicht App-Code)
 ```
 
@@ -240,14 +245,54 @@ src/renderer/src/
 
 Der Rahmen (`src/main/ipc-handler.ts`) prüft automatisch Absender, Kanal und Daten und liefert immer `{ ok, data }` oder `{ ok: false, error }`.
 
+## Paketierung, Release und Code-Signing (AJ-16)
+```
+electron-builder.ts          Konfiguration (Installer pro Benutzer, portable EXE, Fuses, Signing)
+src/main/self-test.ts        Selbsttest im Programm (LERNJOURNAL_SMOKE_TEST, Bericht, Exitcode)
+scripts/self-test.mjs        Selbsttest von aussen: Phasen fuses/create/reopen + Netzwerkprotokoll
+scripts/verify-package.mjs   Paket prüfen: Fuses, app.asar, Manifest asInvoker, SHA256SUMS.txt
+scripts/package-checks.ts    reine Prüffunktionen (Vitest: scripts/packaging.test.ts)
+scripts/render-icon.mjs      build/icon.svg → icon.png + icon.ico (Electron zeichnet, scripts/icon.ts schreibt ICO)
+docs/IT-MERKBLATT.md         Merkblatt für Schul-IT und Lehrbetriebe
+```
+Gründe und Abwägungen: [ADR 0007](adr/0007-paketierung-und-signing.md).
+
+**Release-Build (unter Windows):**
+```bash
+npm ci
+npm run check
+npm run dist:win
+npm run verify:package -- --require-installers --checksums
+npm run test:packaged -- dist/win-unpacked/Lernjournal.exe --phases fuses,create,reopen
+```
+Ergebnis in `dist/`: `Lernjournal-Setup-<Version>.exe`, `Lernjournal-Portable-<Version>.exe`, `SHA256SUMS.txt` (für Hash-Regeln der Schul-IT). Version = `version` in `package.json`. Vor der Weitergabe `docs/IT-MERKBLATT.md` (Stand, Signaturstatus) nachführen. Die CI (Job `paket`) macht dasselbe und zusätzlich stille Installation, Selbsttest der installierten und der portablen App und Deinstallation; die EXE-Dateien liegen als Artefakt `lernjournal-windows` beim Lauf.
+
+**Unter Linux** lässt sich der Windows-Installer nicht bauen (NSIS braucht Wine). Prüfbar sind: `npx electron-builder --linux dir` bzw. `--win dir` (Inhalt von `app.asar`, Fuses der Windows-EXE) mit `npm run verify:package`, und der Selbsttest der Linux-Fassung: `E2E_EXTRA_ARGS=--no-sandbox xvfb-run -a npm run test:packaged -- dist/linux-unpacked/lernjournal --phases fuses,create,reopen`. `dist/` danach löschen (gross).
+
+**Code-Signing** – nur über Umgebungsvariablen, nie Zertifikate oder Passwörter ins Repository:
+- **Zertifikat (OV/EV, `.pfx`):** `CSC_LINK` (Pfad, `https://`-URL oder Base64 der `.pfx`) und `CSC_KEY_PASSWORD` setzen, dann `npm run dist:win`. Signiert werden Programm, Installer, portable EXE und Deinstallationsprogramm mit SHA-256 und Zeitstempel (`http://timestamp.digicert.com`; die Signatur bleibt nach Ablauf des Zertifikats gültig). EV-Zertifikate auf Hardware-Token brauchen stattdessen `win.signtoolOptions.certificateSubjectName` bzw. `certificateSha1` – dann in `signingOptions()` ergänzen.
+- **Azure Trusted Signing:** `LERNJOURNAL_AZURE_SIGN_ENDPOINT` (z. B. `https://weu.codesigning.azure.net`), `LERNJOURNAL_AZURE_SIGN_ACCOUNT`, `LERNJOURNAL_AZURE_SIGN_PROFILE`, `LERNJOURNAL_AZURE_SIGN_PUBLISHER` (genau wie im Zertifikat) sowie die Anmeldung `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`. electron-builder installiert dafür das PowerShell-Modul `TrustedSigning` (nur Windows).
+- **Release erzwingen:** `LERNJOURNAL_REQUIRE_SIGNING=1` – ohne gültige Signatur bricht der Build ab, statt unsigniert zu entstehen.
+- **In GitHub Actions:** Zertifikat als Base64 in einem Repository-Secret ablegen und nur im Release-Schritt als `env` übergeben (`CSC_LINK: ${{ secrets.WIN_CSC_LINK }}`, `CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}`, `LERNJOURNAL_REQUIRE_SIGNING: '1'`). Die normale CI baut bewusst unsigniert.
+- **Prüfen:** Rechtsklick → Eigenschaften → «Digitale Signaturen» oder `Get-AuthenticodeSignature dist\*.exe`. Danach Herausgeberregel und Signaturstatus im IT-Merkblatt nachführen.
+- **Ohne Signatur:** SmartScreen warnt nach dem Herunterladen («Weitere Informationen» → «Trotzdem ausführen»), verwaltete Geräte blockieren oft (IT-Merkblatt). Auch mit Signatur kann SmartScreen anfangs warnen, bis genug Reputation besteht.
+
+**Selbsttest** (`LERNJOURNAL_SMOKE_TEST`, ADR 0007): Weil Playwright sich wegen der Fuses nicht mit dem gepackten Programm verbinden kann, steuert sich das Programm selbst über die Brücke (`create`: Projekt, Journal mit Bild, Suche, Word, `.ajournal`, schliessen; `reopen`: nach Neustart öffnen, Inhalt, Suche, Sicherung, Import) und schreibt `selbsttest-<Phase>.json` in `LERNJOURNAL_SMOKE_DIR` (dort liegen auch Benutzerdaten und «Dokumente»). Speichern-Dialoge bestätigen im Selbsttest den Vorschlag (`chooseSavePath` in `index.ts`), Öffnen-Dialoge gelten als abgebrochen. Die Abläufe in `self-test.ts` werden per `Function.toString` ins Fenster geschickt – sie dürfen nichts aus dem Modul verwenden (Test in einer leeren `vm`-Umgebung). **Neue Funktion, die das Paket betrifft** (z. B. neue Laufzeitabhängigkeit, neues Fenster): Selbsttest erweitern und `npm run verify:package` laufen lassen.
+
+**Offline-Nachweis:** `scripts/self-test.mjs` startet jede Phase mit `--log-net-log`; `externalNetworkActivity()` meldet jede Anfrage, Namensauflösung oder Verbindung zu einem fremden Host. Das Protokoll fängt auch Anfragen von Chromium selbst, die an `session.webRequest` vorbeigehen (so wurde der Wörterbuch-Download der Rechtschreibprüfung gefunden und auf `app://lernjournal/spellcheck/` umgeleitet).
+
+**Paketinhalt:** Neue Laufzeitabhängigkeit → in `dependencies`, `npm run verify:package` prüft, dass sie (samt ihren Abhängigkeiten) in `app.asar` liegt und nichts aus `devDependencies`. Ballast einer Abhängigkeit (Browser-Fassungen, Quellen) über `files` in `electron-builder.ts` ausschliessen – der Selbsttest zeigt, ob das Programm danach noch läuft.
+
+**Programmsymbol:** `build/icon.svg` bearbeiten, dann `npm run icon` (unter Linux ohne Bildschirm: `xvfb-run -a npx electron --no-sandbox scripts/render-icon.mjs`) und die erzeugten `build/icon.ico` und `build/icon.png` committen.
+
 ## Sicherheitsregeln (Kurzfassung, Details SPEC)
 - Renderer importiert nie `electron` oder `node:*` – ESLint verhindert das.
 - Fenster nur über `secureWebPreferences()` erstellen.
 - Oberfläche wird im fertigen Programm über `app://lernjournal/` geladen, mit strenger CSP; Internetzugriffe sind blockiert.
-- Die gepackte App hat Debug- und Node-Schalter per Electron-Fuses abgeschaltet (`electron-builder.yml`).
+- Die gepackte App hat Debug- und Node-Schalter per Electron-Fuses abgeschaltet (`electron-builder.ts`); die CI prüft sie an der fertigen EXE und versucht den Missbrauch (Selbsttest-Phase `fuses`).
 
 ## Abhängigkeiten
-- `dependencies`: nur, was der **Hauptprozess zur Laufzeit** braucht (aktuell `zod`, `docx`). Nur das landet im Installer. ZIP für `.ajournal` braucht keine Bibliothek (`node:zlib`, ADR 0005); `fflate` ist nur Testabhängigkeit.
+- `dependencies`: nur, was der **Hauptprozess zur Laufzeit** braucht (aktuell `zod`, `docx`). Nur das (samt eigenen Abhängigkeiten) landet im Installer – geprüft mit `npm run verify:package`. ZIP für `.ajournal` braucht keine Bibliothek (`node:zlib`, ADR 0005); `fflate` ist nur Testabhängigkeit.
 - `devDependencies`: alles andere, auch React – Vite bündelt die Oberfläche ohnehin in eine Datei.
 - Versionen sind exakt gepinnt. Aktualisieren bewusst und mit `npm run check` + `npm run test:e2e`.
 - Bekannt: `npm audit` meldet eine mittlere Schwachstelle in `minimatch` innerhalb von electron-builder (nur Build-Zeit, nicht im Installer).
