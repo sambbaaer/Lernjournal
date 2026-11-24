@@ -4,12 +4,13 @@
 //  1. Version der Datei lesen (PRAGMA user_version).
 //  2. Neuer als das Programm? → Abbruch mit verständlicher Meldung
 //     (nie eine Datei «herunterstufen» und dabei Daten verlieren).
-//  3. Älter? → zuerst konsistentes Backup, dann jede fehlende Migration
-//     in einer eigenen Transaktion. Schlägt eine fehl, bleibt die Datei
-//     auf dem letzten gültigen Stand.
-import { backup } from 'node:sqlite';
+//  3. Älter? → zuerst konsistente Sicherung (Hook `backup`, im Projekt eine
+//     gewöhnliche Sicherung mit Anlass «vor-update», AJ-15), dann jede
+//     fehlende Migration in einer eigenen Transaktion. Schlägt eine fehl,
+//     bleibt die Datei auf dem letzten gültigen Stand.
 import { SCHEMA_V1 } from './schema-v1';
 import { SCHEMA_V2 } from './schema-v2';
+import { SCHEMA_V3 } from './schema-v3';
 import { transaction, type Db } from './connection';
 import { fillSearchIndex } from '../search/search-index';
 
@@ -26,6 +27,11 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(SCHEMA_V2);
       fillSearchIndex(db);
     },
+  },
+  {
+    version: 3,
+    name: 'Letzte Projektübergabe und Erinnerung (AJ-15)',
+    up: (db) => db.exec(SCHEMA_V3),
   },
 ];
 
@@ -49,24 +55,26 @@ export function getSchemaVersion(db: Db): number {
   return row.user_version;
 }
 
-export type MigrationResult = { from: number; to: number; backupFile: string | null };
+// backup: Kennung der Sicherung vor dem Umbau (z. B. ID im Ordner «backups»)
+export type MigrationResult = { from: number; to: number; backup: string | null };
 
-export async function migrate(
-  db: Db,
-  options: { backupFile?: (fromVersion: number) => string; migrations?: readonly Migration[] } = {},
-): Promise<MigrationResult> {
+export type MigrateOptions = {
+  // Sichert die Datenbank im alten Stand, bevor umgebaut wird, und liefert
+  // eine Kennung der Sicherung. Wirft er, wird NICHT migriert.
+  backup?: (db: Db, fromVersion: number) => Promise<string>;
+  migrations?: readonly Migration[];
+};
+
+export async function migrate(db: Db, options: MigrateOptions = {}): Promise<MigrationResult> {
   const migrations = options.migrations ?? MIGRATIONS;
   const latest = migrations[migrations.length - 1]!.version;
   const from = getSchemaVersion(db);
   if (from > latest) throw new NewerSchemaError(from, latest);
-  if (from === latest) return { from, to: from, backupFile: null };
+  if (from === latest) return { from, to: from, backup: null };
 
   // Vorhandene Daten vor dem Umbau sichern (neue, leere Datenbanken nicht)
-  let backupFile: string | null = null;
-  if (from > 0 && options.backupFile) {
-    backupFile = options.backupFile(from);
-    await backup(db, backupFile);
-  }
+  let backup: string | null = null;
+  if (from > 0 && options.backup) backup = await options.backup(db, from);
 
   for (const m of migrations) {
     if (m.version <= from) continue;
@@ -76,5 +84,5 @@ export async function migrate(
       db.exec(`PRAGMA user_version = ${Math.trunc(m.version)}`);
     });
   }
-  return { from, to: getSchemaVersion(db), backupFile };
+  return { from, to: getSchemaVersion(db), backup };
 }

@@ -16,11 +16,18 @@ export async function loadJournals(d: Dispatch): Promise<void> {
   else fail(d, 'Journale konnten nicht geladen werden.');
 }
 
+// Neues Journal (Strg+N): Zuerst sofort den Platzhalter zeigen (blendet das
+// bisherige Journal aus und nimmt Tastatureingaben an), dann im Hauptprozess
+// anlegen. So kann, wer gleich lostippt, nie das vorherige Journal ändern –
+// auch wenn das Anlegen auf einem langsamen Datenträger etwas dauert.
 export async function createJournal(d: Dispatch): Promise<void> {
-  const res = await window.lernjournal.journal.create();
-  if (!res.ok) return fail(d, 'Journal konnte nicht angelegt werden.');
-  d({ type: 'journalUpserted', journal: res.data });
-  d({ type: 'journalOpened', journal: res.data });
+  d({ type: 'journalCreating' });
+  const res = await window.lernjournal.journal.create().catch(() => null);
+  if (!res?.ok) {
+    d({ type: 'journalCreateFailed' });
+    return fail(d, 'Journal konnte nicht angelegt werden.');
+  }
+  d({ type: 'journalCreated', journal: res.data });
 }
 
 export async function openJournal(d: Dispatch, id: string): Promise<void> {

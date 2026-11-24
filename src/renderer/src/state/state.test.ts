@@ -168,3 +168,106 @@ describe('Verknüpfungen im Zustand (AJ-10)', () => {
     expect(s.openJournalLinks).toEqual({ linked: [linked('b')], mentionedIn: [] });
   });
 });
+
+describe('Neues Journal mit Strg+N ohne Wettlauf (AJ-17)', () => {
+  const journal = (id: string, title = '') =>
+    ({ id, title, sections: {}, categoryIds: [], tagIds: [] }) as unknown as JournalDetail;
+
+  it('blendet das bisherige Journal sofort aus; Getipptes geht an das neue Journal', () => {
+    let s = reducer(initialState, { type: 'journalOpened', journal: journal('alt', 'Altes Journal') });
+    s = reducer(s, { type: 'journalCreating' });
+    // Das alte Journal ist nicht mehr da – Eingaben können es nicht mehr treffen
+    expect(s.openJournal).toBeNull();
+    expect(s.creatingJournal).toEqual({ title: '' });
+    expect(s.view).toBe('journal');
+    s = reducer(s, { type: 'journalCreatingTitle', title: 'Pap' });
+    s = reducer(s, { type: 'journalCreated', journal: journal('neu') });
+    expect(s.openJournal?.id).toBe('neu');
+    expect(s.creatingJournal).toBeNull();
+    expect(s.journals.map((j) => j.id)).toContain('neu');
+    // Taste zwischen Antwort und Anzeige: kommt trotzdem an
+    s = reducer(s, { type: 'journalCreatingTitle', title: 'Papi' });
+    expect(s.newJournalTitle).toEqual({ journalId: 'neu', title: 'Papi' });
+    s = reducer(s, { type: 'newJournalTitleTaken' });
+    expect(s.newJournalTitle).toBeNull();
+    // Danach ändert eine verspätete Eingabe nichts mehr
+    expect(reducer(s, { type: 'journalCreatingTitle', title: 'x' })).toBe(s);
+  });
+
+  it('Fehler: zurück zur Liste; weggeklickt: Journal nur in der Liste, nicht geöffnet', () => {
+    let s = reducer(initialState, { type: 'journalCreating' });
+    s = reducer(s, { type: 'journalCreateFailed' });
+    expect(s).toMatchObject({ creatingJournal: null, view: 'journale', openJournal: null });
+
+    s = reducer(s, { type: 'journalCreating' });
+    s = reducer(s, { type: 'navigate', view: 'fachbuch' });
+    s = reducer(s, { type: 'journalCreated', journal: journal('neu') });
+    expect(s).toMatchObject({ view: 'fachbuch', openJournal: null, newJournalTitle: null });
+    expect(s.journals.map((j) => j.id)).toEqual(['neu']);
+  });
+
+  it('Strg+N legt während des Anlegens kein zweites Journal an', () => {
+    const calls: string[] = [];
+    const s = reducer(initialState, { type: 'journalCreating' });
+    commands['journal.new'].run(s, (a) => calls.push(a.type));
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('Exportdialog im Zustand (AJ-12)', () => {
+  it('öffnet mit den gewählten Journalen, schliesst das Datei-Menü, schliesst wieder', () => {
+    let s = reducer(initialState, { type: 'openBackstage', page: 'exportieren' });
+    s = reducer(s, { type: 'openExport', journalIds: ['a'] });
+    expect(s.exportDialog).toEqual({ journalIds: ['a'] });
+    expect(s.backstage).toBeNull();
+    s = reducer(s, { type: 'closeExport' });
+    expect(s.exportDialog).toBeNull();
+  });
+
+  it('ohne Journal kein Dialog; Projektwechsel schliesst ihn', () => {
+    expect(reducer(initialState, { type: 'openExport', journalIds: [] }).exportDialog).toBeNull();
+    const s = reducer(initialState, { type: 'openExport', journalIds: ['a'] });
+    expect(reducer(s, { type: 'projectClosed' }).exportDialog).toBeNull();
+  });
+
+  it('Sammel-DOCX (AJ-13): Dialog mit Reihenfolge und Titel', () => {
+    const s = reducer(initialState, {
+      type: 'openExport',
+      journalIds: ['c', 'a', 'b'],
+      collection: { title: 'Semester 3' },
+    });
+    expect(s.exportDialog).toEqual({ journalIds: ['c', 'a', 'b'], collection: { title: 'Semester 3' } });
+  });
+
+  it('Zusammenstellung bleibt erhalten, verliert gelöschte Journale, Projektwechsel leert sie', () => {
+    let s = reducer(initialState, { type: 'collectionChanged', change: { ids: ['a', 'b'], title: 'T' } });
+    s = reducer(s, { type: 'navigate', view: 'journale' });
+    expect(s.collection).toEqual({ ids: ['a', 'b'], title: 'T' });
+    s = reducer(s, { type: 'collectionChanged', change: { title: 'Neu' } });
+    expect(s.collection).toEqual({ ids: ['a', 'b'], title: 'Neu' });
+    s = reducer(s, { type: 'journalRemoved', id: 'a' });
+    expect(s.collection.ids).toEqual(['b']);
+    expect(reducer(s, { type: 'projectClosed' }).collection).toEqual({ ids: [], title: '' });
+  });
+});
+
+describe('Projektübergabe .ajournal im Zustand (AJ-14)', () => {
+  it('öffnet Export oder Import, schliesst Datei-Menü und Word-Exportdialog', () => {
+    let s = reducer(initialState, { type: 'openBackstage', page: 'exportieren' });
+    s = reducer(s, { type: 'openExport', journalIds: ['a'] });
+    s = reducer(s, { type: 'openArchive', mode: 'export' });
+    expect(s).toMatchObject({ archiveDialog: 'export', backstage: null, exportDialog: null });
+    s = reducer(s, { type: 'closeArchive' });
+    expect(s.archiveDialog).toBeNull();
+  });
+
+  it('der Import-Dialog bleibt offen, wenn das importierte Projekt geöffnet wird (Ergebnis anzeigen)', () => {
+    let s = reducer(initialState, { type: 'openArchive', mode: 'import' });
+    s = reducer(s, {
+      type: 'projectOpened',
+      project: { path: 'D:\\Neu', title: 'Neu', journalCount: 3 } as ProjectInfo,
+    });
+    expect(s.archiveDialog).toBe('import');
+    expect(s.project?.title).toBe('Neu');
+  });
+});

@@ -105,3 +105,53 @@ test('Startseite zeigt zuletzt bearbeitete Journale; Daten überstehen einen Neu
   assert.equal(await row.count(), 1);
   assert.match(await row.textContent(), /Abgeschlossen/);
 });
+
+// Regression AJ-17: Wer direkt nach Strg+N lostippt, darf nie das vorherige
+// Journal ändern – auch wenn das Anlegen dauert (langsamer Datenträger, Last).
+// Der Hauptprozess antwortet hier absichtlich erst nach 1,5 s.
+test('Strg+N und sofort tippen: Eingabe landet im neuen Journal, das vorherige bleibt unverändert', async () => {
+  await page.getByRole('row', { name: /Plattenwechsel/ }).dblclick();
+  const title = page.getByLabel('Titel des Journals');
+  assert.equal(await title.inputValue(), 'Plattenwechsel an der Bogenoffset');
+  await title.focus(); // Cursor im vorherigen Journal – dort darf nichts ankommen
+
+  // journal:create verzögern (nur im Test, direkt an der Handler-Tabelle von ipcMain)
+  const delay = (ms) =>
+    app.evaluate(({ ipcMain }, wait) => {
+      const handlers = ipcMain._invokeHandlers;
+      if (!(handlers instanceof Map) || !handlers.has('journal:create'))
+        throw new Error('ipcMain-Handler «journal:create» nicht gefunden');
+      globalThis.__ljCreate ??= handlers.get('journal:create');
+      const original = globalThis.__ljCreate;
+      handlers.set(
+        'journal:create',
+        wait
+          ? async (...args) => (await new Promise((r) => setTimeout(r, wait)), original(...args))
+          : original,
+      );
+    }, ms);
+  await delay(1500);
+  try {
+    await page.keyboard.press('Control+N');
+    await page.keyboard.type('Rakel wechseln');
+    // Das Anlegen läuft noch: Platzhalter mit dem Getippten, altes Journal ausgeblendet
+    assert.equal(
+      await page.getByRole('status').filter({ hasText: 'Neues Journal wird angelegt' }).count(),
+      1,
+    );
+    await page.getByText('Neues Journal wird angelegt …').waitFor({ state: 'detached' });
+    await page.keyboard.type(' an der Siebdruckmaschine'); // weitertippen im neuen Journal
+  } finally {
+    await delay(0);
+  }
+  assert.equal(await title.inputValue(), 'Rakel wechseln an der Siebdruckmaschine');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'journal-title');
+  await live().getByText('Gespeichert').waitFor();
+
+  await nav('Journale');
+  await page.getByRole('row', { name: /^Rakel wechseln an der Siebdruckmaschine/ }).waitFor();
+  const old = page.getByRole('row', { name: /^Plattenwechsel an der Bogenoffset/ });
+  assert.equal(await old.count(), 1, 'vorheriges Journal heisst noch gleich');
+  await old.dblclick();
+  assert.equal(await title.inputValue(), 'Plattenwechsel an der Bogenoffset');
+});

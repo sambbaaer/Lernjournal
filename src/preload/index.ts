@@ -24,6 +24,7 @@ const api: LernjournalApi = {
     create: (req) => ipcRenderer.invoke('project:create', req),
     open: (req) => ipcRenderer.invoke('project:open', req),
     close: () => ipcRenderer.invoke('project:close'),
+    snoozeExportReminder: () => ipcRenderer.invoke('project:snoozeExportReminder'),
   },
   profile: {
     update: (req) => ipcRenderer.invoke('profile:update', req),
@@ -49,6 +50,35 @@ const api: LernjournalApi = {
   search: {
     query: (req) => ipcRenderer.invoke('search:query', req),
     rebuild: () => ipcRenderer.invoke('search:rebuild'),
+  },
+  export: {
+    journalDocx: (req) => ipcRenderer.invoke('export:journalDocx', req),
+    collectionDocx: (req) => ipcRenderer.invoke('export:collectionDocx', req),
+    showFile: () => ipcRenderer.invoke('export:showFile'),
+  },
+  archive: {
+    export: () => ipcRenderer.invoke('archive:export'),
+    showFile: () => ipcRenderer.invoke('archive:showFile'),
+    chooseImport: () => ipcRenderer.invoke('archive:chooseImport'),
+    chooseImportTarget: () => ipcRenderer.invoke('archive:chooseImportTarget'),
+    import: () => ipcRenderer.invoke('archive:import'),
+    // Nur dieses Ereignis, und nur die zwei erwarteten Felder weitergeben
+    onProgress: (listener) => {
+      const wrapped = (_e: unknown, p: { step?: unknown; percent?: unknown } | undefined) =>
+        listener({
+          step: typeof p?.step === 'string' ? p.step.slice(0, 200) : '',
+          percent: typeof p?.percent === 'number' ? p.percent : null,
+        });
+      ipcRenderer.on('lj:archive-progress', wrapped);
+      return () => ipcRenderer.removeListener('lj:archive-progress', wrapped);
+    },
+  },
+  backup: {
+    list: () => ipcRenderer.invoke('backup:list'),
+    create: () => ipcRenderer.invoke('backup:create'),
+    preview: (req) => ipcRenderer.invoke('backup:preview', req),
+    chooseRestoreTarget: (req) => ipcRenderer.invoke('backup:chooseRestoreTarget', req),
+    restore: (req) => ipcRenderer.invoke('backup:restore', req),
   },
   taxonomy: {
     list: () => ipcRenderer.invoke('taxonomy:list'),

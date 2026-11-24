@@ -2,7 +2,7 @@
 // Abschnitten (je ein Rich-Text-Editor). Alles wird automatisch gespeichert:
 // kurz nach der letzten Änderung, bei Dauertippen spätestens alle 10 Sekunden,
 // beim Verlassen der Ansicht und mit Strg+S sofort (SPEC «Autosave»).
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import { Archive, CircleCheck, Copy, PencilLine, Trash2 } from 'lucide-react';
 import {
@@ -49,7 +49,16 @@ const field = 'rounded-sm border border-border-strong bg-surface px-2 py-1.5 tex
 
 export function JournalDocument({ journal }: { journal: JournalDetail }) {
   const { state, dispatch } = useApp();
-  const [meta, setMeta] = useState<JournalMeta>(() => metaOf(journal));
+  // Im Platzhalter getippter Titel (Strg+N, AJ-17) – nur beim ersten Anzeigen
+  // dieses Journals übernommen, danach gilt das eigene Titelfeld
+  const [typedTitle] = useState(() =>
+    state.newJournalTitle?.journalId === journal.id && state.newJournalTitle.title
+      ? state.newJournalTitle.title
+      : null,
+  );
+  const [meta, setMeta] = useState<JournalMeta>(() =>
+    typedTitle === null ? metaOf(journal) : { ...metaOf(journal), title: typedTitle },
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Ausstehende Änderungen, getrennt nach Metadaten und Inhalt
   const pending = useRef<{ meta?: JournalMeta; sections?: Sections }>({});
@@ -99,7 +108,14 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
       }
       if (ok) {
         retryCount.current = 0;
-        dispatch({ type: 'setSaveStatus', status: { kind: 'saved', at: Date.now() } });
+        // «Gespeichert» nur, wenn wirklich alles gespeichert ist: Kam während
+        // des Speicherns schon wieder etwas dazu (Dauertippen), steht nichts da,
+        // bis auch das gespeichert ist (SPEC: Status nur bei zutreffendem Zustand)
+        const more = pending.current.meta || pending.current.sections;
+        dispatch({
+          type: 'setSaveStatus',
+          status: more ? { kind: 'idle' } : { kind: 'saved', at: Date.now() },
+        });
       } else {
         // Nichts verlieren: beim nächsten Versuch erneut senden (neuere Änderungen haben Vorrang)
         pending.current = {
@@ -137,6 +153,10 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
 
   function schedule() {
     const now = currentTime();
+    // Erste ungespeicherte Änderung: ein «Gespeichert» von vorhin trifft nicht
+    // mehr zu (ein Fehler bleibt dagegen sichtbar, bis erneut gespeichert ist)
+    if (firstPendingAt.current === null && state.saveStatus.kind === 'saved')
+      dispatch({ type: 'setSaveStatus', status: { kind: 'idle' } });
     firstPendingAt.current ??= now;
     if (timer.current) clearTimeout(timer.current);
     const waited = now - firstPendingAt.current;
@@ -169,10 +189,25 @@ export function JournalDocument({ journal }: { journal: JournalDetail }) {
     return () => registerSaveNow(null);
   }, [flush]);
 
-  // Neues, leeres Journal: Cursor direkt in den Titel
-  useEffect(() => {
-    if (!journal.title) titleRef.current?.focus();
+  // Neues, leeres Journal: Cursor direkt in den Titel, ans Ende des schon
+  // Getippten. Als Layout-Effekt, damit der Fokus steht, bevor die nächste
+  // Taste verarbeitet wird (sonst ginge sie zwischen Platzhalter und Journal verloren).
+  useLayoutEffect(() => {
+    const input = titleRef.current;
+    if (journal.title || !input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
   }, [journal.id, journal.title]);
+
+  // Getippten Titel aus dem Platzhalter wie eine eigene Eingabe speichern
+  useLayoutEffect(() => {
+    if (state.newJournalTitle) dispatch({ type: 'newJournalTitleTaken' });
+    if (typedTitle === null) return;
+    pending.current.meta = { ...metaOf(journal), title: typedTitle };
+    schedule();
+    // Nur beim ersten Anzeigen; journal/schedule ändern sich danach bewusst nicht mehr
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const computed = computeSchoolYear(state.project?.profile.apprenticeshipStart ?? null, meta.workDate);
   const isCompleted = journal.status === 'completed';

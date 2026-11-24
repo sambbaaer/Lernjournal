@@ -1,6 +1,7 @@
 // Form der Brücke, die das Preload-Skript als `window.lernjournal` bereitstellt.
 // Bewusst fachlich benannt (project.open), nicht technisch (invoke(channel)):
 // Die Oberfläche kann keine beliebigen Kanäle ansprechen.
+import type { ArchiveProgress } from './archive';
 import type { IpcChannel, IpcRequest, IpcResponse, IpcResult } from './ipc';
 
 type Call<C extends IpcChannel> =
@@ -23,6 +24,8 @@ export interface LernjournalApi {
     create: Call<'project:create'>;
     open: Call<'project:open'>;
     close: Call<'project:close'>;
+    // Erinnerung an die Projektübergabe ausblenden (AJ-15)
+    snoozeExportReminder: Call<'project:snoozeExportReminder'>;
   };
   profile: {
     update: Call<'profile:update'>;
@@ -50,6 +53,31 @@ export interface LernjournalApi {
   search: {
     query: Call<'search:query'>;
     rebuild: Call<'search:rebuild'>;
+  };
+  // Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX)
+  export: {
+    journalDocx: Call<'export:journalDocx'>;
+    collectionDocx: Call<'export:collectionDocx'>;
+    showFile: Call<'export:showFile'>;
+  };
+  // Projektübergabe .ajournal (AJ-14)
+  archive: {
+    export: Call<'archive:export'>;
+    showFile: Call<'archive:showFile'>;
+    chooseImport: Call<'archive:chooseImport'>;
+    chooseImportTarget: Call<'archive:chooseImportTarget'>;
+    import: Call<'archive:import'>;
+    // Fortschritt einer laufenden Übergabe, eines Imports oder einer
+    // Wiederherstellung (AJ-15). Gibt eine Funktion zum Abmelden zurück.
+    onProgress(listener: (progress: ArchiveProgress) => void): () => void;
+  };
+  // Sicherungen und Wiederherstellung (AJ-15)
+  backup: {
+    list: Call<'backup:list'>;
+    create: Call<'backup:create'>;
+    preview: Call<'backup:preview'>;
+    chooseRestoreTarget: Call<'backup:chooseRestoreTarget'>;
+    restore: Call<'backup:restore'>;
   };
   taxonomy: {
     list: Call<'taxonomy:list'>;

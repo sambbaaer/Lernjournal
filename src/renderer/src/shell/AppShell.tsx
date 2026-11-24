@@ -12,9 +12,14 @@ import { matchesShortcut } from '../state/shortcuts';
 import { FachbuchView } from '../fachbuch/FachbuchView';
 import { EinstellungenView, ExportView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
+import { ArchiveDialog } from '../archive/ArchiveDialog';
+import { ExportReminderBar } from '../backup/ExportReminderBar';
+import { RestoreDialog } from '../backup/RestoreDialog';
+import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
+import { NewJournalPending } from '../journal/NewJournalPending';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
 import { Welcome } from '../project/Welcome';
@@ -105,13 +110,17 @@ export function AppShell({ version }: { version: string | null }) {
     [],
   );
 
-  // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu)
-  const projectId = state.project?.id;
+  // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu).
+  // Schlüssel mit Pfad: Eine importierte Kopie (AJ-14) hat dieselbe Projekt-ID
+  // wie das Original, liegt aber in einem anderen Ordner. Mit projectEpoch:
+  // auch nach erneutem Öffnen desselben Projekts (Ersetzen durch eine
+  // Sicherung, AJ-15) neu laden.
+  const projectKey = state.project ? `${state.project.id}|${state.project.path}|${state.projectEpoch}` : null;
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectKey) return;
     void loadJournals(dispatch);
     void loadTaxonomy(dispatch);
-  }, [projectId, dispatch]);
+  }, [projectKey, dispatch]);
 
   // Nach dem Schliessen des Datei-Menüs den Fokus zurück auf «Datei»
   const wasOpen = useRef(false);
@@ -123,7 +132,9 @@ export function AppShell({ version }: { version: string | null }) {
   const views = {
     start: <StartView />,
     journale: <JournaleView />,
-    journal: state.openJournal ? (
+    journal: state.creatingJournal ? (
+      <NewJournalPending />
+    ) : state.openJournal ? (
       <JournalDocument key={state.openJournal.id} journal={state.openJournal} />
     ) : (
       <JournaleView />
@@ -169,6 +180,8 @@ export function AppShell({ version }: { version: string | null }) {
                 onDismiss={() => dispatch({ type: 'dismissSyncWarning' })}
               />
             )}
+            {/* Erinnerung an eine Kopie ausserhalb des Computers (AJ-15) */}
+            <ExportReminderBar />
             <div className="flex min-h-0 flex-1">
               <NavigationPane />
               <main
@@ -185,9 +198,22 @@ export function AppShell({ version }: { version: string | null }) {
                 {views[state.view]}
               </main>
             </div>
+            {/* Word-Export (AJ-12/13): Hinweis R-10 → Speichern → Ergebnis */}
+            {state.exportDialog && (
+              <ExportDialog
+                journalIds={state.exportDialog.journalIds}
+                collection={state.exportDialog.collection}
+              />
+            )}
           </>
         )}
         <StatusBar version={version} />
+        {/* Projektübergabe .ajournal (AJ-14): auch auf dem Startbildschirm (Import) */}
+        {state.archiveDialog && <ArchiveDialog mode={state.archiveDialog} />}
+        {/* Wiederherstellung (AJ-15): bleibt über das erneute Öffnen hinweg stehen */}
+        {state.restoreDialog && (
+          <RestoreDialog key={state.restoreDialog.backupId} backupId={state.restoreDialog.backupId} />
+        )}
       </div>
     </EditorProvider>
   );

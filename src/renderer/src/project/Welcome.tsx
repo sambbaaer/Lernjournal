@@ -1,6 +1,6 @@
 // Startbildschirm ohne geöffnetes Projekt (wie die Office-Startseite):
 // neues Lernjournal anlegen, vorhandenes öffnen, zuletzt verwendete.
-import { FilePlus, FolderOpen, NotebookPen } from 'lucide-react';
+import { FileInput, FilePlus, FolderOpen, NotebookPen } from 'lucide-react';
 import { useApp } from '../state/AppContext';
 import { formatDateTime } from './messages';
 import { ConfirmForce, ErrorMessage, UnofficialHint } from './Notices';
@@ -52,6 +52,20 @@ export function Welcome() {
             <span>
               <span className="block font-semibold">Vorhandenes öffnen …</span>
               <span className="mt-1 block text-sm text-ink-muted">Einen Lernjournal-Ordner auswählen.</span>
+            </span>
+          </button>
+          {/* Umzug auf einen neuen Computer (AJ-14) */}
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'openArchive', mode: 'import' })}
+            className="flex items-start gap-4 rounded-md border border-border bg-surface p-5 text-left hover:border-accent hover:bg-selected sm:col-span-2"
+          >
+            <FileInput aria-hidden="true" size={28} className="shrink-0 text-accent" />
+            <span>
+              <span className="block font-semibold">Projekt importieren (.ajournal) …</span>
+              <span className="mt-1 block text-sm text-ink-muted">
+                Ein übergebenes Lernjournal übernehmen, z. B. nach dem Wechsel auf einen neuen Computer.
+              </span>
             </span>
           </button>
         </div>

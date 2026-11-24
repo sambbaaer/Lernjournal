@@ -2,6 +2,7 @@
 // Zuletzt-Liste und Projektdienst. Electron-Teile (Dialog) kommen als
 // Funktion herein, damit alles mit Vitest prüfbar bleibt.
 import path from 'node:path';
+import { EXPORT_REMINDER } from '@shared/backup';
 import type { OpenResult } from '@shared/ipc';
 import type { Handlers } from '../ipc-handler';
 import { PathGuard } from './path-guard';
@@ -14,7 +15,52 @@ export type ProjectHandlerDeps = {
   documentsDir: string;
   chooseFolder: (purpose: 'create' | 'open') => Promise<string | null>;
   now?: () => Date;
+  // Gemeinsam mit anderen Handlern, die Projekte öffnen (Import .ajournal, AJ-14)
+  opened?: OpenedProjects;
 };
+
+// Freigabeliste und Zuletzt-Liste: Wer ein Projekt erfolgreich öffnet (auch
+// der Import einer .ajournal-Datei), meldet es hier an. Es erscheint dann
+// unter «Zuletzt verwendet» und darf später wieder geöffnet werden.
+export class OpenedProjects {
+  readonly guard = new PathGuard();
+  recent: RecentProject[];
+
+  constructor(
+    private readonly recentFile: string,
+    private readonly now: () => Date = () => new Date(),
+  ) {
+    this.recent = readRecent(recentFile);
+    this.recent.forEach((r) => this.guard.allow(r.path));
+  }
+
+  remember(result: OpenResult): OpenResult {
+    if (result.status === 'opened') {
+      this.recent = addRecent(this.recent, {
+        path: result.project.path,
+        title: result.project.title,
+        lastOpened: this.now().toISOString(),
+      });
+      this.guard.allow(result.project.path);
+      this.save();
+    }
+    return result;
+  }
+
+  // Verschwundenes Projekt aus der Liste nehmen
+  forget(p: string): void {
+    this.recent = removeRecent(this.recent, p);
+    this.save();
+  }
+
+  private save(): void {
+    try {
+      writeRecent(this.recentFile, this.recent);
+    } catch (err) {
+      console.error('[projekt] Zuletzt-Liste nicht gespeichert:', err);
+    }
+  }
+}
 
 type ProjectChannels =
   | 'project:getState'
@@ -23,13 +69,13 @@ type ProjectChannels =
   | 'project:create'
   | 'project:open'
   | 'project:close'
+  | 'project:snoozeExportReminder'
   | 'profile:update';
 
 export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, ProjectChannels> {
-  const guard = new PathGuard();
-  const now = deps.now ?? (() => new Date());
-  let recent: RecentProject[] = readRecent(deps.recentFile);
-  recent.forEach((r) => guard.allow(r.path));
+  const opened = deps.opened ?? new OpenedProjects(deps.recentFile, deps.now);
+  const guard = opened.guard;
+  const remember = (result: OpenResult) => opened.remember(result);
   let autoOpenTried = false;
 
   // Vorschlag: Dokumente\Lernjournal, sonst «Lernjournal 2», «Lernjournal 3» …
@@ -45,31 +91,15 @@ export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, 
     return deps.documentsDir;
   }
 
-  function remember(result: OpenResult): OpenResult {
-    if (result.status === 'opened') {
-      recent = addRecent(recent, {
-        path: result.project.path,
-        title: result.project.title,
-        lastOpened: now().toISOString(),
-      });
-      guard.allow(result.project.path);
-      try {
-        writeRecent(deps.recentFile, recent);
-      } catch (err) {
-        console.error('[projekt] Zuletzt-Liste nicht gespeichert:', err);
-      }
-    }
-    return result;
-  }
-
   return {
     'project:getState': async () => {
       // Beim ersten Aufruf nach dem Start: zuletzt verwendetes Projekt still öffnen.
       // Klappt das nicht (gesperrt, verschoben …), erscheint einfach der Startbildschirm.
-      if (!autoOpenTried && !deps.service.isOpen && recent[0]) {
+      const last = opened.recent[0];
+      if (!autoOpenTried && !deps.service.isOpen && last) {
         autoOpenTried = true;
         try {
-          const r = await deps.service.open(recent[0].path);
+          const r = await deps.service.open(last.path);
           remember(r);
         } catch (err) {
           console.error('[projekt] Automatisches Öffnen fehlgeschlagen:', err);
@@ -78,7 +108,7 @@ export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, 
       autoOpenTried = true;
       return {
         project: deps.service.isOpen ? deps.service.info() : null,
-        recent,
+        recent: opened.recent,
         suggestedLocation: suggestedLocation(),
       };
     },
@@ -103,18 +133,17 @@ export function createProjectHandlers(deps: ProjectHandlerDeps): Pick<Handlers, 
       if (!guard.isAllowed(p)) return { status: 'not-allowed' };
       const result = await deps.service.open(p, { force: force ?? false });
       // Verschwundenes Projekt aus der Liste nehmen
-      if (result.status === 'not-a-project') {
-        recent = removeRecent(recent, p);
-        try {
-          writeRecent(deps.recentFile, recent);
-        } catch {
-          /* nicht kritisch */
-        }
-      }
+      if (result.status === 'not-a-project') opened.forget(p);
       return remember(result);
     },
 
-    'project:close': () => ({ closed: deps.service.close() }),
+    // Mit Sicherung beim Schliessen (AJ-15), falls etwas geändert wurde
+    'project:close': async () => ({ closed: await deps.service.closeGracefully() }),
+
+    // «Später erinnern» an die Projektübergabe (AJ-15)
+    'project:snoozeExportReminder': () => ({
+      exportReminderUntil: deps.service.snoozeExportReminder(EXPORT_REMINDER.snoozeDays),
+    }),
 
     'profile:update': (profile) => deps.service.updateProfile(profile),
   };

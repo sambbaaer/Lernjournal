@@ -1,7 +1,7 @@
 // Journalliste als Tabelle: Pfeiltasten wählen, Enter öffnet, Entf löscht.
 // Aktionen wirken auf die ausgewählte Zeile (wie in Office-Dateilisten).
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Archive, ArchiveRestore, Copy, FolderOpen, Search, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Copy, FileDown, FolderOpen, Search, Trash2 } from 'lucide-react';
 import { LEARNING_PLACE_LABELS, type JournalSummary } from '@shared/journal';
 import { useApp } from '../state/AppContext';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
@@ -174,6 +174,15 @@ export function JournalList() {
             onClick={() => selected && void duplicateJournal(dispatch, selected.id)}
           >
             <Copy aria-hidden="true" size={16} /> Duplizieren
+          </button>
+          <button
+            type="button"
+            className={toolButton}
+            disabled={!selected}
+            // Einzel-DOCX (AJ-12): Dialog mit Exporthinweis (R-10)
+            onClick={() => selected && dispatch({ type: 'openExport', journalIds: [selected.id] })}
+          >
+            <FileDown aria-hidden="true" size={16} /> Als Word
           </button>
           {selected?.status === 'archived' ? (
             <button

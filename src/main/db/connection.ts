@@ -4,16 +4,31 @@ import { DatabaseSync } from 'node:sqlite';
 
 export type Db = DatabaseSync;
 
-export function openDatabase(file: string, options: { readOnly?: boolean } = {}): Db {
+export type OpenOptions = {
+  readOnly?: boolean;
+  // 'delete': für eigenständige Kopien (Projektübergabe .ajournal, AJ-14), die
+  // ohne -wal/-shm-Dateien vollständig sein müssen. Standard: WAL.
+  journalMode?: 'wal' | 'delete';
+  // Datei stammt von aussen (Import): Funktionen im Schema (Trigger, Views)
+  // dürfen nichts mit Nebenwirkungen aufrufen, und Seiten werden strenger
+  // geprüft. Gesetzt, BEVOR irgendetwas aus der Datei gelesen wird.
+  untrusted?: boolean;
+};
+
+export function openDatabase(file: string, options: OpenOptions = {}): Db {
   const db = new DatabaseSync(file, { readOnly: options.readOnly ?? false });
   try {
+    if (options.untrusted) {
+      db.exec('PRAGMA trusted_schema = OFF');
+      db.exec('PRAGMA cell_size_check = ON');
+    }
     // Wartet bis zu 5 s, falls die Datei kurz gesperrt ist (z. B. Virenscanner)
     db.exec('PRAGMA busy_timeout = 5000');
     // Fremdschlüssel sind in SQLite standardmässig AUS – pro Verbindung einschalten
     db.exec('PRAGMA foreign_keys = ON');
     if (!options.readOnly) {
       // WAL: Absturz beim Schreiben beschädigt die Hauptdatei nicht
-      db.exec('PRAGMA journal_mode = WAL');
+      db.exec(`PRAGMA journal_mode = ${options.journalMode === 'delete' ? 'DELETE' : 'WAL'}`);
       // FULL: COMMIT kehrt erst zurück, wenn die Daten auf der Platte sind.
       // Nur dann darf die Oberfläche «Gespeichert» anzeigen.
       db.exec('PRAGMA synchronous = FULL');

@@ -16,6 +16,16 @@ import {
   JournalSummarySchema,
   SectionsSchema,
 } from './journal';
+import { ArchiveExportResultSchema, ArchivePreviewSchema } from './archive';
+import {
+  BackupCreateResultSchema,
+  BackupEntrySchema,
+  BackupId,
+  BackupListSchema,
+  BackupPreviewSchema,
+  RESTORE_MODES,
+} from './backup';
+import { COLLECTION_LIMITS, ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
 import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
@@ -68,6 +78,10 @@ export const ProjectInfoSchema = z.object({
   journalCount: z.number().int(),
   // Wurde beim Öffnen auf ein neues Datenformat umgebaut? (Hinweis an Nutzer)
   migratedFromVersion: z.number().int().nullable(),
+  // Erinnerung an die Projektübergabe (AJ-15): letzte .ajournal-Übergabe und
+  // «Später erinnern» bis (ISO, UTC; null = nie bzw. nicht ausgeblendet)
+  lastExportAt: z.string().nullable(),
+  exportReminderUntil: z.string().nullable(),
 });
 export type ProjectInfo = z.infer<typeof ProjectInfoSchema>;
 
@@ -138,6 +152,11 @@ export const ipcContract = {
     response: OpenResultSchema,
   },
   'project:close': { request: z.undefined(), response: z.object({ closed: z.boolean() }) },
+  // Erinnerung an die Projektübergabe ausblenden («Später erinnern», AJ-15)
+  'project:snoozeExportReminder': {
+    request: z.undefined(),
+    response: z.object({ exportReminderUntil: z.string() }),
+  },
   'profile:update': { request: ProfileSchema, response: ProfileSchema },
 
   // --- Journale (AJ-05) ---
@@ -229,6 +248,92 @@ export const ipcContract = {
   'search:query': { request: SearchRequestSchema, response: SearchResultSchema },
   // «Suchindex neu aufbauen»: liefert die Anzahl neu indexierter Journale
   'search:rebuild': { request: z.undefined(), response: z.object({ journals: z.number().int() }) },
+
+  // --- Word-Export (AJ-12) ---
+  // Ein Journal als Word-Dokument. Der Hauptprozess zeigt selbst den
+  // Speichern-Dialog; der Renderer schickt nur die Journal-ID und bestätigt,
+  // dass der Exporthinweis (R-10) angezeigt und angenommen wurde.
+  'export:journalDocx': {
+    request: z.object({ id: JournalId, noticeAccepted: z.literal(true) }),
+    response: ExportResultSchema,
+  },
+  // Mehrere Journale als ein Word-Dokument (AJ-13) mit Titelseite,
+  // Inhaltsverzeichnis und je einem Seitenumbruch vor jedem Journal. Die
+  // Reihenfolge der IDs ist die Reihenfolge im Dokument. Geprüft: 1 bis
+  // COLLECTION_LIMITS.maxJournals gültige IDs ohne Doppelte, Titel begrenzt.
+  // Wie beim Einzel-DOCX bestimmt nur der Speichern-Dialog den Zielpfad.
+  'export:collectionDocx': {
+    request: z.object({
+      ids: z
+        .array(JournalId)
+        .min(1)
+        .max(COLLECTION_LIMITS.maxJournals)
+        .refine((ids) => new Set(ids).size === ids.length, 'Ein Journal ist doppelt ausgewählt'),
+      title: z.string().trim().max(COLLECTION_LIMITS.maxTitleLength),
+      noticeAccepted: z.literal(true),
+    }),
+    response: ExportResultSchema,
+  },
+  // Zuletzt exportierte Datei im Explorer zeigen (kein Pfad vom Renderer)
+  'export:showFile': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
+
+  // --- Projektübergabe .ajournal (AJ-14) ---
+  // Keiner dieser Befehle nimmt einen Pfad an: Datei und Ordner wählt der
+  // Nutzer in den nativen Dialogen des Hauptprozesses, der sie sich bis zum
+  // nächsten Schritt merkt. Fortschritt kommt als Ereignis (archive.onProgress).
+  // Ganzes Projekt als .ajournal speichern (Speichern-Dialog im Hauptprozess)
+  'archive:export': { request: z.undefined(), response: ArchiveExportResultSchema },
+  // Zuletzt gespeicherte .ajournal-Datei im Explorer zeigen
+  'archive:showFile': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
+  // Import Schritt 1: Datei wählen und prüfen → Vorschau + vorgeschlagener Zielordner
+  'archive:chooseImport': { request: z.undefined(), response: ArchivePreviewSchema },
+  // Import optional: anderen Zielordner wählen (null = abgebrochen, alter bleibt)
+  'archive:chooseImportTarget': {
+    request: z.undefined(),
+    response: z.object({ target: z.string().nullable() }),
+  },
+  // Import Schritt 2: entpacken, prüfen, als neues Projekt öffnen
+  'archive:import': {
+    request: z.undefined(),
+    response: z.object({
+      status: z.literal('imported'),
+      project: ProjectInfoSchema,
+      journals: z.number().int().nonnegative(),
+      media: z.number().int().nonnegative(),
+      warnings: z.array(z.string()),
+    }),
+  },
+
+  // --- Sicherungen und Wiederherstellung (AJ-15) ---
+  // Die Oberfläche kennt Sicherungen nur über ihre ID aus backup:list
+  // (Muster BACKUP_ID_PATTERN); der Hauptprozess baut den Pfad selbst und
+  // prüft, dass es die Sicherung gibt. Zielordner nur aus dem Dialog.
+  'backup:list': { request: z.undefined(), response: BackupListSchema },
+  // «Jetzt sichern» (unverändert seit der neuesten Sicherung → keine neue)
+  'backup:create': { request: z.undefined(), response: BackupCreateResultSchema },
+  // Sicherung vollständig prüfen und beschreiben; merkt sich den Vorschlag
+  // für «als neues Lernjournal»
+  'backup:preview': { request: z.object({ id: BackupId }), response: BackupPreviewSchema },
+  // Anderen Ordner für «als neues Lernjournal» wählen (null = abgebrochen)
+  'backup:chooseRestoreTarget': {
+    request: z.object({ id: BackupId }),
+    response: z.object({ target: z.string().nullable() }),
+  },
+  // Wiederherstellen und das Ergebnis öffnen. Fortschritt als Ereignis
+  // (archive.onProgress, gleicher Kanal wie die Projektübergabe).
+  'backup:restore': {
+    request: z.object({ id: BackupId, mode: z.enum(RESTORE_MODES) }),
+    response: z.object({
+      status: z.literal('restored'),
+      mode: z.enum(RESTORE_MODES),
+      project: ProjectInfoSchema,
+      journals: z.number().int().nonnegative(),
+      media: z.number().int().nonnegative(),
+      warnings: z.array(z.string()),
+      // Beim Ersetzen: Sicherung mit dem Stand davor
+      safetyBackup: BackupEntrySchema.nullable(),
+    }),
+  },
 } as const;
 
 export type IpcChannel = keyof typeof ipcContract;

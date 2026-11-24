@@ -1,7 +1,18 @@
 // Datei-Menü im Stil der Office-«Backstage»-Ansicht: Projekt- und
 // Programmfunktionen getrennt vom Schreiben. Esc oder «Zurück» schliesst.
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import { ArrowLeft, FileDown, FilePlus, FolderOpen, Info, Settings, type LucideIcon } from 'lucide-react';
+import {
+  ArrowLeft,
+  FileDown,
+  FileInput,
+  FilePlus,
+  FolderOpen,
+  Info,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
+import { ARCHIVE_TEXTS } from '@shared/archive';
+import { BACKUP_TEXTS } from '@shared/backup';
 import { useApp } from '../state/AppContext';
 import type { BackstagePage } from '../state/app-state';
 import { formatDateTime } from '../project/messages';
@@ -12,6 +23,7 @@ import { handleRovingKeys } from './roving';
 const PAGES: { id: BackstagePage; label: string; icon: LucideIcon }[] = [
   { id: 'neu', label: 'Neu', icon: FilePlus },
   { id: 'oeffnen', label: 'Öffnen', icon: FolderOpen },
+  { id: 'importieren', label: 'Importieren', icon: FileInput },
   { id: 'exportieren', label: 'Exportieren', icon: FileDown },
   { id: 'einstellungen', label: 'Einstellungen', icon: Settings },
   { id: 'info', label: 'Info', icon: Info },
@@ -122,12 +134,10 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
       return <NewPage />;
     case 'oeffnen':
       return <OpenPage />;
+    case 'importieren':
+      return <ImportPage />;
     case 'exportieren':
-      return (
-        <Placeholder title="Exportieren">
-          Word-Export einzelner oder mehrerer Journale sowie die vollständige Projektsicherung (.ajournal).
-        </Placeholder>
-      );
+      return <ExportPage />;
     case 'einstellungen':
       return <SettingsPage />;
     case 'info':
@@ -138,6 +148,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
             <strong>Lernjournal</strong> {version && <>Version {version}</>}
           </p>
           <ProjectLine />
+          <BackupLine />
           <p>
             Lernjournal hilft Lernenden Medientechnolog*innen EFZ, ihre Lerndokumentation (Lernberichte nach
             Art. 12 der Bildungsverordnung) zu führen und daraus ein persönliches Fachbuch aufzubauen.
@@ -158,18 +169,112 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
   }
 }
 
-function Placeholder({ title, children }: { title: string; children: React.ReactNode }) {
+// Exportieren (AJ-12/13): geöffnetes Journal direkt als Word, sonst zur Ansicht
+// «Export» mit Auswahl eines Journals oder mehrerer Journale (Sammel-DOCX).
+// Darunter die Übergabe des ganzen Projekts als .ajournal (AJ-14).
+function ExportPage() {
+  const { state, dispatch } = useApp();
+  const open = state.openJournal;
   return (
-    <div className="max-w-2xl space-y-3 text-sm">
-      <h2 className="text-2xl font-semibold">{title}</h2>
-      <p>{children}</p>
-      <p className="text-ink-muted">Diese Funktion folgt in einem der nächsten Entwicklungsschritte.</p>
+    <div className="max-w-2xl space-y-4 text-sm">
+      <h2 className="text-2xl font-semibold">Exportieren</h2>
+      <p>
+        Journale als Word-Dokument ausgeben, z. B. für die Besprechung mit deiner Berufsbildnerin oder deinem
+        Berufsbildner. Änderungen in Word fliessen nicht in Lernjournal zurück.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {open && (
+          <button
+            type="button"
+            className={primaryButton}
+            onClick={() => dispatch({ type: 'openExport', journalIds: [open.id] })}
+          >
+            «{open.title.trim() || 'Ohne Titel'}» als Word exportieren …
+          </button>
+        )}
+        <button
+          type="button"
+          className={secondaryButton}
+          onClick={() => dispatch({ type: 'navigate', view: 'export' })}
+        >
+          {open ? 'Anderes Journal oder mehrere Journale …' : 'Journal oder mehrere Journale wählen …'}
+        </button>
+      </div>
+      <p className="text-ink-muted">
+        Mehrere Journale ergeben ein Dokument mit Titelseite, Inhaltsverzeichnis und jedem Journal auf einer
+        neuen Seite.
+      </p>
+      <section aria-labelledby="bs-archive" className="space-y-3 border-t border-border-subtle pt-5">
+        <h3 id="bs-archive" className="text-base font-semibold">
+          {ARCHIVE_TEXTS.exportTitle}
+        </h3>
+        <p>{ARCHIVE_TEXTS.exportIntro}</p>
+        <button
+          type="button"
+          className={secondaryButton}
+          onClick={() => dispatch({ type: 'openArchive', mode: 'export' })}
+        >
+          Projekt übergeben …
+        </button>
+        <p className="text-ink-muted">{ARCHIVE_TEXTS.exportStorage}</p>
+      </section>
     </div>
   );
 }
 
+// Importieren (AJ-14): .ajournal-Datei als neues Lernjournal übernehmen
+function ImportPage() {
+  const { dispatch } = useApp();
+  return (
+    <div className="max-w-2xl space-y-3 text-sm">
+      <h2 className="text-2xl font-semibold">Importieren</h2>
+      <p>{ARCHIVE_TEXTS.importIntro}</p>
+      <button
+        type="button"
+        className={primaryButton}
+        onClick={() => dispatch({ type: 'openArchive', mode: 'import' })}
+      >
+        Projekt importieren (.ajournal) …
+      </button>
+      <p className="text-ink-muted">
+        Eine .ajournal-Datei erstellst du auf dem bisherigen Computer unter Datei → Exportieren → «Projekt
+        übergeben».
+      </p>
+    </div>
+  );
+}
+
+const secondaryButton = 'rounded-sm border border-border-strong px-4 py-2 text-sm hover:bg-hover';
 const primaryButton =
   'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
+
+// Info → Sicherungen (AJ-15): kurzer Hinweis und Sprung zu Einstellungen → Sicherungen
+function BackupLine() {
+  const { state, dispatch } = useApp();
+  if (!state.project) return null;
+  const last = state.project.lastExportAt;
+  return (
+    <section aria-labelledby="bs-backups" className="space-y-2 rounded-sm border border-border p-4">
+      <h3 id="bs-backups" className="text-base font-semibold">
+        {BACKUP_TEXTS.sectionTitle}
+      </h3>
+      <p>
+        {BACKUP_TEXTS.intro} Letzte Projektübergabe (.ajournal):{' '}
+        <strong>{last ? formatDateTime(last) : 'noch nie'}</strong>.
+      </p>
+      <button
+        type="button"
+        className={secondaryButton}
+        onClick={() => {
+          dispatch({ type: 'navigate', view: 'einstellungen' });
+          dispatch({ type: 'requestFocus', target: 'settings-backups' });
+        }}
+      >
+        Sicherungen und Wiederherstellung …
+      </button>
+    </section>
+  );
+}
 
 function ProjectLine() {
   const { state } = useApp();
@@ -260,7 +365,7 @@ function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-3 text-sm">
       <h2 className="text-2xl font-semibold">Einstellungen</h2>
-      <p>Profil, Fachrichtung, Lehrbeginn und Speicherort deines Lernjournals.</p>
+      <p>Profil, Fachrichtung, Lehrbeginn, Speicherort und Sicherungen deines Lernjournals.</p>
       <button
         type="button"
         className={primaryButton}

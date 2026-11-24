@@ -1,13 +1,14 @@
 // Tests der Fachbuch-Suche (AJ-11): Abfrage-Aufbau, Klartextprojektion,
 // Suchindex auf einer echten Projektdatenbank, Neuaufbau und Migration v1 → v2.
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { backup } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ipcContract } from '@shared/ipc';
 import type { Sections } from '@shared/journal';
 import { MAX_QUERY_WORDS, queryWords, searchableWords, stripMarks } from '@shared/search';
-import { checkIntegrity, openDatabase } from '../db/connection';
+import { checkIntegrity, openDatabase, transaction } from '../db/connection';
 import { getSchemaVersion, LATEST_VERSION, migrate, MIGRATIONS } from '../db/migrations';
 import { JournalService } from '../journal/journal-service';
 import { LinkService } from '../links/link-service';
@@ -303,7 +304,11 @@ describe('Suchindex', () => {
     const ins = projects.db.prepare(
       "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, 'Bogen', '2026-01-01', '{}', ?, ?)",
     );
-    for (let i = 0; i < 205; i++) ins.run(`j${i}`, clock.toISOString(), clock.toISOString());
+    // In einer Transaktion: einzeln wäre jedes Einfügen ein eigenes COMMIT mit
+    // synchronous=FULL – unter Windows über 5 s für diesen einen Test.
+    transaction(projects.db, () => {
+      for (let i = 0; i < 205; i++) ins.run(`j${i}`, clock.toISOString(), clock.toISOString());
+    });
     search.rebuild();
     const r = search.search('bogen', { includeArchived: false });
     expect(r.hits).toHaveLength(200);
@@ -367,9 +372,15 @@ describe('Migration v1 → v2 (Suchindex mit Legenden und Schlagwörtern)', () =
     // Alter Index (v1: nur Titel und Text, Legende im Text, kein Schlagwort)
     db.prepare("INSERT INTO journal_fts VALUES ('j1', 'Andruck', 'Farbmessung Kontrollstreifen')").run();
 
-    const r = await migrate(db, { backupFile: (from) => path.join(dir, `vor-update-${from}.sqlite`) });
+    const r = await migrate(db, {
+      backup: async (d, from) => {
+        const file = path.join(dir, `vor-update-${from}.sqlite`);
+        await backup(d, file);
+        return file;
+      },
+    });
     expect(r).toMatchObject({ from: 1, to: LATEST_VERSION });
-    expect(existsSync(r.backupFile!)).toBe(true);
+    expect(existsSync(r.backup!)).toBe(true);
 
     const row = db.prepare('SELECT * FROM journal_fts').get();
     expect(row).toEqual({

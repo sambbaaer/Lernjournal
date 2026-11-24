@@ -5,7 +5,7 @@
 // 'journal' = ein einzelnes Journal ist geöffnet (Dokumentansicht)
 export type View = 'start' | 'journale' | 'journal' | 'fachbuch' | 'export' | 'einstellungen';
 export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren' | 'tabelle';
-export type BackstagePage = 'neu' | 'oeffnen' | 'exportieren' | 'einstellungen' | 'info';
+export type BackstagePage = 'neu' | 'oeffnen' | 'importieren' | 'exportieren' | 'einstellungen' | 'info';
 
 import type { ProjectInfo } from '@shared/ipc';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
@@ -29,10 +29,16 @@ export type AppState = {
   notice: string | null;
   // Fokuswunsch, den eine Ansicht nach dem Rendern erfüllt (z. B. Suchfeld)
   // 'journal-categories'/'journal-tags': Menüband «Journal → Ordnen» springt
-  // zu den Feldern im geöffneten Journal; 'journal-links' öffnet «Journal verknüpfen» (AJ-10)
-  focusRequest: 'fachbuch-search' | 'journal-categories' | 'journal-tags' | 'journal-links' | null;
+  // zu den Feldern im geöffneten Journal; 'journal-links' öffnet «Journal verknüpfen» (AJ-10);
+  // 'settings-backups' springt in den Einstellungen zu «Sicherungen» (AJ-15)
+  focusRequest:
+    'fachbuch-search' | 'journal-categories' | 'journal-tags' | 'journal-links' | 'settings-backups' | null;
   // Projekt: null = keines geöffnet → Startbildschirm/Assistent
   project: ProjectInfo | null;
+  // Zählt jedes Öffnen eines Projekts. Die Oberfläche lädt Journale neu, wenn
+  // er sich ändert – auch wenn dasselbe Projekt (gleiche ID, gleicher Ordner)
+  // neu geöffnet wurde, z. B. nach dem Ersetzen durch eine Sicherung (AJ-15).
+  projectEpoch: number;
   projectLoaded: boolean; // erster Abruf beim Start erledigt?
   recent: RecentProject[];
   suggestedLocation: string;
@@ -44,6 +50,15 @@ export type AppState = {
   journals: JournalSummary[];
   journalsLoaded: boolean;
   openJournal: JournalDetail | null;
+  // Neues Journal wird angelegt (Strg+N, AJ-17): Solange der Hauptprozess
+  // antwortet, zeigt die Dokumentfläche statt des bisherigen Journals einen
+  // Platzhalter mit eigenem Titelfeld. Ohne ihn landete, wer direkt nach
+  // Strg+N lostippte, im noch angezeigten VORHERIGEN Journal (Titel oder
+  // Text überschrieben). `title` = bisher im Platzhalter getippt.
+  creatingJournal: { title: string } | null;
+  // Im Platzhalter getippter Titel, den das eben angelegte Journal beim
+  // ersten Anzeigen übernimmt (und speichert). Danach wieder null.
+  newJournalTitle: { journalId: string; title: string } | null;
   // Verknüpfungen und Rückverweise des geöffneten Journals (AJ-10)
   openJournalLinks: JournalLinks;
   // Kategorien und Schlagwörter des Projekts (AJ-09)
@@ -52,7 +67,30 @@ export type AppState = {
   // zentralen Zustand, damit die Suche erhalten bleibt, wenn man ein Journal
   // aus den Treffern öffnet und wieder zum Fachbuch zurückkehrt.
   fachbuch: FachbuchState;
+  // Word-Export: offener Exportdialog mit den gewählten Journalen. Ohne
+  // `collection` ein Einzel-DOCX (AJ-12, genau ein Journal), mit `collection`
+  // ein Sammel-DOCX (AJ-13) in der Reihenfolge der Liste.
+  exportDialog: ExportDialogState | null;
+  // Zusammenstellung für das Sammel-DOCX (AJ-13): gewählte Journale in der
+  // Reihenfolge im Dokument und Titel der Titelseite. Im zentralen Zustand,
+  // damit die Auswahl erhalten bleibt, wenn man zwischendurch ein Journal
+  // öffnet und zur Ansicht «Export» zurückkehrt.
+  collection: CollectionState;
+  // Projektübergabe .ajournal (AJ-14): offener Dialog «Projekt übergeben»
+  // bzw. «Projekt importieren». Bleibt beim Projektwechsel bestehen – der
+  // Import öffnet das neue Projekt und zeigt danach im selben Dialog das Ergebnis.
+  archiveDialog: ArchiveDialogMode | null;
+  // Wiederherstellung einer Sicherung (AJ-15): offener Dialog mit der ID aus
+  // der Liste. Wie archiveDialog im zentralen Zustand, weil das Ersetzen das
+  // Projekt neu öffnet und der Dialog danach das Ergebnis zeigt.
+  restoreDialog: { backupId: string } | null;
 };
+
+export type ArchiveDialogMode = 'export' | 'import';
+
+export type ExportDialogState = { journalIds: string[]; collection?: { title: string } };
+export type CollectionState = { ids: string[]; title: string };
+export const INITIAL_COLLECTION: CollectionState = { ids: [], title: '' };
 
 export const initialState: AppState = {
   view: 'start',
@@ -62,6 +100,7 @@ export const initialState: AppState = {
   notice: null,
   focusRequest: null,
   project: null,
+  projectEpoch: 0,
   projectLoaded: false,
   recent: [],
   suggestedLocation: '',
@@ -70,9 +109,15 @@ export const initialState: AppState = {
   journals: [],
   journalsLoaded: false,
   openJournal: null,
+  creatingJournal: null,
+  newJournalTitle: null,
   openJournalLinks: EMPTY_LINKS,
   taxonomy: EMPTY_TAXONOMY,
   fachbuch: INITIAL_FACHBUCH,
+  exportDialog: null,
+  collection: INITIAL_COLLECTION,
+  archiveDialog: null,
+  restoreDialog: null,
 };
 
 export type Action =
@@ -94,16 +139,34 @@ export type Action =
   | { type: 'journalUpserted'; journal: JournalSummary }
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
+  // Strg+N (AJ-17): Anlegen gestartet / Titel im Platzhalter / angelegt /
+  // fehlgeschlagen / Titel vom neuen Journal übernommen
+  | { type: 'journalCreating' }
+  | { type: 'journalCreatingTitle'; title: string }
+  | { type: 'journalCreated'; journal: JournalDetail }
+  | { type: 'journalCreateFailed' }
+  | { type: 'newJournalTitleTaken' }
   | { type: 'journalClosed' }
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
   | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
-  | { type: 'fachbuchChanged'; change: Partial<FachbuchState> };
+  | { type: 'fachbuchChanged'; change: Partial<FachbuchState> }
+  | { type: 'openExport'; journalIds: string[]; collection?: { title: string } }
+  | { type: 'closeExport' }
+  | { type: 'collectionChanged'; change: Partial<CollectionState> }
+  | { type: 'openArchive'; mode: ArchiveDialogMode }
+  | { type: 'closeArchive' }
+  | { type: 'openRestore'; backupId: string }
+  | { type: 'closeRestore' }
+  // Projektübergabe gespeichert bzw. Erinnerung ausgeblendet (AJ-15)
+  | { type: 'exportRecorded'; lastExportAt: string }
+  | { type: 'exportReminderSnoozed'; until: string };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'navigate':
-      // Navigieren schliesst das Datei-Menü, wie in Office
-      return { ...state, view: action.view, backstage: null, notice: null };
+      // Navigieren schliesst das Datei-Menü, wie in Office. Wer während des
+      // Anlegens wegnavigiert, will das neue Journal nicht mehr öffnen.
+      return { ...state, view: action.view, backstage: null, notice: null, creatingJournal: null };
     case 'selectRibbonTab':
       return { ...state, ribbonTab: action.tab };
     case 'openBackstage':
@@ -133,6 +196,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         project: p,
+        projectEpoch: state.projectEpoch + 1,
         recent,
         wizardOpen: false,
         backstage: null,
@@ -141,9 +205,13 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        creatingJournal: null,
+        newJournalTitle: null,
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
+        exportDialog: null,
+        collection: INITIAL_COLLECTION,
         notice: p.migratedFromVersion
           ? 'Projekt auf das neue Datenformat aktualisiert. Eine Sicherung liegt im Ordner «backups».'
           : null,
@@ -159,9 +227,13 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        creatingJournal: null,
+        newJournalTitle: null,
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
+        exportDialog: null,
+        collection: INITIAL_COLLECTION,
       };
     case 'profileUpdated':
       return state.project ? { ...state, project: { ...state.project, profile: action.profile } } : state;
@@ -192,13 +264,54 @@ export function reducer(state: AppState, action: Action): AppState {
           mentionedIn: drop(state.openJournalLinks.mentionedIn),
         },
         journals: state.journals.filter((x) => x.id !== action.id),
+        // Gelöschtes Journal auch aus der Zusammenstellung für das Sammel-DOCX
+        collection: state.collection.ids.includes(action.id)
+          ? { ...state.collection, ids: state.collection.ids.filter((x) => x !== action.id) }
+          : state.collection,
         openJournal: state.openJournal?.id === action.id ? null : state.openJournal,
         view: state.openJournal?.id === action.id ? 'journale' : state.view,
       };
     }
+    case 'journalCreating':
+      // Bisheriges Journal sofort ausblenden (es speichert beim Ausblenden
+      // Ausstehendes), Platzhalter mit leerem Titelfeld zeigen
+      return {
+        ...state,
+        creatingJournal: { title: '' },
+        newJournalTitle: null,
+        openJournal: null,
+        openJournalLinks: EMPTY_LINKS,
+        view: 'journal',
+        backstage: null,
+        notice: null,
+        saveStatus: { kind: 'idle' },
+      };
+    case 'journalCreatingTitle':
+      if (state.creatingJournal) return { ...state, creatingJournal: { title: action.title } };
+      // Taste kam an, nachdem das Journal angelegt, aber bevor es angezeigt
+      // wurde: in den zu übernehmenden Titel, damit nichts verloren geht
+      if (state.newJournalTitle)
+        return { ...state, newJournalTitle: { ...state.newJournalTitle, title: action.title } };
+      return state;
+    case 'journalCreated': {
+      const withList = reducer(state, { type: 'journalUpserted', journal: action.journal });
+      // Inzwischen wegnavigiert oder Projekt gewechselt: nur in die Liste
+      if (!state.creatingJournal) return withList;
+      return {
+        ...reducer(withList, { type: 'journalOpened', journal: action.journal }),
+        newJournalTitle: { journalId: action.journal.id, title: state.creatingJournal.title },
+      };
+    }
+    case 'journalCreateFailed':
+      return state.creatingJournal
+        ? { ...state, creatingJournal: null, view: state.view === 'journal' ? 'journale' : state.view }
+        : state;
+    case 'newJournalTitleTaken':
+      return { ...state, newJournalTitle: null };
     case 'journalOpened':
       return {
         ...state,
+        creatingJournal: null,
         openJournal: action.journal,
         // Gleiches Journal erneut geöffnet: bisherige Anzeige behalten, bis neu geladen
         openJournalLinks: state.openJournal?.id === action.journal.id ? state.openJournalLinks : EMPTY_LINKS,
@@ -217,6 +330,48 @@ export function reducer(state: AppState, action: Action): AppState {
         : state;
     case 'fachbuchChanged':
       return { ...state, fachbuch: { ...state.fachbuch, ...action.change } };
+    case 'openExport':
+      // Ohne Journal kein Dialog; das Datei-Menü schliesst (wie beim Navigieren)
+      return action.journalIds.length
+        ? {
+            ...state,
+            exportDialog: action.collection
+              ? { journalIds: action.journalIds, collection: action.collection }
+              : { journalIds: action.journalIds },
+            backstage: null,
+          }
+        : state;
+    case 'closeExport':
+      return { ...state, exportDialog: null };
+    case 'collectionChanged':
+      return { ...state, collection: { ...state.collection, ...action.change } };
+    case 'openArchive':
+      // Das Datei-Menü schliesst; ein offener Word-Exportdialog ebenso (nur ein Dialog zugleich)
+      return { ...state, archiveDialog: action.mode, backstage: null, exportDialog: null };
+    case 'closeArchive':
+      return { ...state, archiveDialog: null };
+    case 'openRestore':
+      // Wie bei der Übergabe: nur ein Dialog zugleich, Datei-Menü schliesst
+      return {
+        ...state,
+        restoreDialog: { backupId: action.backupId },
+        backstage: null,
+        exportDialog: null,
+        archiveDialog: null,
+      };
+    case 'closeRestore':
+      return { ...state, restoreDialog: null };
+    case 'exportRecorded':
+      return state.project
+        ? {
+            ...state,
+            project: { ...state.project, lastExportAt: action.lastExportAt, exportReminderUntil: null },
+          }
+        : state;
+    case 'exportReminderSnoozed':
+      return state.project
+        ? { ...state, project: { ...state.project, exportReminderUntil: action.until } }
+        : state;
   }
 }
 

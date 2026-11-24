@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 export const JOURNAL_STATUS = ['draft', 'completed', 'archived'] as const;
 export const LEARNING_PLACES = ['betrieb', 'uek', 'schule'] as const;
+export type LearningPlace = (typeof LEARNING_PLACES)[number];
 
 export const STATUS_LABELS: Record<(typeof JOURNAL_STATUS)[number], string> = {
   draft: 'Entwurf',

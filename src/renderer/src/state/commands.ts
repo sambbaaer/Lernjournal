@@ -38,7 +38,10 @@ export const commands: Record<CommandId, Command> = {
     label: 'Neues Journal',
     shortcut: 'Ctrl+N',
     disabledReason: (s) => (s.project ? null : 'Zuerst ein Lernjournal-Projekt öffnen'),
-    run: (_s, d) => void createJournal(d),
+    // Läuft das Anlegen noch, nicht ein zweites Journal anlegen (Taste doppelt gedrückt)
+    run: (s, d) => {
+      if (!s.creatingJournal) void createJournal(d);
+    },
   },
   'journal.save': {
     id: 'journal.save',

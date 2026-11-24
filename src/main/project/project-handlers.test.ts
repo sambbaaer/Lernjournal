@@ -92,7 +92,9 @@ describe('Projekt-Handler', () => {
       profile,
       seedCategories: false,
     });
-    first.h['project:close'](undefined);
+    // Schliessen ist asynchron (Sicherung beim Schliessen, AJ-15). Ohne await
+    // ist die Datenbank beim Löschen noch offen – unter Windows EPERM.
+    await first.h['project:close'](undefined);
     expect(readRecent(first.recentFile)).toHaveLength(1);
 
     // «Neustart»: neuer Dienst, gleiche Zuletzt-Datei
@@ -110,7 +112,9 @@ describe('Projekt-Handler', () => {
       profile,
       seedCategories: false,
     });
-    first.h['project:close'](undefined);
+    // Schliessen ist asynchron (Sicherung beim Schliessen, AJ-15). Ohne await
+    // ist die Datenbank beim Löschen noch offen – unter Windows EPERM.
+    await first.h['project:close'](undefined);
     rmSync(state.suggestedLocation, { recursive: true, force: true });
     const second = setup();
     const s2 = await second.h['project:getState'](undefined);
