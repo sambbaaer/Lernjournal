@@ -125,7 +125,7 @@ test('Barrierefreiheit (axe, WCAG 2.2 AA): Start, Fachbuch, Datei-Menü ohne Ver
   }
 });
 
-test('Mindestgrösse 1024 × 640 und 150 % Zoom ohne horizontales Scrollen', async () => {
+test('Mindestgrösse 1024 × 640, 150 % und 200 % Zoom ohne horizontales Scrollen', async () => {
   await reset();
   const noHorizontalScroll = () =>
     page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -139,5 +139,35 @@ test('Mindestgrösse 1024 × 640 und 150 % Zoom ohne horizontales Scrollen', asy
   });
   await page.waitForTimeout(300);
   assert.equal(await noHorizontalScroll(), true, 'bei 150 % Zoom');
+
+  // 200 % (SPEC: Skalierung 100–200 %, P0-Abnahme 11): Fenster so gross, dass
+  // bei 200 % genau die Mindestfläche von 1024 × 640 Bildpunkten bleibt.
+  // Menüband, Navigation und Statusleiste müssen ganz sichtbar sein.
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    w.setContentSize(2048, 1280);
+    w.webContents.setZoomFactor(2);
+  });
+  await page.waitForTimeout(300);
+  const at200 = await page.evaluate(() => {
+    const visible = (sel) => {
+      const r = document.querySelector(sel)?.getBoundingClientRect();
+      return (
+        !!r && r.width > 0 && r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight
+      );
+    };
+    return {
+      viewport: `${innerWidth} × ${innerHeight}`,
+      noScroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      nav: visible('[aria-label="Hauptnavigation"]'),
+      status: visible('[data-region="statusbar"]'),
+      ribbon: visible('[data-region="ribbon"]'),
+    };
+  });
+  assert.deepEqual(
+    { ...at200, viewport: undefined },
+    { viewport: undefined, noScroll: true, nav: true, status: true, ribbon: true },
+    `bei 200 % Zoom (Fläche ${at200.viewport})`,
+  );
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));
 });

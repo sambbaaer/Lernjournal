@@ -9,7 +9,7 @@
 // restliche Ablauf ist echt.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { launchApp, runAxe, waitForNewSave } from './helpers.mjs';
@@ -163,5 +163,35 @@ test('Manipulierte Datei: verständliche Meldung, geöffnetes Projekt bleibt', a
     .getByRole('navigation', { name: 'Hauptnavigation' })
     .getByRole('button', { name: 'Journale', exact: true })
     .click();
+  await page.getByRole('row', { name: /Farbmessung am Druckbogen/ }).waitFor();
+});
+
+// P0-Abnahme 8 (AJ-17): falsche Prüfsumme – ein Bild in der Datei verändert,
+// das Manifest nicht (wie ein Übertragungsfehler oder eine Manipulation)
+test('Falsche Prüfsumme: Bild verändert, Manifest nicht – Import abgelehnt, nichts angelegt', async () => {
+  const zip = unzipSync(new Uint8Array(readFileSync(archive)));
+  const image = Object.keys(zip).find((n) => n.startsWith('media/'));
+  const bytes = zip[image];
+  bytes[bytes.length - 1] ^= 0xff;
+  const bad = path.join(dir, 'pruefsumme.ajournal');
+  writeFileSync(bad, zipSync(zip));
+  const before = readdirSync(path.join(dir, 'Dokumente'));
+  await answerDialogs({ open: [bad] });
+
+  await page.keyboard.press('Alt+D');
+  await page.getByRole('dialog', { name: 'Datei' }).getByRole('button', { name: 'Importieren' }).click();
+  await page.getByRole('button', { name: 'Projekt importieren (.ajournal) …' }).click();
+  await importDialog().getByRole('button', { name: 'Datei wählen …' }).click();
+  // Die Vorschau liest nur das Manifest; alle Prüfsummen prüft der Import selbst
+  await importDialog().getByText('1 Journal · 1 Bild').waitFor({ timeout: 30000 });
+  await importDialog().getByRole('button', { name: 'Importieren', exact: true }).click();
+  await importDialog()
+    .getByRole('alert')
+    .getByText('beschädigt oder wurde verändert')
+    .waitFor({ timeout: 30000 });
+  assert.deepEqual(await runAxe(page), []);
+  await page.keyboard.press('Escape');
+  await importDialog().waitFor({ state: 'detached' });
+  assert.deepEqual(readdirSync(path.join(dir, 'Dokumente')), before, 'kein neuer Projektordner');
   await page.getByRole('row', { name: /Farbmessung am Druckbogen/ }).waitFor();
 });
