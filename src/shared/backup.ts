@@ -208,3 +208,65 @@ export function exportReminderText(r: Extract<ExportReminder, { due: true }>): s
         : 'Das Datum deiner letzten Kopie ausserhalb des Computers (.ajournal) ist unklar.';
   return `${lead} Speichere das Projekt auf einem USB-Stick oder NAS – Sicherungen auf diesem Computer helfen nicht, wenn das Gerät verloren geht oder kaputt ist.`;
 }
+
+// --- Erinnerung an ein neues Journal (Opt-in, konfigurierbar) -----------------
+
+export const JOURNAL_REMINDER = {
+  // Standard-Intervall (30 Tage = ca. 1× pro Monat)
+  defaultDays: 30,
+  minDays: 1,
+  maxDays: 365,
+  // «Nicht jetzt» schiebt die Erinnerung um 7 Tage auf
+  snoozeDays: 7,
+  clockToleranceMs: DAY_MS,
+} as const;
+
+export type JournalReminderInput = {
+  enabled: boolean;
+  intervalDays: number;
+  // Letztes Journal: neuestes Arbeits- oder Erstelldatum bzw. Projekterstellung
+  lastJournalAt: string | null;
+  projectCreatedAt: string;
+  snoozedUntil: string | null;
+  now: Date;
+};
+
+export type JournalReminder = { due: false } | { due: true; kind: 'first' | 'overdue'; days: number };
+
+// Ist die smarte Erinnerung für ein neues Journal fällig? Reine Funktion (Vitest).
+//  - Nur wenn Opt-in aktiv (`enabled: true`).
+//  - «Nicht jetzt» (`snoozedUntil`) pausiert die Erinnerung bis zum Zeitpunkt.
+//  - Ohne Journale zählt das Alter ab Projekterstellung (`first`), sonst ab dem
+//    zuletzt erstellten/bearbeiteten Journal (`overdue`).
+export function journalReminder(input: JournalReminderInput): JournalReminder {
+  if (!input.enabled) return { due: false };
+  const daysLimit = Math.max(
+    JOURNAL_REMINDER.minDays,
+    Math.min(JOURNAL_REMINDER.maxDays, Math.trunc(input.intervalDays) || JOURNAL_REMINDER.defaultDays),
+  );
+  const now = input.now.getTime();
+  const tol = JOURNAL_REMINDER.clockToleranceMs;
+
+  const snooze = time(input.snoozedUntil);
+  if (snooze !== null && now < snooze && snooze - now <= JOURNAL_REMINDER.snoozeDays * DAY_MS + tol) {
+    return { due: false };
+  }
+
+  const last = time(input.lastJournalAt);
+  const base = last ?? time(input.projectCreatedAt);
+  if (base === null || base > now + tol) return { due: false };
+
+  const age = now - base;
+  if (age < daysLimit * DAY_MS) return { due: false };
+  return {
+    due: true,
+    kind: last === null ? 'first' : 'overdue',
+    days: Math.floor(age / DAY_MS),
+  };
+}
+
+export function journalReminderText(r: Extract<JournalReminder, { due: true }>): string {
+  return r.kind === 'first'
+    ? `Dein Lernjournal wurde vor ${r.days} Tagen eingerichtet. Halte deinen ersten Auftrag in einem kurzen Journal fest.`
+    : `Dein letztes Journal liegt ${r.days} Tage zurück. Halte zeitnah einen aktuellen Auftrag fest, solange die Details noch präsent sind.`;
+}

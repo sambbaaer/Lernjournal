@@ -71,6 +71,25 @@ export function JournalInsertMenu({ journalId }: { journalId: string }) {
     target.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   }
 
+  function runInsertSymbol(symbol: string) {
+    close();
+    const target = ensureActiveEditor() ?? editor;
+    if (!target || target.isDestroyed) {
+      dispatch({ type: 'notice', text: 'Zuerst in einen Abschnitt des Journals klicken.' });
+      return;
+    }
+    target.chain().focus().insertContent(symbol).run();
+  }
+
+  const PRINT_SYMBOLS = [
+    { label: 'ΔE', title: 'Delta E (Farbabstand)' },
+    { label: 'µm', title: 'Mikrometer' },
+    { label: '°C', title: 'Grad Celsius' },
+    { label: '±', title: 'Plus/Minus (Toleranz)' },
+    { label: '×', title: 'Malzeichen (Format, z. B. 70 × 100 cm)' },
+    { label: 'g/m²', title: 'Flächengewicht (Grammatur)' },
+  ] as const;
+
   return (
     <details
       ref={menu}
@@ -133,6 +152,28 @@ export function JournalInsertMenu({ journalId }: { journalId: string }) {
         >
           <Table aria-hidden="true" size={16} /> Tabelle einfügen
         </button>
+        <div className="my-1 border-t border-border-subtle" />
+        <div className="px-2.5 py-1">
+          <div className="flex items-center justify-between text-xs text-ink-muted">
+            <span>Fachsymbole</span>
+            <span>Windows: Win+.</span>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Fachsymbole einfügen">
+            {PRINT_SYMBOLS.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                title={s.title}
+                aria-label={`${s.label} (${s.title})`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => runInsertSymbol(s.label)}
+                className="rounded-sm border border-border px-2 py-0.5 text-xs font-medium hover:bg-hover"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </details>
   );

@@ -13,8 +13,9 @@ Offlinefähige Windows-Desktop-App für Lernende Medientechnolog*innen EFZ zum F
 - Electron, React, TypeScript, Tiptap, SQLite (`node:sqlite`), Tailwind CSS, `docx`, electron-builder.
 - Windows-Installer und portable EXE; offline-first, ohne Konto, Server oder KI.
 - Vier Journalvorlagen mit frei editierbarem Rich Text. «Neues Journal» und Strg+N legen einen Lernbericht an. Im Menüband «Vorlagen» stehen zusätzlich ein freier Eintrag, Maschinenwerte und ein Arbeitsablauf bereit.
-- Über «Abschnitt hinzufügen» lassen sich leere Abschnitte oder ganze Vorlagen an einen bestehenden Eintrag anhängen. Direkt daneben bietet der «Einfügen»-Knopf (sowie das Menüband und das Rechtsklick-Kontextmenü) schnelles Einfügen aus der Zwischenablage, «Nur Text übernehmen», Bilder und Tabellen. Überschriften und Reihenfolge sind frei änderbar. Datum, Lernort und Status stehen kompakt am Titel. Weitere Felder lassen sich unter «Journaldetails» öffnen.
-- «Gespeichert» in der Statusleiste zeigt den bestätigten Speicherstand an und öffnet die Liste der Projektsicherungen zur Wiederherstellung.
+- Über «Abschnitt hinzufügen» lassen sich leere Abschnitte oder ganze Vorlagen an einen bestehenden Eintrag anhängen. Direkt daneben bietet der «Einfügen»-Knopf (sowie das Menüband und das Rechtsklick-Kontextmenü) schnelles Einfügen aus der Zwischenablage, «Nur Text übernehmen», Bilder, Tabellen und Print-Fachsymbole (`ΔE`, `µm`, `°C`, `±`, `×`, `g/m²` sowie `Win+.`). Überschriften und Reihenfolge sind frei änderbar. Datum, Lernort und Status stehen kompakt am Titel. Weitere Felder lassen sich unter «Journaldetails» öffnen.
+- «Gespeichert» in der Statusleiste zeigt den bestätigten Speicherstand an und öffnet die Liste der Projektsicherungen zur Wiederherstellung. Daneben steht ein Word-typischer Dokument-Zoom (`80–150 %`, `Strg+Mausrad`, `Strg++`/`Strg+-`/`Strg+0`).
+- Optionale, konfigurierbare Windows-11-Erinnerung (Opt-in im Einrichtungsassistenten und in den Einstellungen, Standard 30 Tage) mit den Aktionen «Neues Journal» und «Nicht jetzt».
 - Lokaler Projektordner; vollständiger portabler `.ajournal`-ZIP-Export.
 - PDF und bearbeitbares Word als Einzel- oder Sammelexport. Für die IPA/QV vorgemerkte Journale lassen sich im Export übernehmen und als PDF zusammenstellen.
 - Einstellbares Farbschema mit Hell, Dunkel und Systemeinstellung.

@@ -134,6 +134,11 @@ export const ipcContract = {
     request: z.strictObject({ plainText: z.boolean().optional() }).optional(),
     response: z.boolean(),
   },
+  // Nativer Windows-11-Toast für die monatliche Journal-Erinnerung (Opt-in)
+  'app:notifyJournalReminder': {
+    request: z.strictObject({ body: z.string().trim().min(1).max(300) }),
+    response: z.object({ shown: z.boolean() }),
+  },
   // Geöffneten Projektordner im Windows-Explorer anzeigen (ohne Pfad vom Renderer)
   'project:showFolder': { request: z.undefined(), response: z.object({ shown: z.boolean() }) },
 

@@ -1,7 +1,16 @@
 // Erinnerung an die Projektübergabe (AJ-15): Grenzfälle der 30-Tage-Regel,
 // nie übergeben, «Später erinnern», verstellte Uhr. Reine Logik (Vitest).
 import { describe, expect, it } from 'vitest';
-import { EXPORT_REMINDER, exportReminder, exportReminderText, type ExportReminderInput } from './backup';
+import {
+  EXPORT_REMINDER,
+  exportReminder,
+  exportReminderText,
+  JOURNAL_REMINDER,
+  journalReminder,
+  journalReminderText,
+  type ExportReminderInput,
+  type JournalReminderInput,
+} from './backup';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-11-24T08:30:00.000Z');
@@ -84,6 +93,44 @@ describe('exportReminderText', () => {
     for (const t of texts) {
       expect(t).not.toMatch(/ß/);
       expect(t).toContain('USB-Stick');
+    }
+  });
+});
+
+describe('journalReminder', () => {
+  const jBase: JournalReminderInput = {
+    enabled: true,
+    intervalDays: JOURNAL_REMINDER.defaultDays,
+    lastJournalAt: ago(30 * DAY),
+    projectCreatedAt: ago(100 * DAY),
+    snoozedUntil: null,
+    now: NOW,
+  };
+  const jCheck = (over: Partial<JournalReminderInput>) => journalReminder({ ...jBase, ...over });
+
+  it('ist nur aktiv, wenn Opt-in gewählt wurde, und nutzt standardmässig 30 Tage', () => {
+    expect(JOURNAL_REMINDER.defaultDays).toBe(30);
+    expect(jCheck({ enabled: false })).toEqual({ due: false });
+    expect(jCheck({ lastJournalAt: ago(29 * DAY) })).toEqual({ due: false });
+    expect(jCheck({ lastJournalAt: ago(30 * DAY) })).toEqual({ due: true, kind: 'overdue', days: 30 });
+  });
+
+  it('berücksichtigt ein frei konfigurierbares Intervall und «Nicht jetzt» (Snooze)', () => {
+    expect(jCheck({ intervalDays: 14, lastJournalAt: ago(14 * DAY) })).toEqual({
+      due: true,
+      kind: 'overdue',
+      days: 14,
+    });
+    const until = new Date(NOW.getTime() + 3 * DAY).toISOString();
+    expect(jCheck({ snoozedUntil: until })).toEqual({ due: false });
+  });
+
+  it('erinnert ohne Journale ab Projekterstellung und formuliert auf Schweizer Hochdeutsch', () => {
+    const r = jCheck({ lastJournalAt: null, projectCreatedAt: ago(35 * DAY) });
+    expect(r).toEqual({ due: true, kind: 'first', days: 35 });
+    if (r.due) {
+      expect(journalReminderText(r)).toContain('35 Tagen');
+      expect(journalReminderText(r)).not.toMatch(/ß/);
     }
   });
 });

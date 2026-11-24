@@ -2,6 +2,7 @@
 //   1. Speicherort und Name  2. Profil  3. Vorschlag-Kategorien
 // Sinnvolle Standardwerte: Mit dreimal «Weiter» ist das Projekt angelegt.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { JOURNAL_REMINDER } from '@shared/backup';
 import { BIPLA_CATEGORIES } from '@shared/bipla';
 import type { FolderKind, Profile } from '@shared/ipc';
 import { useApp } from '../state/AppContext';
@@ -32,6 +33,8 @@ export function NewProjectWizard() {
     specialization: 'print',
   });
   const [seed, setSeed] = useState(true);
+  const [reminderOptIn, setReminderOptIn] = useState(state.journalReminderEnabled);
+  const [reminderDays, setReminderDays] = useState(state.journalReminderDays);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Ordner prüfen, sobald er feststeht (leer? schon Projekt? Cloud?)
@@ -67,6 +70,12 @@ export function NewProjectWizard() {
     e.preventDefault();
     if (!canContinue) return;
     if (step < STEPS.length - 1) return setStep(step + 1);
+    dispatch({
+      type: 'setJournalReminder',
+      enabled: reminderOptIn,
+      days: reminderDays,
+      snoozedUntil: null,
+    });
     void actions.create({ path: location, title: title.trim(), profile, seedCategories: seed });
   }
 
@@ -174,6 +183,47 @@ export function NewProjectWizard() {
                 <li key={c.code}>{c.name}</li>
               ))}
             </ul>
+            <div className="border-t border-border-subtle pt-4">
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={reminderOptIn}
+                  onChange={(e) => setReminderOptIn(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-accent"
+                />
+                <span>
+                  <strong>Windows-Erinnerung für neue Journale aktivieren (optional)</strong>
+                  <span className="block text-ink-muted">
+                    Erinnert dich dezent mit einer Windows-Benachrichtigung («Neues Journal» / «Nicht jetzt»),
+                    wenn längere Zeit kein Eintrag erfasst wurde. Du kannst das jederzeit in den Einstellungen
+                    ändern.
+                  </span>
+                </span>
+              </label>
+              {reminderOptIn && (
+                <div className="ml-7 mt-2 flex items-center gap-2 text-sm">
+                  <label htmlFor="wizard-reminder-days">Erinnern nach</label>
+                  <input
+                    id="wizard-reminder-days"
+                    type="number"
+                    min={JOURNAL_REMINDER.minDays}
+                    max={JOURNAL_REMINDER.maxDays}
+                    value={reminderDays}
+                    onChange={(e) => {
+                      const v = e.target.valueAsNumber;
+                      if (
+                        Number.isInteger(v) &&
+                        v >= JOURNAL_REMINDER.minDays &&
+                        v <= JOURNAL_REMINDER.maxDays
+                      )
+                        setReminderDays(v);
+                    }}
+                    className="w-20 rounded-sm border border-border-strong bg-surface px-2.5 py-1"
+                  />
+                  <span>Tagen ohne neues Journal</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

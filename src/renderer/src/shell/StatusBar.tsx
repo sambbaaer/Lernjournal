@@ -1,8 +1,8 @@
-// Statusleiste unten: Hinweise, Speicherstatus und direkter Zugang zu Sicherungen.
-import { CircleAlert, LoaderCircle, Check, History } from 'lucide-react';
+// Statusleiste unten: Hinweise, Speicherstatus, direkter Zugang zu Sicherungen und Word-typischer Dokument-Zoom.
+import { CircleAlert, LoaderCircle, Check, History, Minus, Plus } from 'lucide-react';
 import { saveNow } from '../editor/save-registry';
 import { useApp } from '../state/AppContext';
-import type { SaveStatus } from '../state/app-state';
+import { ZOOM_STEPS, type SaveStatus } from '../state/app-state';
 
 const backupButton =
   'flex min-h-6 items-center gap-1 whitespace-nowrap rounded-sm px-2 font-semibold hover:bg-selected';
@@ -57,12 +57,16 @@ function SaveIndicator({ status, onBackups }: { status: SaveStatus; onBackups: (
 
 export function StatusBar({ version }: { version: string | null }) {
   const { state, dispatch } = useApp();
-  const { saveStatus, journalDetailSave, openJournal, project, creatingJournal } = state;
+  const { saveStatus, journalDetailSave, openJournal, project, creatingJournal, zoomPercent } = state;
   let status = saveStatus;
   if (saveStatus.kind !== 'error' && journalDetailSave.active > 0) status = { kind: 'saving' };
   if (status.kind === 'saved' && openJournal)
     status = { ...status, at: Math.max(status.at, Date.parse(openJournal.updatedAt)) };
   const detailError = status.kind !== 'error' && !journalDetailSave.active && journalDetailSave.error;
+
+  const zoomIdx = ZOOM_STEPS.indexOf(zoomPercent as (typeof ZOOM_STEPS)[number]);
+  const prevZoom = zoomIdx > 0 ? ZOOM_STEPS[zoomIdx - 1] : null;
+  const nextZoom = zoomIdx >= 0 && zoomIdx < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[zoomIdx + 1] : null;
 
   return (
     <footer
@@ -103,6 +107,43 @@ export function StatusBar({ version }: { version: string | null }) {
             ))}
         </div>
       </div>
+      {project && !state.wizardOpen && !state.backstage && (
+        <div
+          className="flex shrink-0 items-center gap-0.5 border-l border-border-subtle pl-2"
+          role="group"
+          aria-label="Dokument-Zoom"
+        >
+          <button
+            type="button"
+            disabled={!prevZoom}
+            aria-label="Verkleinern"
+            title="Ansicht verkleinern (Strg+-)"
+            onClick={() => prevZoom && dispatch({ type: 'setZoomPercent', zoomPercent: prevZoom })}
+            className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-selected disabled:opacity-40"
+          >
+            <Minus aria-hidden="true" size={12} />
+          </button>
+          <button
+            type="button"
+            aria-label={`Zoom ${zoomPercent} % (auf 100 % zurücksetzen)`}
+            title="Auf 100 % zurücksetzen (Strg+0)"
+            onClick={() => dispatch({ type: 'setZoomPercent', zoomPercent: 100 })}
+            className="min-w-11 rounded-sm px-1 py-0.5 text-center tabular-nums hover:bg-selected"
+          >
+            {zoomPercent} %
+          </button>
+          <button
+            type="button"
+            disabled={!nextZoom}
+            aria-label="Vergrössern"
+            title="Ansicht vergrössern (Strg++)"
+            onClick={() => nextZoom && dispatch({ type: 'setZoomPercent', zoomPercent: nextZoom })}
+            className="flex h-6 w-6 items-center justify-center rounded-sm hover:bg-selected disabled:opacity-40"
+          >
+            <Plus aria-hidden="true" size={12} />
+          </button>
+        </div>
+      )}
       {version && <span className="shrink-0">Version {version}</span>}
     </footer>
   );

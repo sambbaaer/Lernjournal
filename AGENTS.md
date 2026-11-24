@@ -18,12 +18,13 @@ Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist mass
 - Architekturentscheide als ADR unter docs/adr/; Spike-Code nur überführt (TS, Tests) übernehmen.
 - Pro Ticket Tests und Dokumentationspflege; aktuelle Bibliotheksversionen erst bei Implementierung prüfen.
 
-## Current Focus: Native Windows-Integration & Word-inspiriertes Einfügen
+## Current Focus: Native Windows-11-Features, Word-Zoom, Fachsymbole & Opt-in Journal-Erinnerung
 ## Status: Completed
 ## Last Actions:
-- «Einfügen»-Knopf mit Menü direkt neben «Abschnitt hinzufügen» am Ende der Journalseite eingebaut (Zwischenablage Text/Bild, Nur Text übernehmen, Bilddatei wählen, Tabelle einfügen).
-- Menüband «Start → Zwischenablage» um «Nur Text» (`Strg+Umschalt+V` via `pasteAndMatchStyle`) ergänzt.
-- Natives Windows-Rechtsklick-Kontextmenü im Editor und in Eingabefeldern (Rückgängig, Wiederholen, Ausschneiden, Kopieren, Einfügen, Nur Text übernehmen, Alles markieren) im Hauptprozess ergänzt.
+- «Einfügen»-Knopf neben «Abschnitt hinzufügen» um Print-Fachsymbole (`ΔE`, `µm`, `°C`, `±`, `×`, `g/m²` + `Win+.`) ergänzt; Rechtsklick-Kontextmenü um `Emoji und Symbole (Win+.)` erweitert.
+- Word-typischer Dokument-Zoom (`80–150 %`, `- / 100 % / +` in der Statusleiste, `Strg+Mausrad`, `Strg++`, `Strg+-`, `Strg+0`) eingebaut.
+- Windows 11 `backgroundMaterial: 'mica'`, Taskleisten-Fortschrittsbalken (`win.setProgressBar`) und Speicherung von Fenstergrösse/Position/Maximiert-Status (`window-state.ts`) umgesetzt.
+- Opt-in Windows-11-Toast-Erinnerung & Infoleiste für neue Journale (im Onboarding-Assistenten und in den Einstellungen aktivierbar, Standard 30 Tage, frei konfigurierbar, mit «Neues Journal» und «Nicht jetzt» / 7-Tage-Snooze) eingebaut.
 - «Im Explorer öffnen» für den Projektordner in Statusleiste und Einstellungen (`project:showFolder` via `shell.openPath`) umgesetzt – kompatibel mit Store-MSIX und Portable-EXE.
 ## Next Steps:
 - Manuelle Prüfungen (Word 365, zweiter PC, verwaltetes Windows) und Pilot mit Lernenden gemäss `docs/PILOT.md`.

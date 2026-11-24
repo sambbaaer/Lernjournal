@@ -5,7 +5,7 @@
 // Ausserdem: globale Tastenkürzel und F6-Bereichswechsel.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
-import { VIEW_LABELS, type AppState } from '../state/app-state';
+import { VIEW_LABELS, ZOOM_STEPS, type AppState } from '../state/app-state';
 import { commands } from '../state/commands';
 import { nextRegion, REGIONS, type Region } from '../state/regions';
 import { matchesShortcut } from '../state/shortcuts';
@@ -19,6 +19,7 @@ import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
+import { JournalReminderBar } from '../journal/JournalReminderBar';
 import { JournalTemplateDialog } from '../journal/JournalTemplateDialog';
 import { NewJournalPending } from '../journal/NewJournalPending';
 import { NewProjectWizard } from '../project/NewProjectWizard';
@@ -93,6 +94,26 @@ export function AppShell({ version }: { version: string | null }) {
         if (s.backstage) return;
         focusRegion(nextRegion(currentRegion(), e.shiftKey));
         return;
+      }
+      // Strg++ / Strg+- / Strg+0: Dokument-Zoom wie in Word
+      if (e.ctrlKey && !e.altKey && !s.backstage) {
+        const idx = ZOOM_STEPS.indexOf(s.zoomPercent as (typeof ZOOM_STEPS)[number]);
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          if (idx >= 0 && idx < ZOOM_STEPS.length - 1)
+            dispatch({ type: 'setZoomPercent', zoomPercent: ZOOM_STEPS[idx + 1]! });
+          return;
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          if (idx > 0) dispatch({ type: 'setZoomPercent', zoomPercent: ZOOM_STEPS[idx - 1]! });
+          return;
+        }
+        if (e.key === '0') {
+          e.preventDefault();
+          dispatch({ type: 'setZoomPercent', zoomPercent: 100 });
+          return;
+        }
       }
       for (const cmd of Object.values(commands)) {
         if (!cmd.shortcut || cmd.id.startsWith('region.')) continue;
@@ -189,8 +210,9 @@ export function AppShell({ version }: { version: string | null }) {
                 onDismiss={() => dispatch({ type: 'dismissSyncWarning' })}
               />
             )}
-            {/* Erinnerung an eine Kopie ausserhalb des Computers (AJ-15) */}
+            {/* Erinnerung an eine Kopie ausserhalb des Computers (AJ-15) und Opt-in Journal-Erinnerung */}
             <ExportReminderBar />
+            <JournalReminderBar />
             <div className="flex min-h-0 flex-1">
               <NavigationPane />
               <main
@@ -202,6 +224,14 @@ export function AppShell({ version }: { version: string | null }) {
                 data-region="document"
                 tabIndex={-1}
                 aria-label={VIEW_LABELS[state.view]}
+                style={state.zoomPercent !== 100 ? { zoom: `${state.zoomPercent}%` } : undefined}
+                onWheel={(e) => {
+                  if (!e.ctrlKey) return;
+                  e.preventDefault();
+                  const idx = ZOOM_STEPS.indexOf(state.zoomPercent as (typeof ZOOM_STEPS)[number]);
+                  const next = e.deltaY < 0 ? ZOOM_STEPS[idx + 1] : ZOOM_STEPS[idx - 1];
+                  if (next) dispatch({ type: 'setZoomPercent', zoomPercent: next });
+                }}
                 className="min-w-0 flex-1 relative overflow-auto bg-canvas"
               >
                 {views[state.view]}

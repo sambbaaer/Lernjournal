@@ -11,11 +11,19 @@ const api: LernjournalApi = {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
     closeReady: (req) => ipcRenderer.invoke('app:closeReady', req),
     pasteInEditor: (req) => ipcRenderer.invoke('app:pasteInEditor', req),
+    notifyJournalReminder: (req) => ipcRenderer.invoke('app:notifyJournalReminder', req),
     // Nur dieses eine Ereignis vom Hauptprozess, ohne Ereignisdaten weiterzugeben
     onBeforeClose: (listener) => {
       const wrapped = () => listener();
       ipcRenderer.on('lj:before-close', wrapped);
       return () => ipcRenderer.removeListener('lj:before-close', wrapped);
+    },
+    onReminderAction: (listener) => {
+      const wrapped = (_e: unknown, action: unknown) => {
+        if (action === 'new-journal' || action === 'snooze') listener(action);
+      };
+      ipcRenderer.on('lj:reminder-action', wrapped);
+      return () => ipcRenderer.removeListener('lj:reminder-action', wrapped);
     },
   },
   project: {

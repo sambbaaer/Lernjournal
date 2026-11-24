@@ -8,6 +8,7 @@ export type RibbonTab = 'start' | 'einfuegen' | 'journal' | 'exportieren' | 'tab
 export type BackstagePage = 'neu' | 'oeffnen' | 'importieren' | 'exportieren' | 'einstellungen' | 'info';
 
 import type { ProjectInfo } from '@shared/ipc';
+import { JOURNAL_REMINDER } from '@shared/backup';
 import { DEFAULT_QV_MINIMUM, type ExportFormat } from '@shared/export';
 import type { JournalDetail, JournalSummary } from '@shared/journal';
 import { EMPTY_LINKS, type JournalLinks } from '@shared/links';
@@ -31,6 +32,12 @@ export type AppState = {
   mcp: McpStatus;
   appearance: Appearance;
   qvMinimum: number;
+  // Dokument-Zoom (wie rechts unten in Word: 75–150 %, Standard 100 %)
+  zoomPercent: number;
+  // Opt-in Erinnerung für ein neues Journal (Standard: aus, 30 Tage)
+  journalReminderEnabled: boolean;
+  journalReminderDays: number;
+  journalReminderSnoozedUntil: string | null;
   view: View;
   ribbonTab: RibbonTab;
   backstage: BackstagePage | null; // null = Datei-Menü geschlossen
@@ -118,11 +125,17 @@ export type ExportDialogState = {
 export type CollectionState = { ids: string[]; title: string };
 export const INITIAL_COLLECTION: CollectionState = { ids: [], title: '' };
 
+export const ZOOM_STEPS = [80, 90, 100, 110, 125, 150] as const;
+
 export const initialState: AppState = {
   settingsTab: 'general',
   mcp: MCP_OFF,
   appearance: 'light',
   qvMinimum: DEFAULT_QV_MINIMUM,
+  zoomPercent: 100,
+  journalReminderEnabled: false,
+  journalReminderDays: JOURNAL_REMINDER.defaultDays,
+  journalReminderSnoozedUntil: null,
   view: 'start',
   ribbonTab: 'start',
   backstage: null,
@@ -157,6 +170,8 @@ export const initialState: AppState = {
 export type Action =
   | { type: 'setAppearance'; appearance: Appearance }
   | { type: 'setQvMinimum'; minimum: number }
+  | { type: 'setZoomPercent'; zoomPercent: number }
+  | { type: 'setJournalReminder'; enabled?: boolean; days?: number; snoozedUntil?: string | null }
   | { type: 'navigate'; view: View }
   | { type: 'showBackups' }
   | { type: 'showMcp' }
@@ -215,6 +230,24 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, appearance: action.appearance };
     case 'setQvMinimum':
       return { ...state, qvMinimum: action.minimum };
+    case 'setZoomPercent': {
+      const clamped = Math.max(80, Math.min(150, Math.round(action.zoomPercent)));
+      return { ...state, zoomPercent: clamped };
+    }
+    case 'setJournalReminder':
+      return {
+        ...state,
+        ...(action.enabled !== undefined ? { journalReminderEnabled: action.enabled } : {}),
+        ...(action.days !== undefined
+          ? {
+              journalReminderDays: Math.max(
+                JOURNAL_REMINDER.minDays,
+                Math.min(JOURNAL_REMINDER.maxDays, Math.round(action.days)),
+              ),
+            }
+          : {}),
+        ...(action.snoozedUntil !== undefined ? { journalReminderSnoozedUntil: action.snoozedUntil } : {}),
+      };
     case 'navigate':
       // Navigieren schliesst das Datei-Menü, wie in Office. Wer während des
       // Anlegens wegnavigiert, will das neue Journal nicht mehr öffnen.

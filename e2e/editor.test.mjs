@@ -178,6 +178,12 @@ test('Menüband «Start → Einfügen» und der «Einfügen»-Knopf am Seitenend
     await doc.locator('summary', { hasText: 'Einfügen' }).click();
     await doc.getByRole('button', { name: /Nur Text übernehmen/ }).click();
     await editor('Reflexion').getByText('NurTextProbe').waitFor();
+
+    await doc.locator('summary', { hasText: 'Einfügen' }).click();
+    await doc.getByRole('button', { name: 'ΔE (Delta E (Farbabstand))' }).click();
+    await editor('Reflexion')
+      .getByText(/NurTextProbeΔE/)
+      .waitFor();
   } finally {
     await stub(false);
   }

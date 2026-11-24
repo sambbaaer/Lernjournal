@@ -1,6 +1,7 @@
 // Einstellungen: Profil bearbeiten, Kategorien/Schlagwörter verwalten,
 // Suchindex neu aufbauen, Sicherungen (AJ-15), Speicherort anzeigen, Projekt schliessen.
 import { useState, type FormEvent } from 'react';
+import { JOURNAL_REMINDER } from '@shared/backup';
 import { COLLECTION_LIMITS } from '@shared/export';
 import type { Profile } from '@shared/ipc';
 import { BackupSection } from '../backup/BackupSection';
@@ -71,6 +72,53 @@ export function SettingsPanel() {
               className="w-24 rounded-sm border border-border-strong bg-surface px-3 py-2"
             />
           </label>
+        </div>
+        <div className="space-y-2 border-t border-border-subtle pt-3 text-sm">
+          <label className="flex items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={state.journalReminderEnabled}
+              onChange={(e) =>
+                dispatch({
+                  type: 'setJournalReminder',
+                  enabled: e.target.checked,
+                  snoozedUntil: null,
+                })
+              }
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              <span className="font-medium">Windows-Erinnerung für neue Journale</span>
+              <span className="block text-ink-muted">
+                Zeigt eine dezente Windows-Benachrichtigung («Neues Journal» / «Nicht jetzt»), wenn längere
+                Zeit kein Auftrag festgehalten wurde.
+              </span>
+            </span>
+          </label>
+          {state.journalReminderEnabled && (
+            <div className="ml-6 flex flex-wrap items-center gap-2">
+              <label htmlFor="settings-reminder-days">Erinnerungsabstand (Tage)</label>
+              <input
+                id="settings-reminder-days"
+                type="number"
+                min={JOURNAL_REMINDER.minDays}
+                max={JOURNAL_REMINDER.maxDays}
+                defaultValue={state.journalReminderDays}
+                onBlur={(e) => {
+                  const days = e.target.valueAsNumber;
+                  if (
+                    e.target.validity.valid &&
+                    Number.isInteger(days) &&
+                    days >= JOURNAL_REMINDER.minDays &&
+                    days <= JOURNAL_REMINDER.maxDays
+                  )
+                    dispatch({ type: 'setJournalReminder', days });
+                  else e.target.value = String(state.journalReminderDays);
+                }}
+                className="w-20 rounded-sm border border-border-strong bg-surface px-2.5 py-1.5"
+              />
+            </div>
+          )}
         </div>
       </section>
       <section aria-labelledby="settings-profile" className="max-w-xl">

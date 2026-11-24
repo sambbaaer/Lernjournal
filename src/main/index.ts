@@ -11,7 +11,9 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  Notification,
   protocol,
+  screen,
   session,
   shell,
   systemPreferences,
@@ -63,6 +65,7 @@ import {
   resolveAppFile,
   secureWebPreferences,
 } from './security';
+import { loadWindowBounds, saveWindowBounds, type WindowBounds } from './window-state';
 
 // Während `npm run dev` setzt electron-vite diese Variable auf den Vite-Server.
 // Im fertigen Programm ist sie nicht gesetzt (und wird dann ignoriert).
@@ -170,6 +173,12 @@ const archives = new ArchiveService({
 // Datumsfelder (TT.MM.JJJJ), Rechtschreibprüfung und Zahlenformate passen –
 // auch auf Geräten mit englischem Windows.
 app.commandLine.appendSwitch('lang', 'de-CH');
+// AppUserModelId für Windows 10/11 setzen, damit Taskleiste und native
+// Windows-Toast-Benachrichtigungen auch in der Portable-EXE zuverlässig
+// zugeordnet werden.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('ch.lernjournal.app');
+}
 // Kein Proxy (offline-first, AJ-16): Sonst sucht Chromium unter Windows über
 // «Einstellungen automatisch erkennen» (WPAD) einen Proxy und schickt dafür eine
 // DNS-Anfrage nach «wpad» ins Netz – gefunden im Netzwerkprotokoll der Windows-CI.
@@ -322,6 +331,22 @@ function mainWindow(): BrowserWindow | undefined {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
 }
 
+// Fortschritt an Oberfläche UND an das Windows-11-Taskleisten-Icon melden
+function sendArchiveProgress(p: { step: string; percent: number | null }) {
+  const win = mainWindow();
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send('lj:archive-progress', p);
+  if (p.percent === null || p.percent >= 100) {
+    win.setProgressBar(-1);
+  } else {
+    win.setProgressBar(Math.max(0.05, Math.min(0.99, p.percent / 100)));
+  }
+}
+
+// Aktive Windows-Toast-Instanz festhalten, damit der Garbage Collector sie
+// nicht verwirft, bevor Lernende darauf klicken.
+let activeReminderToast: Notification | null = null;
+
 function registerIpc() {
   // Zuletzt-Liste und Pfad-Freigabe: gemeinsam für «Öffnen» und den Import (AJ-14)
   const opened = new OpenedProjects(path.join(app.getPath('userData'), 'recent-projects.json'));
@@ -368,6 +393,49 @@ function registerIpc() {
         if (req?.plainText) win.webContents.pasteAndMatchStyle();
         else win.webContents.paste();
         return true;
+      },
+      'app:notifyJournalReminder': ({ body }) => {
+        if (selfTest || !projects.isOpen || !Notification.isSupported()) return { shown: false };
+        try {
+          activeReminderToast?.close();
+          const toastXml =
+            process.platform === 'win32'
+              ? `<toast launch="lernjournal:reminder">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Zeit für ein neues Journal</text>
+      <text>${body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="Neues Journal" arguments="new-journal" activationType="foreground"/>
+    <action content="Nicht jetzt" arguments="snooze" activationType="foreground"/>
+  </actions>
+</toast>`
+              : undefined;
+          const n = new Notification({
+            title: 'Zeit für ein neues Journal',
+            body,
+            icon: windowIcon,
+            ...(toastXml ? { toastXml } : {}),
+          });
+          const trigger = (action: 'new-journal' | 'snooze') => {
+            const win = mainWindow();
+            if (!win || win.isDestroyed()) return;
+            if (action === 'new-journal') {
+              if (win.isMinimized()) win.restore();
+              win.focus();
+            }
+            win.webContents.send('lj:reminder-action', action);
+          };
+          n.on('click', () => trigger('new-journal'));
+          n.on('action', (_e, index) => trigger(index === 1 ? 'snooze' : 'new-journal'));
+          activeReminderToast = n;
+          n.show();
+          return { shown: true };
+        } catch {
+          return { shown: false };
+        }
       },
       ...createJournalHandlers(journals),
       ...createTaxonomyHandlers(taxonomy, journals),
@@ -430,7 +498,7 @@ function registerIpc() {
             properties: ['openDirectory', 'createDirectory'],
           }),
         showInFolder: (file) => shell.showItemInFolder(file),
-        progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
+        progress: (p) => sendArchiveProgress(p),
       }),
       ...createBackupHandlers({
         service: backups,
@@ -445,7 +513,7 @@ function registerIpc() {
             properties: ['openDirectory', 'createDirectory'],
           }),
         // Gleicher Fortschritts-Kanal wie die Projektübergabe (archive.onProgress)
-        progress: (p) => mainWindow()?.webContents.send('lj:archive-progress', p),
+        progress: (p) => sendArchiveProgress(p),
       }),
     },
     trusted,
@@ -519,6 +587,17 @@ function hardenWebContents(contents: WebContents) {
           click: () => contents.pasteAndMatchStyle(),
         },
       );
+      // Nativer Windows-11-Emoji- und Symbol-Picker (Win+.)
+      if (process.platform === 'win32') {
+        items.push({
+          label: 'Emoji und Symbole (Win+.)',
+          click: () => {
+            if (typeof (app as unknown as { showEmojiPanel?: () => void }).showEmojiPanel === 'function') {
+              (app as unknown as { showEmojiPanel: () => void }).showEmojiPanel();
+            }
+          },
+        });
+      }
     }
     if (params.editFlags.canSelectAll) {
       items.push(
@@ -547,15 +626,26 @@ function titleBarOverlay() {
 
 function createMainWindow() {
   const windows = process.platform === 'win32';
+  const windowStateFile = path.join(app.getPath('userData'), 'window-state.json');
+  const displays = screen.getAllDisplays().map((d) => d.workArea);
+  const savedBounds: WindowBounds =
+    selfTest || e2eDir
+      ? { width: 1280, height: 800, maximized: false }
+      : loadWindowBounds(windowStateFile, displays);
+
   const win = new BrowserWindow({
     title: 'Lernjournal',
     icon: windowIcon,
-    width: 1280,
-    height: 800,
+    ...(savedBounds.x !== undefined && savedBounds.y !== undefined
+      ? { x: savedBounds.x, y: savedBounds.y }
+      : {}),
+    width: savedBounds.width,
+    height: savedBounds.height,
     minWidth: 760,
     minHeight: 480,
     titleBarStyle: windows ? 'hidden' : 'default',
     titleBarOverlay: windows ? titleBarOverlay() : false,
+    ...(windows ? { backgroundMaterial: 'mica' as const } : {}),
     show: false, // erst zeigen, wenn fertig gezeichnet → kein weisses Aufblitzen
     backgroundColor: '#f4f3f6',
     webPreferences: secureWebPreferences(preloadPath),
@@ -566,8 +656,35 @@ function createMainWindow() {
     win.once('closed', () => nativeTheme.removeListener('updated', updateTitleBar));
   }
 
+  // Letzte normale Fenstergrösse merken (auch wenn maximiert geschlossen wird)
+  let lastNormalBounds: WindowBounds = {
+    ...(savedBounds.x !== undefined && savedBounds.y !== undefined
+      ? { x: savedBounds.x, y: savedBounds.y }
+      : {}),
+    width: savedBounds.width,
+    height: savedBounds.height,
+    maximized: savedBounds.maximized,
+  };
+  const rememberBounds = () => {
+    if (win.isDestroyed() || win.isMinimized()) return;
+    const maximized = win.isMaximized();
+    if (!maximized) {
+      const b = win.getBounds();
+      lastNormalBounds = { x: b.x, y: b.y, width: b.width, height: b.height, maximized: false };
+    } else {
+      lastNormalBounds = { ...lastNormalBounds, maximized: true };
+    }
+  };
+  win.on('resize', rememberBounds);
+  win.on('move', rememberBounds);
+  win.on('maximize', rememberBounds);
+  win.on('unmaximize', rememberBounds);
+
   win.once('ready-to-show', () => {
-    if (!selfTest) win.show();
+    if (!selfTest) {
+      if (savedBounds.maximized) win.maximize();
+      win.show();
+    }
   });
 
   // Vor dem Schliessen: Oberfläche speichern lassen, bei Fehler nachfragen
@@ -590,6 +707,10 @@ function createMainWindow() {
     },
   });
   win.on('close', (event) => {
+    if (!selfTest && !e2eDir) {
+      rememberBounds();
+      saveWindowBounds(windowStateFile, lastNormalBounds);
+    }
     if (closeGuard?.onCloseRequested()) event.preventDefault();
   });
   // Oberfläche abgestürzt: nichts mehr zu speichern, Schliessen nicht blockieren

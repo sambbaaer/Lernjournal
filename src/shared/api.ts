@@ -14,9 +14,12 @@ export interface LernjournalApi {
     getInfo: Call<'app:getInfo'>;
     closeReady: Call<'app:closeReady'>;
     pasteInEditor: Call<'app:pasteInEditor'>;
+    notifyJournalReminder: Call<'app:notifyJournalReminder'>;
     // Der Hauptprozess meldet «Fenster wird geschlossen – bitte speichern».
     // Gibt eine Funktion zum Abmelden zurück.
     onBeforeClose(listener: () => void): () => void;
+    // Aktion aus einer nativen Windows-Benachrichtigung («new-journal» oder «snooze»)
+    onReminderAction(listener: (action: 'new-journal' | 'snooze') => void): () => void;
   };
   project: {
     getState: Call<'project:getState'>;
