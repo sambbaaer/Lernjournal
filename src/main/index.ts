@@ -153,11 +153,6 @@ app.commandLine.appendSwitch('lang', 'de-CH');
 // DNS-Anfrage nach «wpad» ins Netz – gefunden im Netzwerkprotokoll der Windows-CI.
 // Die App braucht kein Netz; Anfragen nach aussen sind ohnehin blockiert.
 app.commandLine.appendSwitch('no-proxy-server');
-// Rechtschreibprüfung unter Windows mit der Windows-eigenen Prüfung statt mit
-// Hunspell-Wörterbüchern, die Chromium sonst herunterladen will (siehe
-// lockDownSession). Ob es wirkt, zeigt der Selbsttest-Bericht (Feld «spellcheck»).
-if (process.platform === 'win32')
-  app.commandLine.appendSwitch('enable-features', 'WinUseBrowserSpellChecker');
 
 // Das eigene Protokoll muss VOR app.ready als «sicher» registriert werden.
 protocol.registerSchemesAsPrivileged([
@@ -266,8 +261,9 @@ function lockDownSession() {
   // sie sonst von einem Google-Server – an session.webRequest vorbei (gefunden
   // mit dem Netzwerkprotokoll des Selbsttests, AJ-16). Die Adresse zeigt darum
   // auf das eigene Protokoll; dort gibt es keine Wörterbücher, es entsteht
-  // keine Verbindung ins Netz. Was unter Windows geschieht, steht im Bericht
-  // des Selbsttests (Feld «spellcheck»).
+  // keine Verbindung ins Netz. Auch unter Windows will Electron Hunspell laden
+  // (Selbsttest-Bericht der CI, Feld «spellcheck»); ohne Wörterbuch bleibt die
+  // Rechtschreibprüfung im Editor darum vorerst stumm (ADR 0007).
   ses.setSpellCheckerDictionaryDownloadURL(`${APP_ORIGIN}/spellcheck/`);
   if (selfTest) {
     const note = (what: string) => (_e: unknown, lang: string) =>
