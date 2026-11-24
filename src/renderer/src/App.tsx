@@ -1,6 +1,7 @@
 // Wurzel der Oberfläche: lädt App-Infos und Projektstand über die sichere
 // Brücke und zeigt Startbildschirm, Assistent oder die App-Shell.
 import { useEffect, useState } from 'react';
+import { DISTRIBUTION_LABELS } from '@shared/ipc';
 import { AppShell } from './shell/AppShell';
 import { AppProvider, useApp } from './state/AppContext';
 
@@ -43,11 +44,16 @@ function McpLoader() {
 
 export function App() {
   const [version, setVersion] = useState<string | null>(null);
+  // Verteilungsart für «Info» (z. B. «Microsoft Store»), hilft bei Rückfragen
+  const [variant, setVariant] = useState<string | null>(null);
 
   useEffect(() => {
     window.lernjournal.app
       .getInfo()
-      .then((res) => setVersion(res.ok ? res.data.version : null))
+      .then((res) => {
+        setVersion(res.ok ? res.data.version : null);
+        setVariant(res.ok ? DISTRIBUTION_LABELS[res.data.distribution] : null);
+      })
       .catch(() => setVersion(null));
   }, []);
 
@@ -55,7 +61,7 @@ export function App() {
     <AppProvider>
       <ProjectLoader />
       <McpLoader />
-      <AppShell version={version} />
+      <AppShell version={version} variant={variant} />
     </AppProvider>
   );
 }

@@ -33,10 +33,13 @@ export function Backstage({
   page,
   onClose,
   version,
+  variant = null,
 }: {
   page: BackstagePage;
   onClose: () => void;
   version: string | null;
+  // Verteilungsart, z. B. «Microsoft Store» (AJ-16b)
+  variant?: string | null;
 }) {
   const { dispatch } = useApp();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -122,13 +125,21 @@ export function Backstage({
         className="min-w-0 flex-1 overflow-auto bg-surface p-10"
         aria-label={PAGES.find((p) => p.id === page)?.label}
       >
-        <BackstageContent page={page} version={version} />
+        <BackstageContent page={page} version={version} variant={variant} />
       </section>
     </div>
   );
 }
 
-function BackstageContent({ page, version }: { page: BackstagePage; version: string | null }) {
+function BackstageContent({
+  page,
+  version,
+  variant,
+}: {
+  page: BackstagePage;
+  version: string | null;
+  variant: string | null;
+}) {
   switch (page) {
     case 'neu':
       return <NewPage />;
@@ -146,6 +157,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
           <h2 className="text-2xl font-semibold">Info</h2>
           <p>
             <strong>Lernjournal</strong> {version && <>Version {version}</>}
+            {variant && <> · {variant}</>}
           </p>
           <ProjectLine />
           <BackupLine />

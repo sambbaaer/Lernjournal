@@ -34,10 +34,22 @@ import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonom
 
 const TaxonomyId = z.uuid();
 
+// Wie das Programm auf den Computer kam (AJ-16b, ADR 0008) – für «Info» und
+// den Selbsttest. Ermittelt im Hauptprozess (src/main/distribution.ts).
+export const DISTRIBUTIONS = ['store', 'portable', 'installiert', 'entwicklung'] as const;
+export type Distribution = (typeof DISTRIBUTIONS)[number];
+export const DISTRIBUTION_LABELS: Record<Distribution, string> = {
+  store: 'Microsoft Store',
+  portable: 'Portable Version',
+  installiert: 'Installierte Version',
+  entwicklung: 'Entwicklungsversion',
+};
+
 export const AppInfoSchema = z.object({
   name: z.string(),
   version: z.string(),
   platform: z.string(),
+  distribution: z.enum(DISTRIBUTIONS),
   versions: z.object({ electron: z.string(), chrome: z.string(), node: z.string() }),
 });
 export type AppInfo = z.infer<typeof AppInfoSchema>;

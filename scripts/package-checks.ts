@@ -264,3 +264,95 @@ export function externalNetworkActivity(netLogText: string): string[] {
   }
   return [...found];
 }
+
+// ---------------------------------------------------------------------------
+// MSIX (Microsoft Store, AJ-16b)
+// ---------------------------------------------------------------------------
+
+// Was im AppxManifest.xml des fertigen MSIX stehen muss (aus electron-builder.ts)
+export type ExpectedAppxManifest = {
+  identityName: string;
+  publisher: string;
+  publisherDisplayName: string;
+  displayName: string;
+  applicationId: string;
+  version: string; // vierteilig, letzte Stelle 0
+  languages: readonly string[];
+  executable: string; // z. B. app\Lernjournal.exe
+  minVersion: string;
+};
+
+const xmlUnescape = (s: string) =>
+  s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+// Wert eines Attributs im ersten passenden Element (einfaches Lesen ohne XML-Bibliothek;
+// das Manifest stammt aus unserer eigenen Vorlage build/appxmanifest.xml)
+function attr(xml: string, element: string, name: string): string | null {
+  const tag = new RegExp(`<${element}\\b[^>]*>`, 's').exec(xml)?.[0];
+  if (!tag) return null;
+  const m = new RegExp(`\\s${name}="([^"]*)"`).exec(tag);
+  return m ? xmlUnescape(m[1]!) : null;
+}
+
+function text(xml: string, element: string): string | null {
+  const m = new RegExp(`<${element}>([^<]*)</${element}>`).exec(xml);
+  return m ? xmlUnescape(m[1]!) : null;
+}
+
+// Prüft Identität, Version, Sprachen, Fähigkeiten und Erweiterungen des Manifests
+export function checkAppxManifest(xml: string, expected: ExpectedAppxManifest): string[] {
+  const problems: string[] = [];
+  const want = (label: string, actual: string | null, wanted: string) => {
+    if (actual !== wanted) problems.push(`${label} ist «${actual ?? '–'}», erwartet «${wanted}»`);
+  };
+  want('Identity Name', attr(xml, 'Identity', 'Name'), expected.identityName);
+  want('Identity Publisher', attr(xml, 'Identity', 'Publisher'), expected.publisher);
+  want('Identity ProcessorArchitecture', attr(xml, 'Identity', 'ProcessorArchitecture'), 'x64');
+  const version = attr(xml, 'Identity', 'Version');
+  want('Identity Version', version, expected.version);
+  if (version && !/^\d+\.\d+\.\d+\.0$/.test(version))
+    problems.push(`Version ${version}: vierteilig mit 0 an letzter Stelle verlangt (Store)`);
+  want('DisplayName', text(xml, 'DisplayName'), expected.displayName);
+  want('PublisherDisplayName', text(xml, 'PublisherDisplayName'), expected.publisherDisplayName);
+  want('Application Id', attr(xml, 'Application', 'Id'), expected.applicationId);
+  want('Application Executable', attr(xml, 'Application', 'Executable'), expected.executable);
+  want('Application EntryPoint', attr(xml, 'Application', 'EntryPoint'), 'Windows.FullTrustApplication');
+  want('TargetDeviceFamily MinVersion', attr(xml, 'TargetDeviceFamily', 'MinVersion'), expected.minVersion);
+
+  const languages = [...xml.matchAll(/<Resource\s+Language="([^"]+)"/g)].map((m) => m[1]!);
+  want('Sprachen', languages.join(', '), expected.languages.join(', '));
+
+  // Fähigkeiten: genau runFullTrust (Pflicht für Desktop-Apps), sonst nichts –
+  // insbesondere kein internetClient (offline, SPEC)
+  const capabilities = [...xml.matchAll(/<(?:\w+:)?(?:Device)?Capability\s+Name="([^"]+)"/g)].map(
+    (m) => m[1]!,
+  );
+  want('Fähigkeiten', capabilities.join(', '), 'runFullTrust');
+
+  // Erweiterungen: nur der Befehlszeilen-Aufruf, keine Dateizuordnung, kein
+  // Protokoll, kein Autostart, keine Dienste
+  const categories = [...xml.matchAll(/<(?:\w+:)?Extension\s+Category="([^"]+)"/g)].map((m) => m[1]!);
+  for (const c of categories.filter((c) => c !== 'windows.appExecutionAlias'))
+    problems.push(`Unerwartete Erweiterung im Manifest: ${c}`);
+  const aliases = [...xml.matchAll(/<(?:\w+:)?ExecutionAlias\s+Alias="([^"]+)"/g)].map((m) => m[1]!);
+  want('Befehlszeilen-Aufruf', aliases.join(', '), 'lernjournal.exe');
+  return problems;
+}
+
+// Logos im Paket: alle Standard-Logos aus eigenen Dateien, keine Beispielbilder
+// von electron-builder («SampleAppx…»), Paketindex resources.pri vorhanden
+export function checkAppxAssets(entries: readonly string[], requiredLogos: readonly string[]): string[] {
+  const problems: string[] = [];
+  const assets = entries.filter((e) => e.startsWith('assets/'));
+  for (const logo of requiredLogos) {
+    if (!assets.some((a) => a.startsWith(`assets/${logo}.`))) problems.push(`Logo fehlt im Paket: ${logo}`);
+  }
+  for (const a of assets.filter((a) => /sample/i.test(a))) problems.push(`Beispielbild im Paket: ${a}`);
+  if (!entries.includes('resources.pri')) problems.push('resources.pri fehlt (Logos ohne Skalierungsindex)');
+  return problems;
+}

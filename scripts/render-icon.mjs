@@ -1,11 +1,13 @@
-// Programm- und Dateisymbol aus den Illustrator-SVGs in assets/ erzeugen.
-// Chromium zeichnet die Vektoren in den Zielgrössen – ohne Zusatzprogramm.
+// Programm- und Dateisymbol sowie die 45 MSIX-Logos/Kacheln aus den SVGs in
+// assets/ erzeugen (build/icon.png, build/icon.ico, build/ajournal.ico und
+// build/appx/*.png). Chromium zeichnet die Vektoren scharf in den Zielgrössen.
 //
 //   npm run icon
 // (unter Linux ohne Bildschirm: xvfb-run -a npx electron --no-sandbox scripts/render-icon.mjs)
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
+import { appxAssets } from './appx-assets.ts';
 import { encodeIco } from './icon.ts';
 
 const ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
@@ -46,6 +48,30 @@ app
     writeFileSync(path.join(buildDir, 'icon.ico'), encodeIco(program.filter((i) => i.size !== PNG_SIZE)));
     writeFileSync(path.join(buildDir, 'ajournal.ico'), encodeIco(file));
     console.log(`build/icon.png, build/icon.ico und build/ajournal.ico geschrieben`);
+
+    // MSIX: Symbol mittig auf durchsichtiger Fläche in der verlangten Grösse.
+    const appSvg = readFileSync(path.join(repo, 'assets', 'app-icon.svg'));
+    const assets = appxAssets();
+    const appxPngs = await win.webContents.executeJavaScript(`(async () => {
+      const img = new Image();
+      img.src = 'data:image/svg+xml;base64,' + ${JSON.stringify(appSvg.toString('base64'))};
+      await img.decode();
+      return ${JSON.stringify(assets)}.map((a) => {
+        const c = document.createElement('canvas');
+        c.width = a.width;
+        c.height = a.height;
+        const g = c.getContext('2d');
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(img, Math.round((a.width - a.iconSize) / 2), Math.round((a.height - a.iconSize) / 2), a.iconSize, a.iconSize);
+        return c.toDataURL('image/png');
+      });
+    })()`);
+    const pngBytes = (dataUrl) => Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
+    const appxDir = path.join(buildDir, 'appx');
+    mkdirSync(appxDir, { recursive: true });
+    for (const f of readdirSync(appxDir)) rmSync(path.join(appxDir, f));
+    assets.forEach((a, i) => writeFileSync(path.join(appxDir, a.file), pngBytes(appxPngs[i])));
+    console.log(`build/appx/: ${assets.length} Logos und Kacheln für das MSIX geschrieben`);
     app.exit(0);
   })
   .catch((error) => {

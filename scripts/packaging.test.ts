@@ -1,14 +1,30 @@
-// Tests für die Paketierung (AJ-16): Konfiguration von electron-builder,
-// Prüfungen am fertigen Paket, Netzwerkprotokoll, Programmsymbol.
+// Tests für die Paketierung (AJ-16, AJ-16b): Konfiguration von electron-builder,
+// Prüfungen am fertigen Paket, Netzwerkprotokoll, Programmsymbol, MSIX für den
+// Microsoft Store (Identität, Manifest, Logos).
 // Das echte Paket prüfen scripts/verify-package.mjs und scripts/self-test.mjs (CI).
-import { readFileSync } from 'node:fs';
+// Unter Linux lässt sich kein MSIX bauen – darum hier alles, was ohne geht.
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { NsisOptions, PortableOptions, TargetConfiguration } from 'electron-builder';
-import defaultConfig, { AZURE_SIGN_ENV, createConfig, signingOptions } from '../electron-builder';
+import type { AppXOptions, NsisOptions, PortableOptions, TargetConfiguration } from 'electron-builder';
+import defaultConfig, {
+  AZURE_SIGN_ENV,
+  createConfig,
+  REQUIRE_STORE_IDENTITY_ENV,
+  signingOptions,
+  STORE_APPLICATION_ID,
+  STORE_DISPLAY_NAME_ENV,
+  STORE_IDENTITY_ENV,
+  STORE_PLACEHOLDER,
+  storeIdentity,
+  storeVersion,
+} from '../electron-builder';
+import { APPX_LOGOS, appxAssets } from './appx-assets';
 import { encodeIco, parseIco } from './icon';
 import {
   checkAppFiles,
+  checkAppxAssets,
+  checkAppxManifest,
   checkExecutionLevel,
   checkFuses,
   externalNetworkActivity,
@@ -28,11 +44,13 @@ describe('electron-builder.ts', () => {
   const nsis = config.nsis as NsisOptions;
   const portable = config.portable as PortableOptions;
 
-  it('baut Installer und portable EXE für x64', () => {
+  it('baut MSIX (Store), portable EXE und Testinstaller für x64', () => {
     expect(config.win?.target).toEqual<TargetConfiguration[]>([
-      { target: 'nsis', arch: ['x64'] },
+      { target: 'appx', arch: ['x64'] },
       { target: 'portable', arch: ['x64'] },
+      { target: 'nsis', arch: ['x64'] },
     ]);
+    expect((config.appx as AppXOptions).artifactName).toBe('${productName}-Store-${version}.msix');
     expect(nsis.artifactName).toBe('${productName}-Setup-${version}.${ext}');
     expect(portable.artifactName).toBe('${productName}-Portable-${version}.${ext}');
   });
@@ -96,9 +114,14 @@ describe('electron-builder.ts', () => {
     expect(pkg.productName).toBe(config.productName);
   });
 
-  it('Standardexport entspricht der Konfiguration ohne Signing-Variablen', () => {
-    // Die Testumgebung setzt keine Signing-Variablen
-    if (!process.env['LERNJOURNAL_REQUIRE_SIGNING'] && !process.env[AZURE_SIGN_ENV.endpoint]) {
+  it('Standardexport entspricht der Konfiguration ohne Signing- und Store-Variablen', () => {
+    // Die Testumgebung setzt keine Signing- oder Store-Variablen
+    const store = [...Object.values(STORE_IDENTITY_ENV), STORE_DISPLAY_NAME_ENV];
+    if (
+      !process.env['LERNJOURNAL_REQUIRE_SIGNING'] &&
+      !process.env[AZURE_SIGN_ENV.endpoint] &&
+      store.every((name) => !process.env[name])
+    ) {
       expect(defaultConfig).toEqual(config);
     }
   });
@@ -393,5 +416,264 @@ describe('Programmsymbol', () => {
     }
     const png = readFileSync(path.join(root, 'build/icon.png'));
     expect(png.readUInt32BE(16)).toBeGreaterThanOrEqual(512); // Breite laut PNG-Kopf
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Microsoft Store (MSIX, AJ-16b)
+// ---------------------------------------------------------------------------
+
+const realEnv = {
+  [STORE_IDENTITY_ENV.identityName]: '12345Beispiel.Lernjournal',
+  [STORE_IDENTITY_ENV.publisher]: 'CN=1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D',
+  [STORE_IDENTITY_ENV.publisherDisplayName]: 'Beispiel Verlag',
+};
+
+describe('Store-Identität', () => {
+  it('ohne Variablen: klar erkennbare Platzhalter für Testbuilds', () => {
+    const id = storeIdentity({});
+    expect(id).toEqual({
+      ...STORE_PLACEHOLDER,
+      displayName: 'Lernjournal',
+      applicationId: 'Lernjournal',
+      placeholder: true,
+    });
+    for (const v of Object.values(STORE_PLACEHOLDER)) expect(v).toMatch(/PLATZHALTER/);
+    // Die Platzhalter selbst müssen gültig sein, sonst scheitert schon der Testbuild
+    expect(STORE_PLACEHOLDER.identityName).toMatch(/^[A-Za-z0-9.-]{3,50}$/);
+    expect(STORE_PLACEHOLDER.publisher).toMatch(/^CN=[^,]+$/);
+  });
+
+  it('übernimmt die Werte aus Partner Center (getrimmt)', () => {
+    const id = storeIdentity({ ...realEnv, [STORE_IDENTITY_ENV.publisherDisplayName]: '  Beispiel Verlag ' });
+    expect(id).toEqual({
+      identityName: '12345Beispiel.Lernjournal',
+      publisher: 'CN=1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D',
+      publisherDisplayName: 'Beispiel Verlag',
+      displayName: 'Lernjournal',
+      applicationId: STORE_APPLICATION_ID,
+      placeholder: false,
+    });
+    const config = createConfig(realEnv).appx as AppXOptions;
+    expect(config.identityName).toBe('12345Beispiel.Lernjournal');
+    expect(config.publisher).toBe('CN=1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D');
+    expect(config.publisherDisplayName).toBe('Beispiel Verlag');
+  });
+
+  it('anderer reservierter App-Name über LERNJOURNAL_STORE_DISPLAY_NAME', () => {
+    const id = storeIdentity({ ...realEnv, [STORE_DISPLAY_NAME_ENV]: 'Lernjournal Print' });
+    expect(id.displayName).toBe('Lernjournal Print');
+    expect(storeIdentity({ [STORE_DISPLAY_NAME_ENV]: 'X' }).placeholder).toBe(true);
+  });
+
+  it('unvollständige Angaben brechen mit verständlicher Meldung ab', () => {
+    expect(() => storeIdentity({ [STORE_IDENTITY_ENV.identityName]: 'A.B' })).toThrow(
+      /unvollständig, es fehlt: LERNJOURNAL_STORE_PUBLISHER, LERNJOURNAL_STORE_PUBLISHER_DISPLAY_NAME/,
+    );
+  });
+
+  it('Store-Release bricht ab, solange Platzhalter gelten', () => {
+    expect(() => storeIdentity({ [REQUIRE_STORE_IDENTITY_ENV]: '1' })).toThrow(/Partner Center/);
+    expect(() => createConfig({ [REQUIRE_STORE_IDENTITY_ENV]: '1' })).toThrow(
+      /LERNJOURNAL_STORE_IDENTITY_NAME/,
+    );
+    expect(storeIdentity({ ...realEnv, [REQUIRE_STORE_IDENTITY_ENV]: '1' }).placeholder).toBe(false);
+    // Platzhalter von Hand eingetragen gelten nicht als echte Werte
+    const copied = {
+      [STORE_IDENTITY_ENV.identityName]: STORE_PLACEHOLDER.identityName,
+      [STORE_IDENTITY_ENV.publisher]: STORE_PLACEHOLDER.publisher,
+      [STORE_IDENTITY_ENV.publisherDisplayName]: STORE_PLACEHOLDER.publisherDisplayName,
+    };
+    expect(() => storeIdentity(copied)).toThrow(/enthält den Platzhalter/);
+  });
+
+  it.each([
+    [STORE_IDENTITY_ENV.identityName, 'ab', /3–50 Zeichen/],
+    [STORE_IDENTITY_ENV.identityName, 'Lern journal', /3–50 Zeichen/],
+    [STORE_IDENTITY_ENV.identityName, 'x'.repeat(51), /3–50 Zeichen/],
+    [STORE_IDENTITY_ENV.publisher, '1A2B3C4D-5E6F', /muss mit «CN=» beginnen/],
+    [STORE_IDENTITY_ENV.publisherDisplayName, 'x'.repeat(257), /höchstens 256/],
+  ])('lehnt ungültige Werte ab: %s = %s', (name, value, message) => {
+    expect(() => storeIdentity({ ...realEnv, [name]: value })).toThrow(message);
+  });
+});
+
+describe('Store-Version', () => {
+  it('vierteilig mit 0 an letzter Stelle', () => {
+    expect(storeVersion('0.1.0')).toBe('0.1.0.0');
+    expect(storeVersion('1.12.3')).toBe('1.12.3.0');
+  });
+
+  it.each(['1.2', '1.2.3.4', '1.2.3-beta.1', '1.2.3+abc', 'v1.2.3', '1.2.65536', '0.0.0'])(
+    'lehnt %s ab',
+    (v) => {
+      expect(() => storeVersion(v)).toThrow();
+    },
+  );
+
+  it('package.json hat eine gültige Store-Version, electron-builder setzt keine Build-Nummer', () => {
+    const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+    expect(storeVersion(pkg.version)).toMatch(/^\d+\.\d+\.\d+\.0$/);
+    expect((createConfig({}).appx as AppXOptions).setBuildNumber).toBe(false);
+  });
+});
+
+describe('MSIX-Konfiguration', () => {
+  const config = createConfig({});
+  const appx = config.appx as AppXOptions;
+
+  it('nur runFullTrust, keine Netzwerk-Fähigkeit (offline)', () => {
+    expect(appx.capabilities).toEqual(['runFullTrust']);
+  });
+
+  it('Deutsch (de-CH zuerst), Anzeigename Lernjournal, feste Application-Id', () => {
+    expect(appx.languages).toEqual(['de-CH', 'de']);
+    expect(appx.displayName).toBe('Lernjournal');
+    expect(appx.applicationId).toBe('Lernjournal');
+    expect(appx.applicationId).toMatch(/^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*)*$/);
+  });
+
+  it('Windows 10 2004 bis Windows 11, kein Autostart, keine Update-Infos', () => {
+    expect(appx.minVersion).toBe('10.0.19041.0');
+    expect(appx.maxVersionTested).toBe('10.0.26100.0');
+    expect(appx.addAutoLaunchExtension).toBe(false);
+    expect(appx.electronUpdaterAware).toBe(false);
+  });
+
+  it('eigene Manifest-Vorlage enthält alle Platzhalter der Vorlage von electron-builder', () => {
+    const macros = (xml: string) => new Set([...xml.matchAll(/\$\{([a-zA-Z0-9]+)\}/g)].map((m) => m[1]));
+    const upstream = readFileSync(
+      path.join(root, 'node_modules/app-builder-lib/templates/appx/appxmanifest.xml'),
+      'utf8',
+    );
+    const ours = readFileSync(path.join(root, 'build', appx.customManifestPath!), 'utf8');
+    expect(macros(ours)).toEqual(macros(upstream));
+    expect(ours).toContain('xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"');
+    expect(ours).not.toMatch(/internetClient|Capability Name=/);
+  });
+
+  it('einzige Erweiterung: Befehlszeilen-Aufruf auf das Programm', () => {
+    const xml = readFileSync(path.join(root, appx.customExtensionsPath!), 'utf8');
+    const categories = [...xml.matchAll(/Category="([^"]+)"/g)].map((m) => m[1]);
+    expect(categories).toEqual(['windows.appExecutionAlias']);
+    expect(xml).toContain(`Executable="app\\${config.productName}.exe"`);
+    expect(xml).toContain('Alias="lernjournal.exe"');
+  });
+});
+
+// Manifest so zusammensetzen, wie es electron-builder aus unserer Vorlage macht
+function renderManifest(overrides: Record<string, string> = {}): string {
+  const appx = createConfig({}).appx as AppXOptions;
+  const values: Record<string, string> = {
+    identityName: appx.identityName!,
+    publisher: appx.publisher!,
+    publisherDisplayName: appx.publisherDisplayName!,
+    displayName: appx.displayName!,
+    applicationId: appx.applicationId!,
+    version: '0.1.0.0',
+    arch: 'x64',
+    executable: 'app\\Lernjournal.exe',
+    description: 'Offline-Lernjournal',
+    backgroundColor: appx.backgroundColor!,
+    logo: 'assets\\StoreLogo.png',
+    square150x150Logo: 'assets\\Square150x150Logo.png',
+    square44x44Logo: 'assets\\Square44x44Logo.png',
+    lockScreen: '',
+    defaultTile: '<uap:DefaultTile Wide310x150Logo="assets\\Wide310x150Logo.png" />',
+    splashScreen: '',
+    resourceLanguages: (appx.languages as string[]).map((l) => `<Resource Language="${l}" />`).join('\n'),
+    capabilities: '<Capabilities>\n  <rescap:Capability Name="runFullTrust"/>\n</Capabilities>',
+    extensions: `<Extensions>${readFileSync(path.join(root, appx.customExtensionsPath!), 'utf8')}</Extensions>`,
+    minVersion: appx.minVersion!,
+    maxVersionTested: appx.maxVersionTested!,
+    ...overrides,
+  };
+  const template = readFileSync(path.join(root, 'build', appx.customManifestPath!), 'utf8');
+  return template.replace(/\$\{([a-zA-Z0-9]+)\}/g, (_m, key: string) => values[key]!);
+}
+
+describe('AppxManifest prüfen', () => {
+  const appx = createConfig({}).appx as AppXOptions;
+  const expected = {
+    identityName: appx.identityName!,
+    publisher: appx.publisher!,
+    publisherDisplayName: appx.publisherDisplayName!,
+    displayName: appx.displayName!,
+    applicationId: appx.applicationId!,
+    version: '0.1.0.0',
+    languages: appx.languages as string[],
+    executable: 'app\\Lernjournal.exe',
+    minVersion: appx.minVersion!,
+  };
+
+  it('akzeptiert das Manifest aus unserer Vorlage', () => {
+    expect(checkAppxManifest(renderManifest(), expected)).toEqual([]);
+  });
+
+  it('meldet Netzwerk-Fähigkeit, Dateizuordnung, Autostart und falsche Version', () => {
+    const xml = renderManifest({
+      capabilities:
+        '<Capabilities>\n<Capability Name="internetClient"/>\n<rescap:Capability Name="runFullTrust"/>\n</Capabilities>',
+      extensions:
+        '<Extensions><uap:Extension Category="windows.fileTypeAssociation"/><desktop:Extension Category="windows.startupTask"/></Extensions>',
+      version: '0.1.0.1',
+    });
+    expect(checkAppxManifest(xml, expected)).toEqual([
+      'Identity Version ist «0.1.0.1», erwartet «0.1.0.0»',
+      'Version 0.1.0.1: vierteilig mit 0 an letzter Stelle verlangt (Store)',
+      'Fähigkeiten ist «internetClient, runFullTrust», erwartet «runFullTrust»',
+      'Unerwartete Erweiterung im Manifest: windows.fileTypeAssociation',
+      'Unerwartete Erweiterung im Manifest: windows.startupTask',
+      'Befehlszeilen-Aufruf ist «», erwartet «lernjournal.exe»',
+    ]);
+  });
+
+  it('meldet abweichende Identität und Sprachen (XML-Zeichen werden gelesen)', () => {
+    const xml = renderManifest({
+      publisher: 'CN=Anderer &amp; Co',
+      resourceLanguages: '<Resource Language="en-US" />',
+    });
+    expect(checkAppxManifest(xml, expected)).toEqual([
+      `Identity Publisher ist «CN=Anderer & Co», erwartet «${expected.publisher}»`,
+      'Sprachen ist «en-US», erwartet «de-CH, de»',
+    ]);
+  });
+});
+
+describe('Logos und Kacheln (build/appx)', () => {
+  const dir = path.join(root, 'build/appx');
+  const required = APPX_LOGOS.filter((l) => l.required).map((l) => l.name);
+
+  it('electron-builders Standard-Logos sind alle durch eigene ersetzt', () => {
+    // Ohne diese vier setzt electron-builder Beispielbilder ein (Zertifizierung scheitert)
+    expect(required.sort()).toEqual(['Square150x150Logo', 'Square44x44Logo', 'StoreLogo', 'Wide310x150Logo']);
+  });
+
+  it('genau die Dateien aus scripts/appx-assets.ts, jede in der richtigen Grösse', () => {
+    const expected = appxAssets();
+    expect(readdirSync(dir).sort()).toEqual(expected.map((a) => a.file).sort());
+    for (const a of expected) {
+      const png = readFileSync(path.join(dir, a.file));
+      expect(png.subarray(1, 4).toString('latin1'), a.file).toBe('PNG');
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)], a.file).toEqual([a.width, a.height]);
+    }
+  });
+
+  it('enthält Skalierungen (100–400 %) und feste Grössen des App-Symbols', () => {
+    const files = readdirSync(dir);
+    for (const logo of required) expect(files).toContain(`${logo}.scale-100.png`);
+    for (const logo of required) expect(files).toContain(`${logo}.scale-200.png`);
+    expect(files).toContain('Square44x44Logo.targetsize-16_altform-unplated.png');
+    expect(files).toContain('Square44x44Logo.targetsize-256_altform-unplated.png');
+  });
+
+  it('Prüfung am fertigen Paket: eigene Logos, kein Beispielbild, Index vorhanden', () => {
+    const entries = ['AppxManifest.xml', 'resources.pri', ...appxAssets().map((a) => `assets/${a.file}`)];
+    expect(checkAppxAssets(entries, required)).toEqual([]);
+    expect(checkAppxAssets(['assets/SampleAppx.50x50.png'], ['StoreLogo'])).toEqual([
+      'Logo fehlt im Paket: StoreLogo',
+      'Beispielbild im Paket: assets/SampleAppx.50x50.png',
+      'resources.pri fehlt (Logos ohne Skalierungsindex)',
+    ]);
   });
 });
