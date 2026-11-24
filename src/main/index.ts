@@ -148,6 +148,16 @@ const archives = new ArchiveService({
 // Datumsfelder (TT.MM.JJJJ), Rechtschreibprüfung und Zahlenformate passen –
 // auch auf Geräten mit englischem Windows.
 app.commandLine.appendSwitch('lang', 'de-CH');
+// Kein Proxy (offline-first, AJ-16): Sonst sucht Chromium unter Windows über
+// «Einstellungen automatisch erkennen» (WPAD) einen Proxy und schickt dafür eine
+// DNS-Anfrage nach «wpad» ins Netz – gefunden im Netzwerkprotokoll der Windows-CI.
+// Die App braucht kein Netz; Anfragen nach aussen sind ohnehin blockiert.
+app.commandLine.appendSwitch('no-proxy-server');
+// Rechtschreibprüfung unter Windows mit der Windows-eigenen Prüfung statt mit
+// Hunspell-Wörterbüchern, die Chromium sonst herunterladen will (siehe
+// lockDownSession). Ob es wirkt, zeigt der Selbsttest-Bericht (Feld «spellcheck»).
+if (process.platform === 'win32')
+  app.commandLine.appendSwitch('enable-features', 'WinUseBrowserSpellChecker');
 
 // Das eigene Protokoll muss VOR app.ready als «sicher» registriert werden.
 protocol.registerSchemesAsPrivileged([
