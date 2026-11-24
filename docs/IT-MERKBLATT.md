@@ -21,7 +21,7 @@ Lernjournal wird über den **Microsoft Store** verteilt (Hauptweg). Ist der Stor
 | Verknüpfungen | Startmenü; Befehlszeilen-Aufruf `lernjournal` | keine | Startmenü und Desktop «Lernjournal» |
 | Updates | über den Microsoft Store (Einstellungen des Geräts) | neue Datei verwenden | neue Version darüber installieren |
 | Speicherplatz | rund 330 MB | rund 330 MB in `%TEMP%` während der Nutzung | rund 330 MB |
-| Hilfsprogramm `elevate.exe` | enthalten (aus dem gemeinsamen Build), wird nie aufgerufen | enthalten (electron-builder legt es immer bei), wird nie aufgerufen | nicht enthalten |
+| Hilfsprogramm `elevate.exe` | nicht enthalten | enthalten (electron-builder legt es immer bei), wird nie aufgerufen | nicht enthalten |
 
 **Microsoft Store:** Auf verwalteten Geräten ist der Store oft gesperrt oder auf eine Auswahl beschränkt (z. B. über Intune bzw. die Richtlinien für den Microsoft Store). Dann kann die Schul-IT Lernjournal gezielt freigeben oder die portable Version bzw. den Testinstaller verwenden. Das Store-Paket deklariert nur die Fähigkeit `runFullTrust` (Pflicht für Desktop-Programme), **keinen** Internetzugriff, keine Dateizuordnung und keinen Autostart.
 
@@ -76,7 +76,7 @@ Für portable Version und Testinstaller je nach Richtlinie eine der folgenden Re
 - Die portable Version hinterlässt nur `%APPDATA%\Lernjournal`.
 
 ## Systemvoraussetzungen
-- Windows 10 (22H2) oder Windows 11, **64 Bit (x64)**. Eine ARM64-Version wird derzeit nicht gebaut; ob die x64-Version auf Windows 11 für ARM in der Emulation läuft, ist nicht getestet.
+- Windows 10 (22H2) oder Windows 11, **64 Bit (x64)**. Eine ARM64-Version wird derzeit nicht gebaut; ob die x64-Version auf Windows 11 für ARM in der Emulation läuft, ist nicht getestet. Das Store-Paket verlangt mindestens Windows 10 Version 2004 (10.0.19041).
 - Rund 330 MB Speicherplatz für das Programm, dazu der Projektordner (wächst mit den Bildern).
 - Kein Microsoft Word nötig (Word-Dateien werden ohne Word erzeugt), keine weiteren Laufzeitumgebungen.
 - Bildschirm ab 1024 × 640 Pixel.

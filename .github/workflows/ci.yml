@@ -296,7 +296,14 @@ jobs:
           $overall = $xml.REPORT.OVERALL_RESULT
           foreach ($test in $xml.SelectNodes('//TEST')) {
             $result = $test.SelectSingleNode('RESULT').InnerText
-            Write-Host ('{0,-10} {1}' -f $result, $test.NAME)
+            $optional = if ($test.OPTIONAL -eq 'TRUE') { ' (optional)' } else { '' }
+            Write-Host ('{0,-10} {1}{2}' -f $result, $test.NAME, $optional)
+            # Befunde ausführlich ins Protokoll (Bericht als Artefakt zusätzlich)
+            if ($result -ne 'PASS') {
+              foreach ($m in $test.SelectNodes('.//MESSAGE')) { Write-Host "           $($m.InnerText.Trim())" }
+              $desc = $test.SelectSingleNode('DESCRIPTION')
+              if ($desc) { Write-Host "           Beschreibung: $($desc.InnerText.Trim())" }
+            }
           }
           Write-Host "Gesamtergebnis: $overall"
           if ($overall -ne 'PASS') { throw "WACK-Gesamtergebnis: $overall" }
