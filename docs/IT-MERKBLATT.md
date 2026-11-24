@@ -70,5 +70,5 @@ Je nach Richtlinie eine der folgenden Regeln:
 
 ## Offene Punkte (Stand dieses Merkblatts)
 - Code-Signing: Zertifikat bzw. Azure Trusted Signing noch nicht eingerichtet.
-- Test durch eine Person auf einem sauberen Windows 10 und Windows 11 mit **Standardbenutzer** und auf einem verwalteten Schul-/Firmengerät (AppLocker/Intune) steht noch aus (Ende-zu-Ende-Abnahme AJ-17). Die automatische Prüfung läuft auf einem Windows-Server-Abbild von GitHub mit Administratorkonto; «ohne Adminrechte» ist dort über Manifest, Zielordner und Registry nachgewiesen.
+- Test durch eine Person auf einem sauberen Windows 10 und Windows 11 mit **Standardbenutzer** und auf einem verwalteten Schul-/Firmengerät (AppLocker/Intune) steht noch aus (manuelle Checkliste der Ende-zu-Ende-Abnahme AJ-17, [ABNAHME.md](ABNAHME.md)). Die automatische Prüfung läuft auf einem Windows-Server-Abbild von GitHub mit Administratorkonto; «ohne Adminrechte» ist dort über Manifest, Zielordner und Registry nachgewiesen.
 - Rechtschreibprüfung: Weil das Programm kein Wörterbuch aus dem Internet lädt, unterstreicht der Editor derzeit keine Tippfehler. Ein mitgeliefertes Wörterbuch ist geplant, aber noch nicht umgesetzt.
