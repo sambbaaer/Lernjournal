@@ -56,7 +56,10 @@ test('Fenster direkt nach dem Tippen schliessen: Änderungen werden noch gespeic
 test('Harter Absturz nach «Gespeichert»: Daten intakt, verwaiste Sperre übernommen', async () => {
   const first = await launchApp();
   await first.page.keyboard.press('Control+N');
-  await first.page.getByLabel('Titel des Journals').fill('Absturz-Test');
+  // Erst den Titel fertig speichern lassen: Sonst könnte das Abwarten unten
+  // auf das Speichern des Titels (beim Verlassen des Feldes) statt auf den Text
+  // treffen, und der Test bräche den Prozess zu früh ab.
+  await waitForNewSave(first.page, () => first.page.getByLabel('Titel des Journals').fill('Absturz-Test'));
   await editor(first.page, 'Durchführung').click();
   await waitForNewSave(first.page, () => first.page.keyboard.type('Vor dem Absturz gespeichert.'));
   const done = exited(first.app);

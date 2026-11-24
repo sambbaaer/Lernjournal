@@ -50,6 +50,15 @@ export type AppState = {
   journals: JournalSummary[];
   journalsLoaded: boolean;
   openJournal: JournalDetail | null;
+  // Neues Journal wird angelegt (Strg+N, AJ-17): Solange der Hauptprozess
+  // antwortet, zeigt die Dokumentfläche statt des bisherigen Journals einen
+  // Platzhalter mit eigenem Titelfeld. Ohne ihn landete, wer direkt nach
+  // Strg+N lostippte, im noch angezeigten VORHERIGEN Journal (Titel oder
+  // Text überschrieben). `title` = bisher im Platzhalter getippt.
+  creatingJournal: { title: string } | null;
+  // Im Platzhalter getippter Titel, den das eben angelegte Journal beim
+  // ersten Anzeigen übernimmt (und speichert). Danach wieder null.
+  newJournalTitle: { journalId: string; title: string } | null;
   // Verknüpfungen und Rückverweise des geöffneten Journals (AJ-10)
   openJournalLinks: JournalLinks;
   // Kategorien und Schlagwörter des Projekts (AJ-09)
@@ -100,6 +109,8 @@ export const initialState: AppState = {
   journals: [],
   journalsLoaded: false,
   openJournal: null,
+  creatingJournal: null,
+  newJournalTitle: null,
   openJournalLinks: EMPTY_LINKS,
   taxonomy: EMPTY_TAXONOMY,
   fachbuch: INITIAL_FACHBUCH,
@@ -128,6 +139,13 @@ export type Action =
   | { type: 'journalUpserted'; journal: JournalSummary }
   | { type: 'journalRemoved'; id: string }
   | { type: 'journalOpened'; journal: JournalDetail }
+  // Strg+N (AJ-17): Anlegen gestartet / Titel im Platzhalter / angelegt /
+  // fehlgeschlagen / Titel vom neuen Journal übernommen
+  | { type: 'journalCreating' }
+  | { type: 'journalCreatingTitle'; title: string }
+  | { type: 'journalCreated'; journal: JournalDetail }
+  | { type: 'journalCreateFailed' }
+  | { type: 'newJournalTitleTaken' }
   | { type: 'journalClosed' }
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
   | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
@@ -146,8 +164,9 @@ export type Action =
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'navigate':
-      // Navigieren schliesst das Datei-Menü, wie in Office
-      return { ...state, view: action.view, backstage: null, notice: null };
+      // Navigieren schliesst das Datei-Menü, wie in Office. Wer während des
+      // Anlegens wegnavigiert, will das neue Journal nicht mehr öffnen.
+      return { ...state, view: action.view, backstage: null, notice: null, creatingJournal: null };
     case 'selectRibbonTab':
       return { ...state, ribbonTab: action.tab };
     case 'openBackstage':
@@ -186,6 +205,8 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        creatingJournal: null,
+        newJournalTitle: null,
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
@@ -206,6 +227,8 @@ export function reducer(state: AppState, action: Action): AppState {
         journals: [],
         journalsLoaded: false,
         openJournal: null,
+        creatingJournal: null,
+        newJournalTitle: null,
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
@@ -249,9 +272,46 @@ export function reducer(state: AppState, action: Action): AppState {
         view: state.openJournal?.id === action.id ? 'journale' : state.view,
       };
     }
+    case 'journalCreating':
+      // Bisheriges Journal sofort ausblenden (es speichert beim Ausblenden
+      // Ausstehendes), Platzhalter mit leerem Titelfeld zeigen
+      return {
+        ...state,
+        creatingJournal: { title: '' },
+        newJournalTitle: null,
+        openJournal: null,
+        openJournalLinks: EMPTY_LINKS,
+        view: 'journal',
+        backstage: null,
+        notice: null,
+        saveStatus: { kind: 'idle' },
+      };
+    case 'journalCreatingTitle':
+      if (state.creatingJournal) return { ...state, creatingJournal: { title: action.title } };
+      // Taste kam an, nachdem das Journal angelegt, aber bevor es angezeigt
+      // wurde: in den zu übernehmenden Titel, damit nichts verloren geht
+      if (state.newJournalTitle)
+        return { ...state, newJournalTitle: { ...state.newJournalTitle, title: action.title } };
+      return state;
+    case 'journalCreated': {
+      const withList = reducer(state, { type: 'journalUpserted', journal: action.journal });
+      // Inzwischen wegnavigiert oder Projekt gewechselt: nur in die Liste
+      if (!state.creatingJournal) return withList;
+      return {
+        ...reducer(withList, { type: 'journalOpened', journal: action.journal }),
+        newJournalTitle: { journalId: action.journal.id, title: state.creatingJournal.title },
+      };
+    }
+    case 'journalCreateFailed':
+      return state.creatingJournal
+        ? { ...state, creatingJournal: null, view: state.view === 'journal' ? 'journale' : state.view }
+        : state;
+    case 'newJournalTitleTaken':
+      return { ...state, newJournalTitle: null };
     case 'journalOpened':
       return {
         ...state,
+        creatingJournal: null,
         openJournal: action.journal,
         // Gleiches Journal erneut geöffnet: bisherige Anzeige behalten, bis neu geladen
         openJournalLinks: state.openJournal?.id === action.journal.id ? state.openJournalLinks : EMPTY_LINKS,

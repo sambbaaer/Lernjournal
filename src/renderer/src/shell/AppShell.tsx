@@ -19,6 +19,7 @@ import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
 import { JournalDocument } from '../journal/JournalDocument';
+import { NewJournalPending } from '../journal/NewJournalPending';
 import { NewProjectWizard } from '../project/NewProjectWizard';
 import { SyncWarning } from '../project/Notices';
 import { Welcome } from '../project/Welcome';
@@ -131,7 +132,9 @@ export function AppShell({ version }: { version: string | null }) {
   const views = {
     start: <StartView />,
     journale: <JournaleView />,
-    journal: state.openJournal ? (
+    journal: state.creatingJournal ? (
+      <NewJournalPending />
+    ) : state.openJournal ? (
       <JournalDocument key={state.openJournal.id} journal={state.openJournal} />
     ) : (
       <JournaleView />

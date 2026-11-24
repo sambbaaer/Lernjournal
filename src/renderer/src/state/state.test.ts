@@ -169,6 +169,51 @@ describe('Verknüpfungen im Zustand (AJ-10)', () => {
   });
 });
 
+describe('Neues Journal mit Strg+N ohne Wettlauf (AJ-17)', () => {
+  const journal = (id: string, title = '') =>
+    ({ id, title, sections: {}, categoryIds: [], tagIds: [] }) as unknown as JournalDetail;
+
+  it('blendet das bisherige Journal sofort aus; Getipptes geht an das neue Journal', () => {
+    let s = reducer(initialState, { type: 'journalOpened', journal: journal('alt', 'Altes Journal') });
+    s = reducer(s, { type: 'journalCreating' });
+    // Das alte Journal ist nicht mehr da – Eingaben können es nicht mehr treffen
+    expect(s.openJournal).toBeNull();
+    expect(s.creatingJournal).toEqual({ title: '' });
+    expect(s.view).toBe('journal');
+    s = reducer(s, { type: 'journalCreatingTitle', title: 'Pap' });
+    s = reducer(s, { type: 'journalCreated', journal: journal('neu') });
+    expect(s.openJournal?.id).toBe('neu');
+    expect(s.creatingJournal).toBeNull();
+    expect(s.journals.map((j) => j.id)).toContain('neu');
+    // Taste zwischen Antwort und Anzeige: kommt trotzdem an
+    s = reducer(s, { type: 'journalCreatingTitle', title: 'Papi' });
+    expect(s.newJournalTitle).toEqual({ journalId: 'neu', title: 'Papi' });
+    s = reducer(s, { type: 'newJournalTitleTaken' });
+    expect(s.newJournalTitle).toBeNull();
+    // Danach ändert eine verspätete Eingabe nichts mehr
+    expect(reducer(s, { type: 'journalCreatingTitle', title: 'x' })).toBe(s);
+  });
+
+  it('Fehler: zurück zur Liste; weggeklickt: Journal nur in der Liste, nicht geöffnet', () => {
+    let s = reducer(initialState, { type: 'journalCreating' });
+    s = reducer(s, { type: 'journalCreateFailed' });
+    expect(s).toMatchObject({ creatingJournal: null, view: 'journale', openJournal: null });
+
+    s = reducer(s, { type: 'journalCreating' });
+    s = reducer(s, { type: 'navigate', view: 'fachbuch' });
+    s = reducer(s, { type: 'journalCreated', journal: journal('neu') });
+    expect(s).toMatchObject({ view: 'fachbuch', openJournal: null, newJournalTitle: null });
+    expect(s.journals.map((j) => j.id)).toEqual(['neu']);
+  });
+
+  it('Strg+N legt während des Anlegens kein zweites Journal an', () => {
+    const calls: string[] = [];
+    const s = reducer(initialState, { type: 'journalCreating' });
+    commands['journal.new'].run(s, (a) => calls.push(a.type));
+    expect(calls).toEqual([]);
+  });
+});
+
 describe('Exportdialog im Zustand (AJ-12)', () => {
   it('öffnet mit den gewählten Journalen, schliesst das Datei-Menü, schliesst wieder', () => {
     let s = reducer(initialState, { type: 'openBackstage', page: 'exportieren' });
