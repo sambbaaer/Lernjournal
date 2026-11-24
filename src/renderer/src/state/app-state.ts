@@ -29,10 +29,16 @@ export type AppState = {
   notice: string | null;
   // Fokuswunsch, den eine Ansicht nach dem Rendern erfüllt (z. B. Suchfeld)
   // 'journal-categories'/'journal-tags': Menüband «Journal → Ordnen» springt
-  // zu den Feldern im geöffneten Journal; 'journal-links' öffnet «Journal verknüpfen» (AJ-10)
-  focusRequest: 'fachbuch-search' | 'journal-categories' | 'journal-tags' | 'journal-links' | null;
+  // zu den Feldern im geöffneten Journal; 'journal-links' öffnet «Journal verknüpfen» (AJ-10);
+  // 'settings-backups' springt in den Einstellungen zu «Sicherungen» (AJ-15)
+  focusRequest:
+    'fachbuch-search' | 'journal-categories' | 'journal-tags' | 'journal-links' | 'settings-backups' | null;
   // Projekt: null = keines geöffnet → Startbildschirm/Assistent
   project: ProjectInfo | null;
+  // Zählt jedes Öffnen eines Projekts. Die Oberfläche lädt Journale neu, wenn
+  // er sich ändert – auch wenn dasselbe Projekt (gleiche ID, gleicher Ordner)
+  // neu geöffnet wurde, z. B. nach dem Ersetzen durch eine Sicherung (AJ-15).
+  projectEpoch: number;
   projectLoaded: boolean; // erster Abruf beim Start erledigt?
   recent: RecentProject[];
   suggestedLocation: string;
@@ -65,6 +71,10 @@ export type AppState = {
   // bzw. «Projekt importieren». Bleibt beim Projektwechsel bestehen – der
   // Import öffnet das neue Projekt und zeigt danach im selben Dialog das Ergebnis.
   archiveDialog: ArchiveDialogMode | null;
+  // Wiederherstellung einer Sicherung (AJ-15): offener Dialog mit der ID aus
+  // der Liste. Wie archiveDialog im zentralen Zustand, weil das Ersetzen das
+  // Projekt neu öffnet und der Dialog danach das Ergebnis zeigt.
+  restoreDialog: { backupId: string } | null;
 };
 
 export type ArchiveDialogMode = 'export' | 'import';
@@ -81,6 +91,7 @@ export const initialState: AppState = {
   notice: null,
   focusRequest: null,
   project: null,
+  projectEpoch: 0,
   projectLoaded: false,
   recent: [],
   suggestedLocation: '',
@@ -95,6 +106,7 @@ export const initialState: AppState = {
   exportDialog: null,
   collection: INITIAL_COLLECTION,
   archiveDialog: null,
+  restoreDialog: null,
 };
 
 export type Action =
@@ -124,7 +136,12 @@ export type Action =
   | { type: 'closeExport' }
   | { type: 'collectionChanged'; change: Partial<CollectionState> }
   | { type: 'openArchive'; mode: ArchiveDialogMode }
-  | { type: 'closeArchive' };
+  | { type: 'closeArchive' }
+  | { type: 'openRestore'; backupId: string }
+  | { type: 'closeRestore' }
+  // Projektübergabe gespeichert bzw. Erinnerung ausgeblendet (AJ-15)
+  | { type: 'exportRecorded'; lastExportAt: string }
+  | { type: 'exportReminderSnoozed'; until: string };
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -160,6 +177,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         project: p,
+        projectEpoch: state.projectEpoch + 1,
         recent,
         wizardOpen: false,
         backstage: null,
@@ -272,6 +290,28 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, archiveDialog: action.mode, backstage: null, exportDialog: null };
     case 'closeArchive':
       return { ...state, archiveDialog: null };
+    case 'openRestore':
+      // Wie bei der Übergabe: nur ein Dialog zugleich, Datei-Menü schliesst
+      return {
+        ...state,
+        restoreDialog: { backupId: action.backupId },
+        backstage: null,
+        exportDialog: null,
+        archiveDialog: null,
+      };
+    case 'closeRestore':
+      return { ...state, restoreDialog: null };
+    case 'exportRecorded':
+      return state.project
+        ? {
+            ...state,
+            project: { ...state.project, lastExportAt: action.lastExportAt, exportReminderUntil: null },
+          }
+        : state;
+    case 'exportReminderSnoozed':
+      return state.project
+        ? { ...state, project: { ...state.project, exportReminderUntil: action.until } }
+        : state;
   }
 }
 

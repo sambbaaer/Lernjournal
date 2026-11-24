@@ -179,6 +179,53 @@ describe('Export: versioniertes ZIP mit Prüfsummen', () => {
     );
   });
 
+  it('gelingt und bleibt konsistent, während dieselbe Verbindung gleichzeitig speichert (Regression AJ-15)', async () => {
+    // Früher: Backup-API direkt aus der Verbindung des Programms → schrieb
+    // diese während eines Kopierschritts, brach SQLite mit SQLITE_LOCKED ab.
+    // Jetzt: eigene, nur lesende Verbindung, ein Schritt (archive-db.ts).
+    const src = await sampleProject();
+    const db = src.projects.db;
+    const big = JSON.stringify({ ...EMPTY_SECTIONS, reflexion: { type: 'doc', content: [] } });
+    const ins = db.prepare(
+      "INSERT INTO journal (id, title, work_date, sections_json, created_at, updated_at) VALUES (?, ?, '2026-01-01', ?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+    );
+    db.exec('BEGIN');
+    for (let i = 0; i < 1500; i++)
+      ins.run(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, 'x'.repeat(4000), big);
+    db.exec('COMMIT');
+    for (let round = 0; round < 8; round++) {
+      let done = false;
+      let writes = 0;
+      const writer = (async () => {
+        while (!done) {
+          await new Promise((r) => setImmediate(r));
+          writes++;
+          db.exec('BEGIN IMMEDIATE');
+          db.prepare('UPDATE journal SET title = ? WHERE id IN (?, ?)').run(
+            `Stand ${writes}`,
+            src.ids.a,
+            src.ids.b,
+          );
+          db.exec('COMMIT');
+        }
+      })();
+      const file = path.join(root, `laufend-${round}.ajournal`);
+      await src.archive.exportTo(file).finally(async () => {
+        done = true;
+        await writer;
+      });
+      const files = unzipSync(readFileSync(file));
+      const tmp = path.join(root, `laufend-${round}.sqlite`);
+      writeFileSync(tmp, files['journal.sqlite']!);
+      const copy = openDatabase(tmp, { readOnly: true });
+      const t = copy.prepare('SELECT title FROM journal WHERE id IN (?, ?)').all(src.ids.a, src.ids.b) as {
+        title: string;
+      }[];
+      expect(t[0]!.title).toBe(t[1]!.title);
+      copy.close();
+    }
+  });
+
   it('schreibt atomar: bei einem Fehler bleibt keine halbe Datei zurück', async () => {
     const src = await sampleProject();
     rmSync(path.join(src.projects.dir, 'media', `${src.ids.png}.png`));

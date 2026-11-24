@@ -30,7 +30,15 @@ type Step =
   | { kind: 'intro' }
   | { kind: 'working'; label: string }
   | { kind: 'preview'; fileName: string; summary: ArchiveSummary; target: string; targetError?: string }
-  | { kind: 'saved'; fileName: string; size: string; journals: number; media: number; warnings: string[] }
+  | {
+      kind: 'saved';
+      fileName: string;
+      size: string;
+      journals: number;
+      media: number;
+      warnings: string[];
+      lastExportAt: string | null;
+    }
   | { kind: 'imported'; project: ProjectInfo; journals: number; media: number; warnings: string[] }
   | { kind: 'error'; message: string };
 
@@ -73,7 +81,11 @@ export function ArchiveDialog({ mode }: { mode: ArchiveDialogMode }) {
     const out = await exportArchive(saveIfNeeded);
     if (out.kind === 'canceled') return setStep({ kind: 'intro' });
     setStep(out);
-    if (out.kind === 'saved') dispatch({ type: 'notice', text: `Gespeichert: ${out.fileName}` });
+    if (out.kind === 'saved') {
+      dispatch({ type: 'notice', text: `Gespeichert: ${out.fileName}` });
+      // Erinnerung nach 30 Tagen beginnt von vorn (AJ-15)
+      if (out.lastExportAt) dispatch({ type: 'exportRecorded', lastExportAt: out.lastExportAt });
+    }
   }
 
   async function runChoose() {

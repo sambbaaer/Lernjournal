@@ -20,6 +20,7 @@
 //   zusätzlichen Tabellen, Trigger oder Views), integrity_check (prüft auch
 //   CHECK-, NOT-NULL- und UNIQUE-Regeln), Fremdschlüssel, gültige IDs,
 //   Journal-Inhalte nach dem Editor-Schema, Bildverweise nur auf media/.
+import { rm } from 'node:fs/promises';
 import { backup } from 'node:sqlite';
 import { InvalidContentError, validateSections } from '@shared/editor-schema';
 import { JournalId, SectionsSchema } from '@shared/journal';
@@ -52,7 +53,7 @@ export async function snapshotDatabase(
   file: string,
   options: { dropSearchIndex?: boolean } = {},
 ): Promise<SnapshotInfo> {
-  await backup(db, file);
+  await copyConsistently(db, file);
   const copy = openDatabase(file, { journalMode: 'delete' });
   try {
     // Nur in der Kopie: Indexzeilen weg, Tabelle bleibt (gleiches Schema)
@@ -78,6 +79,39 @@ export async function snapshotDatabase(
     };
   } finally {
     copy.close();
+  }
+}
+
+// Wie oft eine Kopie versucht wird, wenn SQLite «gesperrt» meldet (z. B.
+// während eines Checkpoints) – technische Konstante, keine Vorgabe
+const COPY_ATTEMPTS = 3;
+
+// Kopie über die SQLite-Backup-API – aus einer EIGENEN, nur lesenden
+// Verbindung und in EINEM Schritt (rate −1). Warum nicht direkt aus der
+// Verbindung des Programms? Schreibt dieselbe Verbindung, während ein
+// Kopierschritt läuft (Speichern während einer Sicherung im Hintergrund),
+// bricht SQLite den Schritt mit SQLITE_LOCKED ab (AJ-15, im Test nachgestellt).
+// Die eigene Verbindung liest dagegen einen festen Stand aus der WAL-Datei:
+// nur bestätigte Transaktionen, in sich stimmig, und das Programm kann
+// währenddessen weiter speichern (WAL: Leser blockieren Schreiber nicht).
+// Ein einziger Schritt hält diesen Stand über die ganze Kopie fest (bei
+// mehreren Schritten finge SQLite nach jeder fremden Änderung von vorn an).
+// Datenbanken ohne Datei (:memory:, Tests) werden direkt kopiert.
+async function copyConsistently(db: Db, file: string): Promise<void> {
+  const location = db.location();
+  for (let attempt = 1; ; attempt++) {
+    const source = location ? openDatabase(location, { readOnly: true }) : db;
+    try {
+      await backup(source, file, { rate: -1 });
+      return;
+    } catch (err) {
+      await rm(file, { force: true }).catch(() => {});
+      if (attempt >= COPY_ATTEMPTS) throw err;
+      console.warn('[archiv] Kopie der Datenbank wird wiederholt:', (err as Error).message);
+      await new Promise((r) => setTimeout(r, 100 * attempt));
+    } finally {
+      if (source !== db) source.close();
+    }
   }
 }
 

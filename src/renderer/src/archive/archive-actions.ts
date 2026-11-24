@@ -11,7 +11,16 @@ import type { IpcResult, ProjectInfo } from '@shared/ipc';
 import { formatDateTime } from '../project/messages';
 
 export type ArchiveExportOutcome =
-  | { kind: 'saved'; fileName: string; size: string; journals: number; media: number; warnings: string[] }
+  | {
+      kind: 'saved';
+      fileName: string;
+      size: string;
+      journals: number;
+      media: number;
+      warnings: string[];
+      // Neuer Zeitpunkt der letzten Übergabe (Erinnerung, AJ-15)
+      lastExportAt: string | null;
+    }
   | { kind: 'canceled' }
   | { kind: 'error'; message: string };
 
@@ -24,11 +33,12 @@ export type ArchiveImportOutcome =
   | { kind: 'imported'; project: ProjectInfo; journals: number; media: number; warnings: string[] }
   | { kind: 'error'; message: string };
 
-const NOT_SAVED = 'Die letzten Änderungen sind noch nicht gespeichert. Bitte zuerst speichern (Strg+S).';
+export const NOT_SAVED =
+  'Die letzten Änderungen sind noch nicht gespeichert. Bitte zuerst speichern (Strg+S).';
 
 // Meldungen des Archivdienstes (Code INVALID_REQUEST, für Lernende
 // formuliert) werden gezeigt, interne Fehler nur allgemein
-function errorText(res: IpcResult<unknown> | null, fallback: string): string {
+export function errorText(res: IpcResult<unknown> | null, fallback: string): string {
   if (res && !res.ok && res.error.code === 'INVALID_REQUEST' && res.error.message !== 'Ungültige Daten')
     return res.error.message;
   return fallback;
@@ -68,6 +78,7 @@ export async function exportArchive(saveFirst: () => Promise<boolean>): Promise<
     journals: res.data.journals,
     media: res.data.media,
     warnings: res.data.warnings,
+    lastExportAt: res.data.lastExportAt ?? null,
   };
 }
 

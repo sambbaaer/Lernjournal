@@ -225,8 +225,10 @@ describe('Sicherung anlegen', () => {
         });
       }
     })();
-    const r = await w.backups.backupNow().finally(() => (done = true));
-    await writer;
+    const r = await w.backups.backupNow().finally(async () => {
+      done = true;
+      await writer;
+    });
     expect(writes).toBeGreaterThan(0);
 
     const copy = openBackupDb(backupFile(w.dir, r.backup.id));

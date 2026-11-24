@@ -57,6 +57,7 @@ describe('Projekt übergeben (.ajournal)', () => {
       journals: 3,
       media: 1,
       warnings: [],
+      lastExportAt: null,
     });
   });
 

@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ARCHIVE_TEXTS } from '@shared/archive';
+import { BACKUP_TEXTS } from '@shared/backup';
 import { useApp } from '../state/AppContext';
 import type { BackstagePage } from '../state/app-state';
 import { formatDateTime } from '../project/messages';
@@ -147,6 +148,7 @@ function BackstageContent({ page, version }: { page: BackstagePage; version: str
             <strong>Lernjournal</strong> {version && <>Version {version}</>}
           </p>
           <ProjectLine />
+          <BackupLine />
           <p>
             Lernjournal hilft Lernenden Medientechnolog*innen EFZ, ihre Lerndokumentation (Lernberichte nach
             Art. 12 der Bildungsverordnung) zu führen und daraus ein persönliches Fachbuch aufzubauen.
@@ -246,6 +248,34 @@ const secondaryButton = 'rounded-sm border border-border-strong px-4 py-2 text-s
 const primaryButton =
   'rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong';
 
+// Info → Sicherungen (AJ-15): kurzer Hinweis und Sprung zu Einstellungen → Sicherungen
+function BackupLine() {
+  const { state, dispatch } = useApp();
+  if (!state.project) return null;
+  const last = state.project.lastExportAt;
+  return (
+    <section aria-labelledby="bs-backups" className="space-y-2 rounded-sm border border-border p-4">
+      <h3 id="bs-backups" className="text-base font-semibold">
+        {BACKUP_TEXTS.sectionTitle}
+      </h3>
+      <p>
+        {BACKUP_TEXTS.intro} Letzte Projektübergabe (.ajournal):{' '}
+        <strong>{last ? formatDateTime(last) : 'noch nie'}</strong>.
+      </p>
+      <button
+        type="button"
+        className={secondaryButton}
+        onClick={() => {
+          dispatch({ type: 'navigate', view: 'einstellungen' });
+          dispatch({ type: 'requestFocus', target: 'settings-backups' });
+        }}
+      >
+        Sicherungen und Wiederherstellung …
+      </button>
+    </section>
+  );
+}
+
 function ProjectLine() {
   const { state } = useApp();
   if (!state.project) return null;
@@ -335,7 +365,7 @@ function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-3 text-sm">
       <h2 className="text-2xl font-semibold">Einstellungen</h2>
-      <p>Profil, Fachrichtung, Lehrbeginn und Speicherort deines Lernjournals.</p>
+      <p>Profil, Fachrichtung, Lehrbeginn, Speicherort und Sicherungen deines Lernjournals.</p>
       <button
         type="button"
         className={primaryButton}

@@ -13,6 +13,8 @@ import { FachbuchView } from '../fachbuch/FachbuchView';
 import { EinstellungenView, ExportView, JournaleView, StartView } from '../views/Views';
 import { EditorProvider } from '../editor/EditorContext';
 import { ArchiveDialog } from '../archive/ArchiveDialog';
+import { ExportReminderBar } from '../backup/ExportReminderBar';
+import { RestoreDialog } from '../backup/RestoreDialog';
 import { ExportDialog } from '../export/ExportDialog';
 import { saveIfNeeded } from '../editor/save-registry';
 import { loadJournals, loadTaxonomy } from '../journal/actions';
@@ -109,8 +111,10 @@ export function AppShell({ version }: { version: string | null }) {
 
   // Journale laden, sobald ein Projekt offen ist (und bei Projektwechsel neu).
   // Schlüssel mit Pfad: Eine importierte Kopie (AJ-14) hat dieselbe Projekt-ID
-  // wie das Original, liegt aber in einem anderen Ordner.
-  const projectKey = state.project ? `${state.project.id}|${state.project.path}` : null;
+  // wie das Original, liegt aber in einem anderen Ordner. Mit projectEpoch:
+  // auch nach erneutem Öffnen desselben Projekts (Ersetzen durch eine
+  // Sicherung, AJ-15) neu laden.
+  const projectKey = state.project ? `${state.project.id}|${state.project.path}|${state.projectEpoch}` : null;
   useEffect(() => {
     if (!projectKey) return;
     void loadJournals(dispatch);
@@ -173,6 +177,8 @@ export function AppShell({ version }: { version: string | null }) {
                 onDismiss={() => dispatch({ type: 'dismissSyncWarning' })}
               />
             )}
+            {/* Erinnerung an eine Kopie ausserhalb des Computers (AJ-15) */}
+            <ExportReminderBar />
             <div className="flex min-h-0 flex-1">
               <NavigationPane />
               <main
@@ -201,6 +207,10 @@ export function AppShell({ version }: { version: string | null }) {
         <StatusBar version={version} />
         {/* Projektübergabe .ajournal (AJ-14): auch auf dem Startbildschirm (Import) */}
         {state.archiveDialog && <ArchiveDialog mode={state.archiveDialog} />}
+        {/* Wiederherstellung (AJ-15): bleibt über das erneute Öffnen hinweg stehen */}
+        {state.restoreDialog && (
+          <RestoreDialog key={state.restoreDialog.backupId} backupId={state.restoreDialog.backupId} />
+        )}
       </div>
     </EditorProvider>
   );

@@ -1,7 +1,8 @@
 // Einstellungen: Profil bearbeiten, Kategorien/Schlagwörter verwalten,
-// Suchindex neu aufbauen, Speicherort anzeigen, Projekt schliessen.
+// Suchindex neu aufbauen, Sicherungen (AJ-15), Speicherort anzeigen, Projekt schliessen.
 import { useState, type FormEvent } from 'react';
 import type { Profile } from '@shared/ipc';
+import { BackupSection } from '../backup/BackupSection';
 import { useApp } from '../state/AppContext';
 import { journalCounts } from '../state/app-state';
 import { ErrorMessage, SyncWarning } from './Notices';
@@ -57,6 +58,8 @@ export function SettingsPanel() {
       <TaxonomyManager />
 
       <SearchIndexSection />
+
+      <BackupSection />
 
       <section aria-labelledby="settings-location" className="max-w-2xl space-y-3">
         <h2 id="settings-location" className="text-lg font-semibold">
