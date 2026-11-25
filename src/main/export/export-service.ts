@@ -9,6 +9,8 @@
 // nie wieder gelesen oder mit dem Journal abgeglichen.
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { annotatedMediaKey } from '@shared/annotation-key';
+import { annotationSvg, parseAnnotations } from '@shared/annotations';
 import { journalLinkTargets } from '@shared/links';
 import type { Profile } from '@shared/ipc';
 import type { ExportFormat } from '@shared/export';
@@ -34,6 +36,9 @@ export class ExportError extends Error {
 // Wandelt ein Bild (WebP) in PNG um. In der App: verborgenes, gesichertes
 // Chromium-Fenster (image-convert.ts); in Tests: Attrappe.
 export type ImageConverter = (data: Uint8Array) => Promise<Uint8Array>;
+// Rechnet Foto + Beschriftung (SVG) zu einem Bild zusammen (AJ-32, für Word).
+// In der App: verborgenes Fenster (image-convert.ts); in Tests: Attrappe.
+export type ImageAnnotator = (image: DocxImage, svg: string) => Promise<Uint8Array>;
 export type PdfPrinter = (document: PdfDocument) => Promise<Uint8Array>;
 
 // Vorschlag für den Dateinamen: «2026-03-14 Farbmessung am Druckbogen.docx».
@@ -94,6 +99,8 @@ export class ExportService {
     private readonly convertToPng: ImageConverter,
     // Uhr für das Exportdatum (Titelseite, Dateiname des Sammel-DOCX); im Test fest
     private readonly now: () => Date = () => new Date(),
+    // Beschriftete Bilder für Word zusammenrechnen; ohne: Originalfoto
+    private readonly annotate: ImageAnnotator | null = null,
   ) {}
 
   private get db() {
@@ -163,7 +170,38 @@ export class ExportService {
   // aus den Bytes geprüft. WebP (kann Word nicht sicher anzeigen) → PNG.
   // Fehlt eine Datei oder schlägt die Umwandlung fehl, fehlt nur dieses Bild
   // (Platzhalter + Hinweis im Dokument) – der Export bricht nicht ab.
-  async loadImages(journal: ExportJournal): Promise<Map<string, DocxImage>> {
+  async loadImages(journal: ExportJournal, withAnnotated = true): Promise<Map<string, DocxImage>> {
+    const out = await this.loadPlainImages(journal);
+    // Beschriftete Bilder (AJ-32) für Word: Foto + Formen als ein Bild unter
+    // eigenem Schlüssel. Das PDF legt die Formen selbst als SVG darüber.
+    if (withAnnotated && this.annotate) {
+      for (const fig of annotatedFigures(journal.sections)) {
+        const base = out.get(fig.mediaId);
+        const key = annotatedMediaKey(fig.mediaId, fig.annotations);
+        if (!base || !key || out.has(key)) continue;
+        try {
+          const data = await this.annotate(
+            base,
+            annotationSvg(parseAnnotations(fig.annotations), base.widthPx, base.heightPx),
+          );
+          const info = sniffImage(data);
+          if (!info || info.mime === 'image/webp') continue;
+          out.set(key, {
+            data,
+            type: info.mime === 'image/png' ? 'png' : 'jpg',
+            widthPx: info.width,
+            heightPx: info.height,
+          });
+        } catch (err) {
+          // Dann eben das Originalfoto ohne Beschriftung (Export bricht nicht ab)
+          console.error('[export] Bildbeschriftung nicht übernommen:', err);
+        }
+      }
+    }
+    return out;
+  }
+
+  private async loadPlainImages(journal: ExportJournal): Promise<Map<string, DocxImage>> {
     const out = new Map<string, DocxImage>();
     const ids = referencedMediaIds(journal.sections);
     for (const id of ids) {
@@ -240,13 +278,13 @@ export class ExportService {
     return { data: await packDocx(doc), warnings };
   }
 
-  private async loadDocumentData(ids: readonly string[]) {
+  private async loadDocumentData(ids: readonly string[], withAnnotated = true) {
     const journals = ids.map((id) => this.loadJournal(id));
     const author = this.author();
     const images = new Map<string, DocxImage>();
     const linkTitles = new Map<string, string>();
     for (const journal of journals) {
-      for (const [id, image] of await this.loadImages(journal)) images.set(id, image);
+      for (const [id, image] of await this.loadImages(journal, withAnnotated)) images.set(id, image);
       for (const [id, title] of this.linkTitles(journal)) linkTitles.set(id, title);
     }
     return { journals, author, images, linkTitles };
@@ -257,7 +295,7 @@ export class ExportService {
       title === undefined
         ? undefined
         : { title, createdOn: localIsoDate(this.now()), specialization: this.specialization() };
-    const input = await this.loadDocumentData(ids);
+    const input = await this.loadDocumentData(ids, false);
     const { document, warnings } = buildPdfDocument({ ...input, collection });
     const data = await print(document);
     await writeFileAtomic(target, data);
@@ -290,4 +328,18 @@ export class ExportService {
     await writeFileAtomic(target, data);
     return { bytes: data.byteLength, warnings };
   }
+}
+
+// Alle Bilder mit Beschriftung in den Abschnitten eines Journals
+export function annotatedFigures(
+  sections: readonly { doc: TiptapNode }[],
+): { mediaId: string; annotations: unknown }[] {
+  const out: { mediaId: string; annotations: unknown }[] = [];
+  const walk = (n: TiptapNode) => {
+    if (n.type === 'figure' && Array.isArray(n.attrs?.['annotations']) && n.attrs['annotations'].length)
+      out.push({ mediaId: String(n.attrs['mediaId'] ?? ''), annotations: n.attrs['annotations'] });
+    for (const c of n.content ?? []) walk(c);
+  };
+  for (const s of sections) walk(s.doc);
+  return out;
 }

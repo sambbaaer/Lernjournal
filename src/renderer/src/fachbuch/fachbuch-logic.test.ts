@@ -7,6 +7,8 @@ import { initialState, reducer } from '../state/app-state';
 import {
   countLabel,
   fachbuchItems,
+  filterMerkstellen,
+  groupByLetter,
   inScope,
   INITIAL_FACHBUCH,
   relatedTags,
@@ -150,5 +152,34 @@ describe('Fachbuch-Zustand', () => {
     const project = { id: 'p2', title: 'P', path: 'C:\\P', migratedFromVersion: null } as ProjectInfo;
     expect(reducer(s, { type: 'projectOpened', project }).fachbuch).toEqual(INITIAL_FACHBUCH);
     expect(reducer(s, { type: 'projectClosed' }).fachbuch).toEqual(INITIAL_FACHBUCH);
+  });
+});
+
+describe('Merkstellen im Fachbuch (AJ-33)', () => {
+  const m = (term: string, status: 'draft' | 'archived' = 'draft') => ({
+    id: term,
+    term,
+    text: '',
+    context: 'Absatz',
+    journalId: 'j',
+    journalTitle: 'Journal',
+    workDate: '2026-01-01',
+    status,
+  });
+
+  it('filtert nach Begriff, ohne Archiv, und gruppiert A–Z', () => {
+    const list = [m('Überfüller'), m('Rakel'), m('Alt', 'archived'), m('3D-Druck')];
+    expect(filterMerkstellen(list, '', false).map((x) => x.term)).toEqual([
+      'Überfüller',
+      'Rakel',
+      '3D-Druck',
+    ]);
+    expect(filterMerkstellen(list, 'uberf', false).map((x) => x.term)).toEqual(['Überfüller']);
+    expect(groupByLetter(filterMerkstellen(list, '', true)).map((g) => g.letter)).toEqual([
+      'A',
+      'R',
+      'U',
+      '#',
+    ]);
   });
 });

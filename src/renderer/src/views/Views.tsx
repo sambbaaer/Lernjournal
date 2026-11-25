@@ -15,6 +15,7 @@ import { JournalPicker } from '../journal/JournalPicker';
 import { StatusBadge } from '../journal/StatusBadge';
 import type { JournalSummary } from '@shared/journal';
 import { EmptyState } from './EmptyState';
+import { startLists, startProgress, type StartProgress } from './start-progress';
 
 export function ViewFrame({
   title,
@@ -79,45 +80,156 @@ function JournalLinks({ items, empty }: { items: JournalSummary[]; empty: string
 }
 
 export function StartView() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const name = state.project?.profile.displayName.trim();
-  const active = state.journals.filter((j) => j.status !== 'archived');
-  const recent = [...active].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
-  const drafts = active.filter((j) => j.status === 'draft').slice(0, 5);
-  const done = active.filter((j) => j.status === 'completed').slice(0, 5);
+  // AJ-24: keine Doppelungen zwischen den Listen, Fortschritt rechts
+  const { recent, openDrafts } = startLists(state.journals);
+  const progress = startProgress(
+    state.journals,
+    state.project?.profile.apprenticeshipStart ?? null,
+    state.qvMinimum,
+  );
   return (
     <ViewFrame
       title={name ? `Willkommen, ${name.split(' ')[0]}` : 'Willkommen'}
       actions={<NewJournalButton />}
     >
-      <section aria-labelledby="start-recent">
-        <h2 id="start-recent" className="mb-2 text-base font-semibold">
-          Zuletzt bearbeitet
-        </h2>
-        {recent.length === 0 ? (
-          <EmptyState icon={NotebookPen} title="Noch keine Journale">
-            Halte nach einem Auftrag fest, was du gemacht hast, wie du vorgegangen bist und was du gelernt
-            hast. Ein Klick auf «Neues Journal» genügt.
-          </EmptyState>
-        ) : (
-          <JournalLinks items={recent} empty="" />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="space-y-6">
+          <section aria-labelledby="start-recent">
+            <h2 id="start-recent" className="mb-2 text-base font-semibold">
+              Zuletzt bearbeitet
+            </h2>
+            {recent.length === 0 ? (
+              <EmptyState icon={NotebookPen} title="Noch keine Journale">
+                Halte nach einem Auftrag fest, was du gemacht hast, wie du vorgegangen bist und was du gelernt
+                hast. Ein Klick auf «Neues Journal» genügt.
+              </EmptyState>
+            ) : (
+              <JournalLinks items={recent} empty="" />
+            )}
+          </section>
+          {openDrafts.length > 0 && (
+            <section aria-labelledby="start-drafts">
+              <h2 id="start-drafts" className="mb-2 text-base font-semibold">
+                Weitere offene Entwürfe
+              </h2>
+              <JournalLinks items={openDrafts} empty="" />
+            </section>
+          )}
+        </div>
+        {progress.total > 0 && (
+          <ProgressPanel
+            progress={progress}
+            onSettings={() => dispatch({ type: 'navigate', view: 'einstellungen' })}
+          />
         )}
-      </section>
-      <div className="grid gap-6 md:grid-cols-2">
-        <section aria-labelledby="start-drafts">
-          <h2 id="start-drafts" className="mb-2 text-base font-semibold">
-            Entwürfe
-          </h2>
-          <JournalLinks items={drafts} empty="Keine Entwürfe." />
-        </section>
-        <section aria-labelledby="start-done">
-          <h2 id="start-done" className="mb-2 text-base font-semibold">
-            Abgeschlossen
-          </h2>
-          <JournalLinks items={done} empty="Noch keine abgeschlossenen Journale." />
-        </section>
       </div>
     </ViewFrame>
+  );
+}
+
+// Fortschritt (AJ-24): kompakte Kennzahlen statt doppelter Listen. Die
+// Balken sind Schmuck (aria-hidden); die Zahlen stehen immer auch als Text da.
+function ProgressPanel({ progress, onSettings }: { progress: StartProgress; onSettings: () => void }) {
+  const { total, drafts, completed, qvSelected, qvMinimum, years, withoutYear } = progress;
+  const max = Math.max(1, ...years.flatMap((y) => [y.semester1, y.semester2, y.withoutSemester]));
+  const qvPercent = Math.min(100, Math.round((qvSelected / Math.max(1, qvMinimum)) * 100));
+  const anyYear = years.some((y) => y.total > 0);
+  return (
+    <aside
+      aria-labelledby="start-progress"
+      className="space-y-5 rounded-lg border border-border bg-surface p-4"
+    >
+      <h2 id="start-progress" className="text-base font-semibold">
+        Fortschritt
+      </h2>
+      {/* Kennzahlen als Zeilen (Bezeichnung links, Zahl rechts): passt auch bei
+          grosser Schrift und 200 % Zoom, ohne dass Wörter aus Kacheln ragen */}
+      <dl className="divide-y divide-border-subtle rounded-sm bg-canvas px-3 text-sm">
+        {(
+          [
+            ['Journale', total],
+            ['Entwürfe', drafts],
+            ['Abgeschlossen', completed],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between gap-2 py-1.5">
+            <dt className="text-ink-muted">{label}</dt>
+            <dd className="text-base font-semibold tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="space-y-1.5">
+        <h3 className="text-sm font-semibold">Für das QV vorgemerkt</h3>
+        <p className="text-sm">
+          <strong className="tabular-nums">{qvSelected}</strong> von mindestens{' '}
+          <span className="tabular-nums">{qvMinimum}</span> Lernberichten
+        </p>
+        <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-canvas">
+          <div
+            className={`h-full rounded-full ${qvSelected >= qvMinimum ? 'bg-success' : 'bg-accent'}`}
+            style={{ width: `${qvPercent}%` }}
+          />
+        </div>
+        <p className="text-xs text-ink-muted">
+          Mindestzahl anpassen unter{' '}
+          <button type="button" className="text-accent underline" onClick={onSettings}>
+            Einstellungen
+          </button>
+          .
+        </p>
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Journale pro Semester</h3>
+        {anyYear ? (
+          <ul className="space-y-2">
+            {years
+              .filter((y) => y.total > 0)
+              .map((y) => (
+                <li key={y.year} className="space-y-1">
+                  <p className="text-xs font-semibold">
+                    {y.year}. Lehrjahr · {y.total} {y.total === 1 ? 'Journal' : 'Journale'}
+                  </p>
+                  {(
+                    [
+                      ['1. Semester', y.semester1],
+                      ['2. Semester', y.semester2],
+                      ['Ohne Semester', y.withoutSemester],
+                    ] as const
+                  )
+                    .filter(([label, count]) => label !== 'Ohne Semester' || count > 0)
+                    .map(([label, count]) => (
+                      <div key={label} className="flex items-center gap-2 text-xs">
+                        <span className="w-24 shrink-0 text-ink-muted">{label}</span>
+                        <span
+                          aria-hidden="true"
+                          className="h-2 flex-1 overflow-hidden rounded-full bg-canvas"
+                        >
+                          <span
+                            className="block h-full rounded-full bg-accent"
+                            style={{ width: `${(count / max) * 100}%` }}
+                          />
+                        </span>
+                        <span className="w-6 text-right tabular-nums">{count}</span>
+                      </div>
+                    ))}
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-ink-muted">
+            Trage im Profil deinen Lehrbeginn ein. Dann ordnet Lernjournal die Journale den Lehrjahren und
+            Semestern zu.
+          </p>
+        )}
+        {anyYear && withoutYear > 0 && (
+          <p className="text-xs text-ink-muted">
+            {withoutYear} {withoutYear === 1 ? 'Journal' : 'Journale'} ohne Lehrjahr
+          </p>
+        )}
+      </div>
+    </aside>
   );
 }
 

@@ -4,6 +4,7 @@
 // oder als Tabelle in den aktiven Abschnitt einzufügen.
 import { useRef } from 'react';
 import { ChevronDown, ClipboardPaste, FileText, Image, Table } from 'lucide-react';
+import { BLOCKS, insertBlock, type BlockId } from '../editor/blocks';
 import { useActiveEditor } from '../editor/EditorContext';
 import { insertImages, pasteFromClipboard, pickImageFiles } from '../editor/insert-image';
 import { useApp } from '../state/AppContext';
@@ -69,6 +70,15 @@ export function JournalInsertMenu({ journalId }: { journalId: string }) {
       return;
     }
     target.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  }
+
+  // Fachspezifische Bausteine (Störungstabelle, später Hinweisbox, Checkliste …)
+  function runInsertBlock(id: BlockId) {
+    close();
+    const target = ensureActiveEditor() ?? editor;
+    if (!target || target.isDestroyed || !insertBlock(target, id)) {
+      dispatch({ type: 'notice', text: 'Hier gerade nicht möglich – zuerst in einen Abschnitt klicken.' });
+    }
   }
 
   function runInsertSymbol(symbol: string) {
@@ -152,6 +162,20 @@ export function JournalInsertMenu({ journalId }: { journalId: string }) {
         >
           <Table aria-hidden="true" size={16} /> Tabelle einfügen
         </button>
+        <div className="my-1 border-t border-border-subtle" />
+        <p className="px-2.5 pt-1 text-xs text-ink-muted">Bausteine</p>
+        {BLOCKS.map((block) => (
+          <button
+            key={block.id}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => runInsertBlock(block.id)}
+            className="flex w-full items-center justify-between gap-3 rounded-sm px-2.5 py-1.5 text-left hover:bg-hover"
+          >
+            <span>{block.label}</span>
+            <span className="text-xs text-ink-muted">{block.description}</span>
+          </button>
+        ))}
         <div className="my-1 border-t border-border-subtle" />
         <div className="px-2.5 py-1">
           <div className="flex items-center justify-between text-xs text-ink-muted">

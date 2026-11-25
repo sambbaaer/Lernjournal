@@ -15,6 +15,7 @@ import { EMPTY_LINKS, type JournalLinks } from '@shared/links';
 import { MCP_OFF, type McpStatus } from '@shared/mcp';
 import { EMPTY_TAXONOMY, type Taxonomy } from '@shared/taxonomy';
 import { INITIAL_FACHBUCH, type FachbuchState } from '../fachbuch/fachbuch-logic';
+import { DEFAULT_FILTER, type JournalFilter } from '../journal/journal-filter';
 
 export type RecentProject = { path: string; title: string; lastOpened: string };
 
@@ -94,6 +95,18 @@ export type AppState = {
   // zentralen Zustand, damit die Suche erhalten bleibt, wenn man ein Journal
   // aus den Treffern öffnet und wieder zum Fachbuch zurückkehrt.
   fachbuch: FachbuchState;
+  // Filter der Journalliste (AJ-25): zentral, weil ihn auch das Menüband
+  // ausserhalb des Editors anbietet
+  journalFilter: JournalFilter;
+  // Schnellsuche Strg+K (AJ-26) geöffnet
+  quickSearchOpen: boolean;
+  // Auswahl für einen Querverweis (AJ-27): aus dem Menüband oder nach «[[» im Text
+  crossRef: { source: 'ribbon' | 'brackets' } | null;
+  // Dialog «Merkstelle» (AJ-33) für die Markierung im aktiven Abschnitt
+  merkstelleDialog: boolean;
+  // Aus dem Fachbuch zu einer Merkstelle springen: Der Abschnitt mit dieser
+  // Merkstelle markiert sie im Editor und scrollt hin (danach wieder null)
+  revealMerkstelle: string | null;
   // Word-Export: offener Exportdialog mit den gewählten Journalen. Ohne
   // `collection` ein Einzel-DOCX (AJ-12, genau ein Journal), mit `collection`
   // ein Sammel-DOCX (AJ-13) in der Reihenfolge der Liste.
@@ -161,6 +174,11 @@ export const initialState: AppState = {
   openJournalLinks: EMPTY_LINKS,
   taxonomy: EMPTY_TAXONOMY,
   fachbuch: INITIAL_FACHBUCH,
+  journalFilter: DEFAULT_FILTER,
+  quickSearchOpen: false,
+  crossRef: null,
+  merkstelleDialog: false,
+  revealMerkstelle: null,
   exportDialog: null,
   collection: INITIAL_COLLECTION,
   archiveDialog: null,
@@ -213,6 +231,14 @@ export type Action =
   | { type: 'taxonomyLoaded'; taxonomy: Taxonomy }
   | { type: 'linksLoaded'; journalId: string; links: JournalLinks }
   | { type: 'fachbuchChanged'; change: Partial<FachbuchState> }
+  | { type: 'setJournalFilter'; filter: Partial<JournalFilter> }
+  | { type: 'openQuickSearch' }
+  | { type: 'closeQuickSearch' }
+  | { type: 'openCrossRef'; source: 'ribbon' | 'brackets' }
+  | { type: 'closeCrossRef' }
+  | { type: 'openMerkstelleDialog' }
+  | { type: 'revealMerkstelle'; id: string | null }
+  | { type: 'closeMerkstelleDialog' }
   | ({ type: 'openExport' } & ExportDialogState)
   | { type: 'closeExport' }
   | { type: 'collectionChanged'; change: Partial<CollectionState> }
@@ -254,6 +280,12 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         view: action.view,
+        // Ausserhalb des Journals sind «Einfügen» und «Tabelle» ohne Ziel:
+        // zurück auf «Start» mit Suche und Filtern (AJ-25, ruhiges Dashboard)
+        ribbonTab:
+          action.view !== 'journal' && (state.ribbonTab === 'einfuegen' || state.ribbonTab === 'tabelle')
+            ? 'start'
+            : state.ribbonTab,
         backstage: null,
         notice: null,
         creatingJournal: null,
@@ -350,6 +382,11 @@ export function reducer(state: AppState, action: Action): AppState {
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
+        journalFilter: DEFAULT_FILTER,
+        quickSearchOpen: false,
+        crossRef: null,
+        merkstelleDialog: false,
+        revealMerkstelle: null,
         exportDialog: null,
         collection: INITIAL_COLLECTION,
         notice: p.migratedFromVersion
@@ -377,6 +414,11 @@ export function reducer(state: AppState, action: Action): AppState {
         openJournalLinks: EMPTY_LINKS,
         taxonomy: EMPTY_TAXONOMY,
         fachbuch: INITIAL_FACHBUCH,
+        journalFilter: DEFAULT_FILTER,
+        quickSearchOpen: false,
+        crossRef: null,
+        merkstelleDialog: false,
+        revealMerkstelle: null,
         exportDialog: null,
         collection: INITIAL_COLLECTION,
       };
@@ -501,6 +543,22 @@ export function reducer(state: AppState, action: Action): AppState {
         : state;
     case 'fachbuchChanged':
       return { ...state, fachbuch: { ...state.fachbuch, ...action.change } };
+    case 'setJournalFilter':
+      return { ...state, journalFilter: { ...state.journalFilter, ...action.filter } };
+    case 'openQuickSearch':
+      return { ...state, quickSearchOpen: true, backstage: null };
+    case 'closeQuickSearch':
+      return { ...state, quickSearchOpen: false };
+    case 'openCrossRef':
+      return { ...state, crossRef: { source: action.source } };
+    case 'closeCrossRef':
+      return { ...state, crossRef: null };
+    case 'openMerkstelleDialog':
+      return { ...state, merkstelleDialog: true };
+    case 'closeMerkstelleDialog':
+      return { ...state, merkstelleDialog: false };
+    case 'revealMerkstelle':
+      return { ...state, revealMerkstelle: action.id };
     case 'openExport':
       // Ohne Journal kein Dialog; das Datei-Menü schliesst (wie beim Navigieren)
       return action.journalIds.length

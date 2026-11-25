@@ -48,7 +48,7 @@ test('Schreiben und formatieren über Menüband und Tastatur; Knopf zeigt Zustan
 test('«Tabelle» erscheint farbig und verschwindet beim Verlassen der Tabelle', async () => {
   await editor('Auftrag / Ausgangslage').click();
   await tab('Einfügen').click();
-  await ribbon().getByRole('button', { name: 'Tabelle' }).click();
+  await ribbon().getByRole('button', { name: 'Tabelle', exact: true }).click();
   const tableTab = tab('Tabelle');
   await tableTab.waitFor();
   const background = (name) => tab(name).evaluate((el) => getComputedStyle(el).backgroundColor);

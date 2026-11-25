@@ -1,7 +1,13 @@
 // Filter der Journalliste (AJ-09): Status, Titel, Kategorie, Schlagwort.
 import { describe, expect, it } from 'vitest';
 import type { JournalSummary } from '@shared/journal';
-import { DEFAULT_FILTER, matchesFilter, sanitizeFilter, type JournalFilter } from './journal-filter';
+import {
+  DEFAULT_FILTER,
+  isFiltered,
+  matchesFilter,
+  sanitizeFilter,
+  type JournalFilter,
+} from './journal-filter';
 
 const j = (over: Partial<JournalSummary>): JournalSummary => ({
   template: 'report',
@@ -54,5 +60,20 @@ describe('Journalfilter', () => {
     expect(sanitizeFilter(stale, ['a'], ['t1'])).toMatchObject({ category: 'all', tag: 'all' });
     const ok = f({ category: 'none', tag: 't1' });
     expect(sanitizeFilter(ok, ['a'], ['t1'])).toBe(ok); // unverändert, gleiches Objekt
+  });
+
+  it('Lernort und Lehrjahr (AJ-25)', () => {
+    expect(matchesFilter(j({ learningPlace: 'uek' }), f({ place: 'uek' }))).toBe(true);
+    expect(matchesFilter(j({ learningPlace: 'betrieb' }), f({ place: 'uek' }))).toBe(false);
+    expect(matchesFilter(j({ schoolYear: 2 }), f({ schoolYear: 2 }))).toBe(true);
+    expect(matchesFilter(j({ schoolYear: 3 }), f({ schoolYear: 2 }))).toBe(false);
+    expect(matchesFilter(j({ schoolYear: null }), f({ schoolYear: 'none' }))).toBe(true);
+    expect(matchesFilter(j({ schoolYear: 1 }), f({ schoolYear: 'none' }))).toBe(false);
+  });
+
+  it('erkennt einen gesetzten Filter', () => {
+    expect(isFiltered(DEFAULT_FILTER)).toBe(false);
+    expect(isFiltered(f({ place: 'schule' }))).toBe(true);
+    expect(isFiltered(f({ text: '  ' }))).toBe(false);
   });
 });

@@ -38,9 +38,18 @@ import {
   Tags,
   Trash2,
   Underline,
+  Info,
+  OctagonAlert,
+  Lightbulb,
+  ListChecks,
+  Calculator,
+  Wrench,
+  BookmarkPlus,
+  Brackets,
   Undo2,
 } from 'lucide-react';
 import { journalIdFromHref } from '@shared/links';
+import { insertBlock, toggleCallout } from '../editor/blocks';
 import { insertImages, pasteFromClipboard, pickImageFiles } from '../editor/insert-image';
 import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
@@ -52,6 +61,13 @@ export type RibbonCtx = {
   openLinkDialog: () => void;
   openJournalLinkDialog: () => void;
 };
+
+const calloutItem = (kind: 'merke' | 'achtung' | 'tipp', label: string, icon: LucideIcon) =>
+  editorItem(`callout-${kind}`, label, icon, (e) => toggleCallout(e, kind), {
+    iconOnly: false,
+    pressed: (e) => e.isActive('callout', { kind }),
+    can: (e) => !e.isActive('calculation'),
+  });
 
 // Steht die Einfügemarke in einem Link? Interne Journal-Links (AJ-10) und
 // Weblinks werden getrennt angezeigt und bearbeitet.
@@ -190,6 +206,10 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
         editorItem('numbers', 'Nummerierung', ListOrdered, (e) => chain(e).toggleOrderedList().run(), {
           pressed: (e) => e.isActive('orderedList'),
         }),
+        editorItem('tasks', 'Checkliste', ListChecks, (e) => chain(e).toggleTaskList().run(), {
+          pressed: (e) => e.isActive('taskList'),
+          can: (e) => e.can().toggleTaskList(),
+        }),
       ],
     },
     {
@@ -252,6 +272,29 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
           (e) => chain(e).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
           { iconOnly: false, can: (e) => e.can().insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
         ),
+        // Störungstabelle (AJ-30): Symptom → Ursache → Massnahme
+        editorItem('troubleshooting', 'Störungstabelle', Wrench, (e) => insertBlock(e, 'troubleshooting'), {
+          iconOnly: false,
+          can: (e) => !e.isActive('table'),
+        }),
+      ],
+    },
+    {
+      // Fachspezifische Bausteine (AJ-28, AJ-29, AJ-31)
+      id: 'bausteine',
+      label: 'Bausteine',
+      items: [
+        calloutItem('merke', 'Merke', Info),
+        calloutItem('achtung', 'Achtung', OctagonAlert),
+        calloutItem('tipp', 'Tipp', Lightbulb),
+        editorItem('checklist', 'Checkliste', ListChecks, (e) => insertBlock(e, 'checklist'), {
+          iconOnly: false,
+          pressed: (e) => e.isActive('taskList'),
+        }),
+        editorItem('calculation', 'Rechenblock', Calculator, (e) => insertBlock(e, 'calculation'), {
+          iconOnly: false,
+          can: (e) => !e.isActive('table') && !e.isActive('calculation'),
+        }),
       ],
     },
     {
@@ -272,6 +315,25 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
             pressed: (e) => activeLinkKind(e) === 'web',
           }),
           run: (c) => c.openLinkDialog(),
+        },
+        {
+          // Querverweis «[[…]]» auf Journal oder Schlagwort (AJ-27)
+          ...editorItem('cross-ref', 'Querverweis [[ ]]', Brackets, () => {}, { iconOnly: false }),
+          run: ({ dispatch }) => dispatch({ type: 'openCrossRef', source: 'ribbon' }),
+        },
+      ],
+    },
+    {
+      // Merkstelle (AJ-33): markierter Text erscheint mit Fachbegriff im Fachbuch
+      id: 'fachbuch',
+      label: 'Fachbuch',
+      items: [
+        {
+          ...editorItem('merkstelle', 'Merkstelle', BookmarkPlus, () => {}, {
+            iconOnly: false,
+            pressed: (e) => e.isActive('merkstelle'),
+          }),
+          run: ({ dispatch }) => dispatch({ type: 'openMerkstelleDialog' }),
         },
       ],
     },

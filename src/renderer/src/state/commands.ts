@@ -11,6 +11,7 @@ export type CommandId =
   | 'journal.save'
   | 'journal.find'
   | 'fachbuch.search'
+  | 'search.quick'
   | 'region.next'
   | 'region.previous';
 
@@ -73,6 +74,14 @@ export const commands: Record<CommandId, Command> = {
       d({ type: 'navigate', view: 'fachbuch' });
       d({ type: 'requestFocus', target: 'fachbuch-search' });
     },
+  },
+  // Schnellsuche (AJ-26): Journale, Schlagwörter, Kategorien, Volltext und Befehle
+  'search.quick': {
+    id: 'search.quick',
+    label: 'Schnellsuche',
+    shortcut: 'Ctrl+K',
+    disabledReason: (s) => (s.project ? null : 'Zuerst ein Lernjournal-Projekt öffnen'),
+    run: (s, d) => d(s.quickSearchOpen ? { type: 'closeQuickSearch' } : { type: 'openQuickSearch' }),
   },
   // F6/Umschalt+F6 werden in der App-Shell behandelt (brauchen DOM-Fokus)
   'region.next': {

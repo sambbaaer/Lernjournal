@@ -105,6 +105,20 @@ Nach der Zertifizierung (Dauer zeigt Partner Center an) erscheint die App im Sto
 
 **Weitere Angaben:** Copyright «© <Jahr> <Name>»; Datenschutz-Adresse; Support-Kontakt. Keine Logos von SBFI oder dpsuisse, keine Microsoft-Marken im Bildmaterial (die Oberfläche ist Office-ähnlich, aber eigenständig).
 
+## 8. Update einreichen (Neuerungen)
+
+Für ein Update die Version in `package.json` erhöhen (Store-Version `x.y.z.0`), `npm run dist:store` bauen, in Partner Center eine neue Einreichung starten und das neue `.msix` hochladen. Text für das Feld «Neuerungen in dieser Version»:
+
+**0.2.0**
+
+- Neue Bausteine unter «Einfügen»: Hinweisboxen «Merke», «Achtung», «Tipp», Checklisten, Rechenblock und Störungstabelle.
+- Fotos direkt beschriften: Pfeile, Kreise, Nummern und kurze Texte.
+- Merkstellen: wichtige Stellen im Journal markieren, im Fachbuch als Register nachschlagen.
+- Querverweise mit [[ auf Journale, Schlagwörter und Merkstellen.
+- Schnellsuche mit Strg+K und eine ruhigere Startseite mit Fortschritt pro Semester.
+- MCP-Zugang für Claude Desktop mit einem Klick eingerichtet (optional).
+- Projekte, die mit 0.2.0 gespeichert wurden, brauchen Lernjournal 0.2.0 oder neuer.
+
 ## Was das Paket enthält und was nicht
 - Fähigkeit nur `runFullTrust`; **kein** Internetzugriff deklariert, keine Dateizuordnung, kein Autostart, keine Hintergrunddienste.
 - Befehlszeilen-Aufruf `lernjournal` (startet die App; nützlich für Konsole und den automatischen Test der CI).

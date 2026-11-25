@@ -108,11 +108,15 @@ test('Register im Menüband mit Pfeiltasten wechseln', async () => {
 
 test('Nicht verfügbare Befehle erklären den Grund und tun nichts', async () => {
   await reset();
-  const bold = page.getByRole('tabpanel').getByRole('button', { name: 'Fett' });
-  assert.equal(await bold.getAttribute('aria-disabled'), 'true');
-  assert.match(await bold.getAttribute('title'), /Strg\+B.*Zuerst in einen Abschnitt des Journals klicken/);
-  await bold.click({ force: true }); // bewusst trotz aria-disabled klicken
+  // Ausserhalb des Editors zeigt «Start» Suche und Filter statt ausgegrauter Formatierung (AJ-25)
+  assert.equal(await page.getByRole('tabpanel').getByRole('button', { name: 'Fett' }).count(), 0);
+  await page.getByRole('tab', { name: 'Einfügen' }).click();
+  const image = page.getByRole('tabpanel').getByRole('button', { name: 'Bild' });
+  assert.equal(await image.getAttribute('aria-disabled'), 'true');
+  assert.match(await image.getAttribute('title'), /Bild.*Zuerst in einen Abschnitt des Journals klicken/);
+  await image.click({ force: true }); // bewusst trotz aria-disabled klicken
   assert.equal(await page.title(), 'Start – Lernjournal');
+  await page.getByRole('tab', { name: 'Start' }).click();
 });
 
 test('Datei-Menü: Alt+D öffnet, Esc schliesst, Fokus zurück auf «Datei»', async () => {

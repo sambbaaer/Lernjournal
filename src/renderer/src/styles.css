@@ -254,3 +254,142 @@ body {
   outline: none;
   border-bottom: 2px solid var(--color-accent);
 }
+
+/* Querverweis auf ein Schlagwort (AJ-27): gepunktet, unterscheidet sich ohne Farbe */
+.lj-editor a[href^='lernjournal://tag/'] {
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+}
+
+/* Hinweisbox «Merke/Achtung/Tipp» (AJ-28): Beschriftung über ::before, die
+   Box hat role="note" und aria-label für Bildschirmleser */
+.lj-editor .lj-callout {
+  --callout: light-dark(#3a3771, #b4a7e5);
+  margin: 0.75em 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 5px solid var(--callout);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--callout) 10%, transparent);
+}
+.lj-editor .lj-callout[data-callout='achtung'] {
+  --callout: light-dark(#c42b1c, #ff9e94);
+}
+.lj-editor .lj-callout[data-callout='tipp'] {
+  --callout: light-dark(#0e7a0d, #a1dfa4);
+}
+.lj-editor .lj-callout::before {
+  content: attr(aria-label);
+  display: block;
+  font-weight: 700;
+  color: var(--callout);
+  margin-bottom: 0.25rem;
+}
+.lj-editor .lj-callout > * + * {
+  margin-top: 0.5em;
+}
+
+/* Checkliste (AJ-29) */
+.lj-editor ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.lj-editor ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.lj-editor ul[data-type='taskList'] li > label {
+  flex: none;
+  display: flex;
+}
+.lj-editor ul[data-type='taskList'] li > label input {
+  width: 1.5rem; /* WCAG 2.2: Klickziel mind. 24 px */
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+.lj-editor ul[data-type='taskList'] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.lj-editor ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--color-ink-muted);
+  text-decoration: line-through;
+}
+
+/* Rechenblock (AJ-31): Beschriftung links, Inhalt rechts, Ergebnis betont */
+.lj-editor .lj-calc {
+  margin: 0.75em 0;
+  border-top: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.lj-editor .lj-calc-line {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.3rem 0.25rem;
+}
+.lj-editor .lj-calc-line + .lj-calc-line {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.lj-editor .lj-calc-label {
+  flex: none;
+  width: 6rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  user-select: none;
+}
+.lj-editor .lj-calc-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 1.5em;
+}
+.lj-editor .lj-calc-line[data-role='result'] .lj-calc-content {
+  font-weight: 700;
+  text-decoration: underline double;
+  text-underline-offset: 3px;
+}
+
+/* Merkstelle (AJ-33): Leuchtstift-Hintergrund mit Unterstrich (ohne Farbe erkennbar) */
+.lj-editor .lj-merkstelle {
+  background: var(--color-highlight);
+  border-bottom: 2px solid var(--color-warning);
+}
+
+/* Bild-Schnellbeschriftung (AJ-32): SVG deckungsgleich über dem Foto */
+.lj-annotated {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+}
+/* Das SVG steckt in einem eigenen <span> (React setzt es als HTML ein). Beide
+   müssen deckungsgleich über dem Bild liegen, nicht im Textfluss darunter. */
+.lj-annotated > .lj-annotation-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.lj-annotated svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Knopf «Bild beschriften» unter dem Foto (AJ-32) */
+.lj-editor .lj-figure .lj-figure-annotate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.75rem; /* WCAG 2.2: Klickziel mind. 24 px */
+  margin-top: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 2px;
+  font-size: 0.8rem;
+  color: var(--color-accent-strong);
+}
+.lj-editor .lj-figure .lj-figure-annotate:hover {
+  background: var(--color-hover);
+}

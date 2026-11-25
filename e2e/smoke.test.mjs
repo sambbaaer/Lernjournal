@@ -3,7 +3,11 @@
 // sie sehen würde.  Ausführen:  npm run test:e2e
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { launchApp } from './helpers.mjs';
+
+// Version aus package.json (nicht fest im Test, sonst bricht er bei jedem Update)
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 
 let app;
 let page;
@@ -19,7 +23,7 @@ after(async () => {
 test('Fenster zeigt Lernjournal und lädt über das eigene Protokoll', async () => {
   assert.match(await page.title(), /– Lernjournal$/);
   assert.match(page.url(), /^app:\/\/lernjournal\//);
-  await page.getByText('Version 0.1.0').waitFor();
+  await page.getByText(`Version ${version}`).waitFor();
 });
 
 test('Renderer hat keinen Zugriff auf Node.js oder Electron', async () => {

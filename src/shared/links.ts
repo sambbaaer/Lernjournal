@@ -30,6 +30,21 @@ export function journalIdFromHref(href: unknown): string | null {
   return m ? m[1]!.toLowerCase() : null;
 }
 
+// Querverweis auf ein Schlagwort (AJ-27, «[[Begriff]]»): führt in die
+// Themenansicht des Fachbuchs. Gespeichert wird nur die ID des Schlagworts.
+export const TAG_LINK_PREFIX = 'lernjournal://tag/';
+const TAG_HREF = new RegExp(`^lernjournal://tag/(${UUID})$`, 'i');
+
+export function tagLinkHref(tagId: string): string {
+  return `${TAG_LINK_PREFIX}${tagId}`;
+}
+
+export function tagIdFromHref(href: unknown): string | null {
+  if (typeof href !== 'string') return null;
+  const m = TAG_HREF.exec(href);
+  return m ? m[1]!.toLowerCase() : null;
+}
+
 // Alle Journale, auf die ein Tiptap-Dokument (oder alle drei Abschnitte) im
 // Text verweist. Läuft rekursiv durch den ganzen JSON-Baum, ohne Tiptap zu
 // brauchen: Jede Link-Markierung { type: 'link', attrs: { href } } zählt.

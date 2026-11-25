@@ -28,6 +28,7 @@ import {
 } from './backup';
 import { COLLECTION_LIMITS, ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
+import { MerkstellenSchema } from './merkstellen';
 import { McpCopyFieldSchema, McpDecisionResultSchema, McpDecisionSchema, McpStatusSchema } from './mcp';
 import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
@@ -290,6 +291,8 @@ export const ipcContract = {
   'search:query': { request: SearchRequestSchema, response: SearchResultSchema },
   // «Suchindex neu aufbauen»: liefert die Anzahl neu indexierter Journale
   'search:rebuild': { request: z.undefined(), response: z.object({ journals: z.number().int() }) },
+  // Merkstellen aller Journale (AJ-33) für Fachbuch und Querverweise
+  'merkstellen:list': { request: z.undefined(), response: MerkstellenSchema },
 
   // Lokale MCP-Freigabe und Prüfung. Der MCP-Client hat keinen IPC-Zugriff.
   'mcp:status': { request: z.undefined(), response: McpStatusSchema },

@@ -23,9 +23,12 @@ import { StatusBadge } from '../journal/StatusBadge';
 import { handleRovingKeys } from '../shell/roving';
 import { EmptyState } from '../views/EmptyState';
 import { ViewFrame } from '../views/Views';
+import type { Merkstelle } from '@shared/merkstellen';
+import { MerkstellenList } from './MerkstellenList';
 import {
   countLabel,
   fachbuchItems,
+  filterMerkstellen,
   relatedTags,
   sameScope,
   sanitizeScope,
@@ -170,11 +173,33 @@ export function FachbuchView() {
     }
   }, [state.focusRequest, dispatch]);
 
+  // Merkstellen (AJ-33): bei jeder Änderung der Journalliste frisch laden
+  const [merkstellen, setMerkstellen] = useState<Merkstelle[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void window.lernjournal.search.merkstellen().then((res) => {
+      if (!cancelled && res.ok) setMerkstellen(res.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.journals]);
+  const showMerkstellen = scope.kind === 'merkstellen';
+  const shownMerkstellen = useMemo(
+    () => filterMerkstellen(merkstellen, showMerkstellen ? query : '', includeArchived),
+    [merkstellen, query, includeArchived, showMerkstellen],
+  );
+  const merkCount = useMemo(
+    () => filterMerkstellen(merkstellen, '', includeArchived).length,
+    [merkstellen, includeArchived],
+  );
+
   // Volltextsuche im Hauptprozess, kurz nach dem letzten Tastendruck. Eine
   // spätere Eingabe verwirft die Antwort einer früheren (kein Wettlauf).
   // Nur Wörter mit mind. 3 Zeichen sind suchbar (Trigramm-Index). Solange
   // keines dabei ist, bleibt die Übersicht stehen, statt «0 Treffer» zu zeigen.
-  const trimmed = searchableWords(query).length > 0 ? query.trim() : '';
+  // In den Merkstellen filtert die Eingabe die Liste (keine Volltextsuche)
+  const trimmed = !showMerkstellen && searchableWords(query).length > 0 ? query.trim() : '';
   const tooShort = trimmed === '' && query.trim() !== '';
   const [result, setResult] = useState<{ key: string; data: SearchResult } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -249,13 +274,15 @@ export function FachbuchView() {
   };
 
   const heading = scopeLabel(scope, taxonomy);
-  const summary = tooShort
-    ? `Suchbegriffe ab ${MIN_WORD_LENGTH} Zeichen eingeben.`
-    : pending
-      ? 'Sucht …'
-      : hits
-        ? `${countLabel(items.length, 'Treffer', 'Treffer')} für «${trimmed}»`
-        : countLabel(items.length, 'Journal', 'Journale');
+  const summary = showMerkstellen
+    ? countLabel(shownMerkstellen.length, 'Merkstelle', 'Merkstellen')
+    : tooShort
+      ? `Suchbegriffe ab ${MIN_WORD_LENGTH} Zeichen eingeben.`
+      : pending
+        ? 'Sucht …'
+        : hits
+          ? `${countLabel(items.length, 'Treffer', 'Treffer')} für «${trimmed}»`
+          : countLabel(items.length, 'Journal', 'Journale');
 
   return (
     <ViewFrame title="Fachbuch">
@@ -343,6 +370,22 @@ export function FachbuchView() {
                 )}
               </ul>
             </div>
+            <div>
+              <h2 id="fachbuch-marks" className="mb-1 px-2 text-sm font-semibold">
+                Nachschlagen
+              </h2>
+              <ul aria-labelledby="fachbuch-marks">
+                <li>
+                  <TopicButton
+                    scope={{ kind: 'merkstellen' }}
+                    current={scope}
+                    label="Merkstellen"
+                    count={merkCount}
+                    onSelect={selectScope}
+                  />
+                </li>
+              </ul>
+            </div>
             {overview.tags.length > 0 && (
               <div>
                 <h2 id="fachbuch-tags" className="mb-1 px-2 text-sm font-semibold">
@@ -377,67 +420,75 @@ export function FachbuchView() {
               </p>
             </div>
 
-            {related.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-ink-muted">
-                  {scope.kind === 'tag' ? 'Oft zusammen mit:' : 'Häufige Schlagwörter:'}
-                </span>
-                {related.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => selectScope({ kind: 'tag', id: t.id })}
-                    className="rounded-full border border-border-strong bg-surface px-2.5 py-0.5 hover:bg-hover"
-                  >
-                    {t.name} <span className="text-ink-muted">({t.count})</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {items.length > 0 ? (
-              <ul
-                ref={listRef}
-                aria-label={hits ? 'Treffer' : 'Journale'}
-                onKeyDown={(e) => handleRovingKeys(e, 'vertical', '[data-result]')}
-                className="divide-y divide-border-subtle rounded-md border border-border bg-surface"
-              >
-                {items.map((item, i) => (
-                  <ResultEntry
-                    key={item.journal.id}
-                    item={item}
-                    names={names}
-                    tabbable={i === activeIndex}
-                    onFocus={() => setActive(i)}
-                  />
-                ))}
-              </ul>
-            ) : hits ? (
-              !pending && (
-                <EmptyState icon={SearchX} title={`Keine Treffer für «${trimmed}»`}>
-                  Auch Wortteile werden gefunden: «messung» findet «Farbmessung». Fehlt ein Journal, obwohl
-                  der Begriff darin steht? In den Einstellungen lässt sich der Suchindex neu aufbauen.
-                </EmptyState>
-              )
+            {showMerkstellen ? (
+              <MerkstellenList items={shownMerkstellen} query={query} />
             ) : (
-              <p className="rounded-md border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-ink-muted">
-                {scope.kind === 'uncategorized'
-                  ? 'Alle Journale sind einer Kategorie zugeordnet.'
-                  : 'Noch keine Journale hier. Kategorien und Schlagwörter ordnest du im Journal zu (Register «Journal»).'}
-              </p>
-            )}
+              <>
+                {related.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-ink-muted">
+                      {scope.kind === 'tag' ? 'Oft zusammen mit:' : 'Häufige Schlagwörter:'}
+                    </span>
+                    {related.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => selectScope({ kind: 'tag', id: t.id })}
+                        className="rounded-full border border-border-strong bg-surface px-2.5 py-0.5 hover:bg-hover"
+                      >
+                        {t.name} <span className="text-ink-muted">({t.count})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-            {hits && outsideScope > 0 && (
-              <p className="text-sm">
-                {countLabel(outsideScope, 'weiterer Treffer', 'weitere Treffer')} ausserhalb von «{heading}».{' '}
-                <button
-                  type="button"
-                  onClick={() => selectScope({ kind: 'all' })}
-                  className="text-accent underline hover:bg-hover"
-                >
-                  In allen Journalen suchen
-                </button>
-              </p>
+                {items.length > 0 ? (
+                  <ul
+                    ref={listRef}
+                    aria-label={hits ? 'Treffer' : 'Journale'}
+                    onKeyDown={(e) => handleRovingKeys(e, 'vertical', '[data-result]')}
+                    className="divide-y divide-border-subtle rounded-md border border-border bg-surface"
+                  >
+                    {items.map((item, i) => (
+                      <ResultEntry
+                        key={item.journal.id}
+                        item={item}
+                        names={names}
+                        tabbable={i === activeIndex}
+                        onFocus={() => setActive(i)}
+                      />
+                    ))}
+                  </ul>
+                ) : hits ? (
+                  !pending && (
+                    <EmptyState icon={SearchX} title={`Keine Treffer für «${trimmed}»`}>
+                      Auch Wortteile werden gefunden: «messung» findet «Farbmessung». Fehlt ein Journal,
+                      obwohl der Begriff darin steht? In den Einstellungen lässt sich der Suchindex neu
+                      aufbauen.
+                    </EmptyState>
+                  )
+                ) : (
+                  <p className="rounded-md border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-ink-muted">
+                    {scope.kind === 'uncategorized'
+                      ? 'Alle Journale sind einer Kategorie zugeordnet.'
+                      : 'Noch keine Journale hier. Kategorien und Schlagwörter ordnest du im Journal zu (Register «Journal»).'}
+                  </p>
+                )}
+
+                {hits && outsideScope > 0 && (
+                  <p className="text-sm">
+                    {countLabel(outsideScope, 'weiterer Treffer', 'weitere Treffer')} ausserhalb von «
+                    {heading}».{' '}
+                    <button
+                      type="button"
+                      onClick={() => selectScope({ kind: 'all' })}
+                      className="text-accent underline hover:bg-hover"
+                    >
+                      In allen Journalen suchen
+                    </button>
+                  </p>
+                )}
+              </>
             )}
           </section>
         </div>

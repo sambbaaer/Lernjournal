@@ -59,6 +59,7 @@ export interface LernjournalApi {
   search: {
     query: Call<'search:query'>;
     rebuild: Call<'search:rebuild'>;
+    merkstellen: Call<'merkstellen:list'>;
   };
   mcp: {
     status: Call<'mcp:status'>;

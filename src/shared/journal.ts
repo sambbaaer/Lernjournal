@@ -88,14 +88,38 @@ export function withSectionDocument(sections: Sections, id: string, doc: Section
   return sections.map((section) => (section.id === id ? { ...section, doc } : section));
 }
 
-// Reiner Text eines Tiptap-Dokuments (für Suchindex und Vorschau)
+// Beschriftungen der Bausteine im Klartext (MCP, Vorschau). Bewusst hier
+// dupliziert statt aus editor-schema.ts importiert: journal.ts bleibt ohne Tiptap.
+const CALC_TEXT: Record<string, string> = {
+  given: 'Gegeben',
+  formula: 'Formel',
+  steps: 'Rechnung',
+  result: 'Ergebnis',
+};
+const CALLOUT_TEXT: Record<string, string> = { merke: 'Merke', achtung: 'Achtung', tipp: 'Tipp' };
+
+// Reiner Text eines Tiptap-Dokuments (für Vorschau und MCP)
 export function plainTextOf(node: unknown): string {
   if (!node || typeof node !== 'object') return '';
   const n = node as { type?: string; text?: string; content?: unknown[]; attrs?: Record<string, unknown> };
   if (n.type === 'text') return n.text ?? '';
   if (n.type === 'hardBreak') return '\n';
-  const own = n.type === 'figure' && typeof n.attrs?.['caption'] === 'string' ? n.attrs['caption'] : '';
+  let own = '';
+  if (n.type === 'figure') {
+    const caption = typeof n.attrs?.['caption'] === 'string' ? n.attrs['caption'] : '';
+    // Texte der Bildbeschriftung (AJ-32) gehören zum Bild
+    const notes = Array.isArray(n.attrs?.['annotations'])
+      ? (n.attrs['annotations'] as { type?: string; text?: unknown }[])
+          .filter((a) => a.type === 'text' && typeof a.text === 'string')
+          .map((a) => a.text as string)
+      : [];
+    own = [caption, ...notes].filter(Boolean).join('\n');
+  }
+  if (n.type === 'callout') own = `${CALLOUT_TEXT[String(n.attrs?.['kind'])] ?? 'Hinweis'}:`;
   const children = Array.isArray(n.content) ? n.content.map(plainTextOf) : [];
-  const joined = children.join(n.type === 'paragraph' || n.type === 'heading' ? '' : '\n');
+  const inline = n.type === 'paragraph' || n.type === 'heading' || n.type === 'calcLine';
+  let joined = children.join(inline ? '' : '\n');
+  if (n.type === 'calcLine') joined = `${CALC_TEXT[String(n.attrs?.['role'])] ?? ''}: ${joined}`;
+  if (n.type === 'taskItem') joined = `${n.attrs?.['checked'] === true ? '☑' : '☐'} ${joined}`;
   return [own, joined].filter(Boolean).join('\n');
 }

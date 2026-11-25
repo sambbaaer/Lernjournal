@@ -97,6 +97,19 @@ src/renderer/src/editor/      SectionEditor, EditorContext (aktiver Editor fürs
 - Neue Formatierung? Erweiterung in `baseExtensions()` aufnehmen, DOCX-Abbildung (ADR 0002) ergänzen, Schema-Test erweitern.
 - Menüband-Befehle für den Editor über `editorItem()` in `ribbon-items.ts`; `onMouseDown.preventDefault()` verhindert, dass ein Klick dem Editor die Markierung nimmt.
 
+## Neue Editor-Bausteine (AJ-27–AJ-33)
+
+Hinweisbox, Checkliste, Rechenblock, Merkstelle und Bildbeschriftung stehen im gemeinsamen Schema (`src/shared/editor-schema.ts`, Bildbeschriftung in `src/shared/annotations.ts`). Wer einen weiteren Knoten ergänzt, zieht ihn überall nach – sonst gehen Inhalte im Export oder in der Suche verloren:
+
+1. Schema und Prüfung in `validateSections` (Attribute nur mit bekannten Werten)
+2. Klartext `plainTextOf` (`src/shared/journal.ts`, für MCP und Vorschau) und Suchprojektion (`src/main/search/projection.ts`)
+3. Word (`docx-content.ts`) und PDF (`pdf-document.ts`)
+4. Einfügen: `src/renderer/src/editor/blocks.ts` (Menüband und «Einfügen»-Menü im Dokument nutzen dieselbe Liste)
+5. Tests: `src/main/export/blocks-export.test.ts` (alle Schichten), E2E `e2e/update-bc.test.mjs`
+6. Datenformat: neue Knoten brauchen eine neue Schemaversion (leere Migration genügt), damit ältere Programme das Projekt nicht öffnen
+
+Querverweise «[[…]]» erkennt `handleTextInput` in `SectionEditor.tsx`; die Auswahl ist `CrossRefPicker.tsx`, die Logik `cross-ref.ts`. Merkstellen liest `MerkstellenService` bei jeder Abfrage aus den Journalen (IPC `merkstellen:list`). Beschriftete Bilder rechnet `renderAnnotatedImage` (`image-convert.ts`) für Word im verborgenen Fenster zusammen. [ADR 0012](adr/0012-bausteine-merkstellen-bildbeschriftung.md)
+
 ## Bilder
 ```
 src/renderer/src/editor/image-processing.ts   Ausrichtung, max. 2400 px, neu kodieren (Metadaten weg)

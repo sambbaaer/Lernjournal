@@ -30,7 +30,7 @@ import { createCloseGuard } from './close-guard';
 import { detectDistribution } from './distribution';
 import { createExportHandlers } from './export/export-handlers';
 import { ExportService } from './export/export-service';
-import { convertWebpToPng } from './export/image-convert';
+import { convertWebpToPng, renderAnnotatedImage } from './export/image-convert';
 import { printPdf } from './export/pdf-print';
 import { createIpcDispatcher } from './ipc-handler';
 import { createJournalHandlers } from './journal/journal-handlers';
@@ -41,6 +41,7 @@ import { MediaService } from './media/media-service';
 import { McpAccessStore } from './mcp/access';
 import { claudeCodeCommand, httpClientJson, writeMcpb } from './mcp/client-config';
 import { LocalMcpServer } from './mcp/local-server';
+import { MerkstellenService } from './merkstellen/merkstellen-service';
 import { createProjectHandlers, OpenedProjects } from './project/project-handlers';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
 import { TaxonomyService } from './taxonomy/taxonomy-service';
@@ -139,6 +140,8 @@ const media = new MediaService(
   () => projects.dir,
 );
 const links = new LinkService(() => projects.db);
+// Merkstellen (AJ-33): frisch aus den Journalen gelesen, ohne eigene Tabelle
+const merkstellen = new MerkstellenService(() => projects.db);
 const journals = new JournalService(
   () => projects.db,
   () => projects.dir,
@@ -168,7 +171,14 @@ const mcp = new LocalMcpServer({
   },
 });
 // Word-Export (AJ-12): WebP-Bilder wandelt ein verborgenes Fenster in PNG um
-const exporter = new ExportService(() => projects.db, journals, media, convertWebpToPng);
+const exporter = new ExportService(
+  () => projects.db,
+  journals,
+  media,
+  convertWebpToPng,
+  () => new Date(),
+  renderAnnotatedImage,
+);
 // Sicherungen im Projektordner (AJ-15)
 const backups = new BackupService({ projects, appVersion: app.getVersion() });
 // Projektübergabe .ajournal (AJ-14)
@@ -458,6 +468,7 @@ function registerIpc() {
       ...createTaxonomyHandlers(taxonomy, journals),
       ...createLinkHandlers(links, journals),
       ...createSearchHandlers(search),
+      'merkstellen:list': () => merkstellen.list(),
       'mcp:status': () => mcp.status(),
       'mcp:setActive': ({ enabled }) => (enabled ? mcp.start() : mcp.stop()),
       'mcp:setDrafts': ({ allowed }) => mcp.setDrafts(allowed),

@@ -61,6 +61,7 @@ const api: LernjournalApi = {
   search: {
     query: (req) => ipcRenderer.invoke('search:query', req),
     rebuild: () => ipcRenderer.invoke('search:rebuild'),
+    merkstellen: () => ipcRenderer.invoke('merkstellen:list'),
   },
   mcp: {
     status: () => ipcRenderer.invoke('mcp:status'),

@@ -19,15 +19,16 @@ Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist mass
 - Architekturentscheide als ADR unter docs/adr/; Spike-Code nur überführt (TS, Tests) übernehmen.
 - Pro Ticket Tests und Dokumentationspflege; aktuelle Bibliotheksversionen erst bei Implementierung prüfen.
 
-## Current Focus: MCP-Reparatur & Bewertung Update-Kandidaten
+## Current Focus: Update 1 nach Store-Veröffentlichung (AJ-24–AJ-33)
 ## Status: Completed
 ## Last Actions:
-- MCP repariert: Zugangsschlüssel dauerhaft (`mcp.json` im userData, «Schlüssel erneuern»), Host `localhost` erlaubt, Opt-in «Beim Öffnen eines Projekts automatisch aktivieren».
-- Claude-Desktop-Erweiterung `Lernjournal.mcpb` (MCP Bundle mit stdio-Brücke `src/main/mcp/bridge/lernjournal-bridge.mjs`, nur Node-Bordmittel); fertige Einrichtungen für Claude Code und VS Code/HTTP-Clients zum Kopieren.
-- Einstellungen → MCP neu: «Was ist MCP?», Freigabe, Einrichtung je Client; docs/MCP.md neu geschrieben, Nachtrag ADR 0011.
-- Update-Kandidaten AJ-24–AJ-33 bewertet (docs/BACKLOG.md, Abschnitt «Update-Kandidaten»).
+- Paket A: Startseite ohne Doppelungen mit Fortschritt (Semester, QV), Menüband ausserhalb des Editors mit Schnellsuche und Filtern (zentraler Filter), Schnellsuche Strg+K, Störungstabelle.
+- Paket B: Hinweisbox Merke/Achtung/Tipp, Checkliste, Rechenblock (ohne LaTeX), Querverweise «[[…]]» auf Journale, Schlagwörter (`lernjournal://tag/<uuid>`) und Merkstellen.
+- Paket C: Bild-Schnellbeschriftung (nicht destruktiv, SVG für Editor/PDF, im Word zusammengerechnet), Merkstellen statt Wiki-Kopie (Fachbuch-Register A–Z, Sprung zur Stelle).
+- Datenformat v7 (leere Migration als Schutz vor älteren Programmen), ADR 0012, SPEC v1.16, ENTWICKLUNG «Neue Editor-Bausteine».
+- Davor: MCP repariert (fester Schlüssel, Claude-Desktop-Erweiterung `.mcpb`, docs/MCP.md, Nachtrag ADR 0011).
 ## Next Steps:
-- Erweiterung in echtem Claude Desktop unter Windows (Store-Lernjournal) prüfen.
-- Manuelle Prüfungen und Pilot gemäss `docs/PILOT.md`; danach Paket A der Update-Kandidaten.
+- Version für das Store-Update erhöhen und Release bauen; Erweiterung und neue Bausteine in Word 365 und Claude Desktop unter Windows prüfen.
+- Manuelle Prüfungen und Pilot gemäss `docs/PILOT.md`; danach AJ-21/22 (Kompetenzkatalog, Abdeckung) inkl. Filter «Kompetenz».
 ## Active Plans:
 - `docs/SPEC.md`, `docs/BACKLOG.md`, `docs/ABNAHME.md`
