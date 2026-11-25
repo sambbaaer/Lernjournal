@@ -107,7 +107,7 @@ Nach der Zertifizierung (Dauer zeigt Partner Center an) erscheint die App im Sto
 
 ## 8. Update einreichen (Neuerungen)
 
-Für ein Update die Version in `package.json` erhöhen (Store-Version `x.y.z.0`), `npm run dist:store` bauen, in Partner Center eine neue Einreichung starten und das neue `.msix` hochladen. Text für das Feld «Neuerungen in dieser Version»:
+Für ein Update die Version in `package.json` erhöhen (Store-Version `x.y.z.0`), `npm run dist:store` unter Windows bauen, in Partner Center eine neue Einreichung starten und das neue `.msix` hochladen. Ohne Windows-PC: Die CI baut dasselbe Paket im Job `store` (nur nach grünen Tests) und stellt es als Artefakt `lernjournal-store-msix` bereit (GitHub → Actions → Lauf → Artifacts). Text für das Feld «Neuerungen in dieser Version»:
 
 **0.2.0**
 

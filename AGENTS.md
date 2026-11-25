@@ -26,6 +26,7 @@ Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist mass
 - Paket B: Hinweisbox Merke/Achtung/Tipp, Checkliste, Rechenblock (ohne LaTeX), Querverweise «[[…]]» auf Journale, Schlagwörter (`lernjournal://tag/<uuid>`) und Merkstellen.
 - Paket C: Bild-Schnellbeschriftung (nicht destruktiv, SVG für Editor/PDF, im Word zusammengerechnet), Merkstellen statt Wiki-Kopie (Fachbuch-Register A–Z, Sprung zur Stelle).
 - Datenformat v7 (leere Migration als Schutz vor älteren Programmen), ADR 0012, SPEC v1.16, ENTWICKLUNG «Neue Editor-Bausteine».
+- Menüband einzeilig wie im vereinfachten Office-Menüband: Aufklapp-Menü «Bausteine», Beschriftungen von rechts weg, dann «Weitere Befehle» (`RibbonToolbar.tsx`, `ribbon-layout.ts`). CI-Job `store` baut das Store-MSIX als Artefakt `lernjournal-store-msix`.
 - Davor: MCP repariert (fester Schlüssel, Claude-Desktop-Erweiterung `.mcpb`, docs/MCP.md, Nachtrag ADR 0011).
 ## Next Steps:
 - Version für das Store-Update erhöhen und Release bauen; Erweiterung und neue Bausteine in Word 365 und Claude Desktop unter Windows prüfen.

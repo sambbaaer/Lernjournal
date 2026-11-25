@@ -22,3 +22,8 @@ Nach der Store-Veröffentlichung wünschte der Besitzer ein Update mit fachspezi
 - Neue Knoten brauchen immer: Schema + Prüfung, Klartext (`plainTextOf`), Suchprojektion, DOCX, PDF, Tests (`src/main/export/blocks-export.test.ts`) und ENTWICKLUNG.md.
 - Projekte mit Datenformat v7 lassen sich nur mit dieser oder einer neueren Version öffnen; `.ajournal` und Sicherungen tragen die Version mit.
 - Merkstellen in archivierten Journalen erscheinen nur mit «Archivierte einbeziehen».
+
+## Nachtrag 25.11.2026 – Menüband einzeilig
+
+Mit den neuen Befehlen brach das Register «Einfügen» auf zwei Zeilen um und schob die Dokumentfläche nach unten. Entscheid nach dem Vorbild des vereinfachten Office-Menübands: Verwandte Bausteine stehen in einem Aufklapp-Menü «Bausteine». Die Befehlszeile misst ihre Gruppen (unsichtbare Kopien mit und ohne Beschriftung, `ResizeObserver`) und verteilt den Platz mit `fitRibbon` (`ribbon-layout.ts`): erst Beschriftungen von rechts weg, dann Gruppen in «Weitere Befehle». Menüs liegen in einem Portal, damit die Leiste sie nicht abschneidet; nach einer Auswahl geht der Fokus sofort in den Editor zurück.
+

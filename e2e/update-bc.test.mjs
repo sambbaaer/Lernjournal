@@ -17,6 +17,26 @@ const ribbon = () => page.getByRole('banner', { name: 'Menüband' });
 const tab = (name) => page.getByRole('tab', { name, exact: true });
 const editor = (name) => page.getByRole('textbox', { name, exact: true });
 const button = (name) => ribbon().getByRole('button', { name, exact: true });
+// Befehl aus dem Aufklapp-Menü «Bausteine» im Register «Einfügen»
+async function block(name) {
+  await button('Bausteine').click();
+  const menu = page.getByRole('menu', { name: 'Bausteine' });
+  await menu
+    .getByRole('menuitem', { name, exact: true })
+    .or(menu.getByRole('menuitemcheckbox', { name, exact: true }))
+    .click();
+  await menu.waitFor({ state: 'detached' });
+}
+async function blockChecked(name) {
+  await button('Bausteine').click();
+  const menu = page.getByRole('menu', { name: 'Bausteine' });
+  const checked = await menu
+    .getByRole('menuitemcheckbox', { name, exact: true })
+    .getAttribute('aria-checked');
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'detached' });
+  return checked;
+}
 
 async function newJournal(title) {
   await page.keyboard.press('Control+N');
@@ -51,11 +71,12 @@ test('Hinweisbox «Merke» und Umschalten auf «Achtung»', async () => {
   await editor('Durchführung').click();
   await page.keyboard.type('Immer zuerst die Feuchtung prüfen.');
   await tab('Einfügen').click();
-  await waitForNewSave(page, () => button('Merke').click());
+  await waitForNewSave(page, () => block('Merke'));
   const box = editor('Durchführung').locator('aside[data-callout]');
   assert.equal(await box.getAttribute('data-callout'), 'merke');
-  assert.equal(await button('Merke').getAttribute('aria-pressed'), 'true');
-  await waitForNewSave(page, () => button('Achtung').click());
+  assert.equal(await blockChecked('Merke'), 'true');
+  await editor('Durchführung').click();
+  await waitForNewSave(page, () => block('Achtung'));
   assert.equal(await box.getAttribute('data-callout'), 'achtung');
   assert.equal(await box.getAttribute('role'), 'note');
 });
@@ -63,7 +84,7 @@ test('Hinweisbox «Merke» und Umschalten auf «Achtung»', async () => {
 test('Checkliste: Punkte abhaken', async () => {
   await editor('Reflexion').click();
   await tab('Einfügen').click();
-  await button('Checkliste').click();
+  await block('Checkliste');
   await page.keyboard.type('Farbkasten gefüllt');
   await page.keyboard.press('Enter');
   await waitForNewSave(page, () => page.keyboard.type('Bogenlauf kontrolliert'));
@@ -75,7 +96,7 @@ test('Checkliste: Punkte abhaken', async () => {
 test('Rechenblock: Enter springt von Zeile zu Zeile', async () => {
   await editor('Auftrag / Ausgangslage').click();
   await tab('Einfügen').click();
-  await button('Rechenblock').click();
+  await block('Rechenblock');
   await page.keyboard.type('70 × 100 cm, 115 g/m²');
   await page.keyboard.press('Enter');
   await page.keyboard.type('Fläche × Grammatur');
@@ -102,6 +123,7 @@ test('Rechenblock: Enter springt von Zeile zu Zeile', async () => {
 test('Querverweis: «[[» öffnet die Auswahl, Schlagwort wird zum Link ins Fachbuch', async () => {
   await editor('Auftrag / Ausgangslage').click();
   await page.keyboard.press('Control+End');
+  await page.waitForFunction(() => document.activeElement?.classList.contains('lj-editor'));
   await page.keyboard.type(' Siehe ');
   await page.keyboard.type('[[');
   const dialog = page.getByRole('dialog', { name: 'Querverweis einfügen' });

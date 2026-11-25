@@ -69,11 +69,59 @@ test('Strg+K findet Journale und öffnet sie mit Enter', async () => {
 test('Einfügen → Störungstabelle', async () => {
   await page.getByRole('textbox', { name: 'Durchführung', exact: true }).click();
   await page.getByRole('tab', { name: 'Einfügen', exact: true }).click();
-  await waitForNewSave(page, () => ribbon().getByRole('button', { name: 'Störungstabelle' }).click());
+  // Bausteine stehen in einem Aufklapp-Menü (wie «Schnellbausteine» in Word)
+  await ribbon().getByRole('button', { name: 'Bausteine' }).click();
+  const menu = page.getByRole('menu', { name: 'Bausteine' });
+  await menu.waitFor();
+  assert.deepEqual(await runAxe(page), []);
+  await waitForNewSave(page, () => menu.getByRole('menuitem', { name: 'Störungstabelle' }).click());
+  await menu.waitFor({ state: 'detached' });
   const table = page.getByRole('textbox', { name: 'Durchführung', exact: true }).locator('table');
   await table.waitFor();
   assert.deepEqual(
     (await table.locator('th').allTextContents()).map((t) => t.trim()),
     ['Symptom', 'Ursache', 'Massnahme'],
   );
+});
+
+test('Menüband bleibt einzeilig: bei wenig Platz erst Symbole, dann «Weitere Befehle»', async () => {
+  const win = await app.browserWindow(page);
+  // Oberkanten aller Knöpfe der Befehlszeile: eine Zeile = ein Wert
+  const rows = () =>
+    page.evaluate(
+      () =>
+        new Set(
+          [...document.querySelectorAll('[role="toolbar"] [data-roving]')].map((b) =>
+            Math.round(b.getBoundingClientRect().top),
+          ),
+        ).size,
+    );
+  await page.getByRole('tab', { name: 'Einfügen', exact: true }).click();
+  assert.equal(await rows(), 1);
+  // Sehr wenig Platz: schmales Fenster und grosse Schrift (wie hohe Windows-Skalierung)
+  await win.evaluate((w) => w.setSize(760, 700));
+  await page.evaluate(() => (document.documentElement.style.fontSize = '40px'));
+  const more = ribbon().getByRole('button', { name: 'Weitere Befehle' });
+  await more.waitFor();
+  // Weiterhin eine Zeile
+  assert.equal(await rows(), 1);
+  // Mit der Tastatur öffnen, ausgeblendete Befehle stehen im Menü
+  await more.focus();
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu', { name: 'Weitere Befehle' });
+  // Merkstelle zeigt an, ob die Einfügemarke in einer steht → Kontrollkästchen-Eintrag
+  await menu.getByRole('menuitemcheckbox', { name: 'Merkstelle' }).waitFor();
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('role')?.startsWith('menuitem')),
+    true,
+  );
+  await page.keyboard.press('Escape');
+  await menu.waitFor({ state: 'detached' });
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+    'Weitere Befehle',
+  );
+  await page.evaluate(() => (document.documentElement.style.fontSize = ''));
+  await win.evaluate((w) => w.setSize(1280, 800));
+  await more.waitFor({ state: 'detached' });
 });
