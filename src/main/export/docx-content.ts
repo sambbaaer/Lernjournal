@@ -19,6 +19,13 @@
 //                             mit Hinweis auf das Journal
 //   Weblink (http/https)    → echter Hyperlink
 //   harter Umbruch          → Zeilenumbruch
+//   Hinweisbox (AJ-28)      → einzellige Tabelle mit farbigem Rand links und
+//                             fetter Beschriftung «Merke»/«Achtung»/«Tipp»
+//   Checkliste (AJ-29)      → Absätze mit ☐ bzw. ☑
+//   Rechenblock (AJ-31)     → zweispaltige Tabelle Gegeben/Formel/Rechnung/Ergebnis
+//   Schlagwort-Querverweis  → normaler Text (AJ-27)
+//   Merkstelle (AJ-33)      → normaler Text (die Markierung ist nur in der App)
+//   beschriftetes Bild      → zusammengerechnetes Bild (AJ-32, export-service.ts)
 //
 // Unbekanntes geht NIE verloren: Text wird als normaler Absatz ausgegeben und
 // eine Warnung gesammelt (Datenintegrität vor Schönheit).
@@ -45,7 +52,9 @@ import {
   type INumberingOptions,
   type ParagraphChild,
 } from 'docx';
-import { journalIdFromHref } from '@shared/links';
+import { annotatedMediaKey } from '@shared/annotation-key';
+import { CALC_LABELS, CALLOUT_LABELS, type CalcRole, type CalloutKind } from '@shared/editor-schema';
+import { journalIdFromHref, tagIdFromHref } from '@shared/links';
 
 // --- Eingaben ---------------------------------------------------------------
 
@@ -247,7 +256,8 @@ function inlineChildren(
     const link = node.marks?.find((m) => m.type === 'link');
     const href = String(link?.attrs?.['href'] ?? '');
     const targetId = journalIdFromHref(href);
-    if (!link) {
+    if (!link || tagIdFromHref(href)) {
+      // Querverweis auf ein Schlagwort (AJ-27): im Dokument einfach Text
       out.push(textRun(node, scope));
     } else if (targetId) {
       out.push(...journalLink(node, targetId, ctx, scope));
@@ -388,7 +398,10 @@ function figureBlocks(node: TiptapNode, ctx: ContentContext, scope: Scope): Bloc
   const mediaId = String(node.attrs?.['mediaId'] ?? '');
   const caption = cleanText(String(node.attrs?.['caption'] ?? '').trim());
   const alt = cleanText(String(node.attrs?.['alt'] ?? '').trim());
-  const image = ctx.media(mediaId);
+  // Beschriftetes Bild (AJ-32): der Exportdienst hat Foto + Formen vorab zu
+  // einem Bild zusammengerechnet; fehlt es, das Originalfoto verwenden.
+  const annotated = annotatedMediaKey(mediaId, node.attrs?.['annotations']);
+  const image = (annotated && ctx.media(annotated)) || ctx.media(mediaId);
   ctx.figureNo++;
   const out: Block[] = [];
   if (!image) {
@@ -439,6 +452,125 @@ function figureBlocks(node: TiptapNode, ctx: ContentContext, scope: Scope): Bloc
   return out;
 }
 
+// Farben der Hinweisboxen (Rand links und heller Hintergrund)
+const CALLOUT_COLORS: Record<CalloutKind, { border: string; fill: string }> = {
+  merke: { border: '3A3771', fill: 'EEEDF6' },
+  achtung: { border: 'C42B1C', fill: 'FDECEA' },
+  tipp: { border: '0E7A0D', fill: 'E9F5E9' },
+};
+
+// Hinweisbox (AJ-28): einzellige Tabelle – bleibt in Word ein Block, den man
+// verschieben und bearbeiten kann, und bricht sauber über Seiten um.
+function calloutBlock(node: TiptapNode, ctx: ContentContext): Table {
+  const kind = (Object.keys(CALLOUT_LABELS) as CalloutKind[]).includes(node.attrs?.['kind'] as CalloutKind)
+    ? (node.attrs?.['kind'] as CalloutKind)
+    : 'merke';
+  const color = CALLOUT_COLORS[kind];
+  const none = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const inner = blocks(node.content, ctx, { bold: false, compact: true, maxImageWidthPx: ctx.textWidthPx });
+  return new Table({
+    width: { size: ctx.textWidthTwips, type: WidthType.DXA },
+    columnWidths: [ctx.textWidthTwips],
+    borders: {
+      top: none,
+      bottom: none,
+      right: none,
+      insideHorizontal: none,
+      insideVertical: none,
+      left: { style: BorderStyle.SINGLE, size: 24, color: color.border },
+    },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: ctx.textWidthTwips, type: WidthType.DXA },
+            shading: { fill: color.fill },
+            margins: { top: 80, bottom: 80, left: 160, right: 160 },
+            children: [
+              new Paragraph({
+                spacing: { after: 40 },
+                children: [new TextRun({ text: CALLOUT_LABELS[kind], bold: true, color: color.border })],
+              }),
+              ...inner,
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+// Checkliste (AJ-29): ☐/☑ vor dem ersten Absatz jedes Punkts
+function taskListBlocks(node: TiptapNode, ctx: ContentContext, scope: Scope): Block[] {
+  const out: Block[] = [];
+  for (const item of node.content ?? []) {
+    const box = item.attrs?.['checked'] === true ? '☑' : '☐';
+    let first = true;
+    for (const child of item.content ?? []) {
+      if (child.type === 'paragraph') {
+        out.push(
+          new Paragraph({
+            indent: { left: LIST_INDENT_TWIPS * 2, hanging: first ? LIST_INDENT_TWIPS : 0 },
+            spacing: scope.compact ? { after: 0 } : { after: 60 },
+            children: [
+              ...(first ? [new TextRun({ text: `${box}\t` })] : []),
+              ...inlineChildren(child.content, ctx, scope),
+            ],
+          }),
+        );
+      } else out.push(...blocks([child], ctx, scope));
+      first = false;
+    }
+  }
+  return out;
+}
+
+// Rechenblock (AJ-31): Beschriftung links, Inhalt rechts; Ergebnis fett
+function calculationBlock(node: TiptapNode, ctx: ContentContext): Table {
+  const labelTwips = cmToTwips(3);
+  const contentTwips = ctx.textWidthTwips - labelTwips;
+  const border = { style: BorderStyle.SINGLE, size: 4, color: 'A6A6A6' };
+  const none = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  return new Table({
+    width: { size: ctx.textWidthTwips, type: WidthType.DXA },
+    columnWidths: [labelTwips, contentTwips],
+    borders: {
+      top: border,
+      bottom: border,
+      left: none,
+      right: none,
+      insideHorizontal: border,
+      insideVertical: none,
+    },
+    rows: (node.content ?? []).map((line) => {
+      const role = String(line.attrs?.['role'] ?? 'given') as CalcRole;
+      const result = role === 'result';
+      const scope: Scope = { bold: result, compact: true, maxImageWidthPx: ctx.textWidthPx };
+      return new TableRow({
+        children: [
+          new TableCell({
+            width: { size: labelTwips, type: WidthType.DXA },
+            margins: { top: 40, bottom: 40, left: CELL_MARGIN_TWIPS, right: CELL_MARGIN_TWIPS },
+            children: [
+              new Paragraph({
+                spacing: { after: 0 },
+                children: [new TextRun({ text: CALC_LABELS[role] ?? '', bold: true })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: contentTwips, type: WidthType.DXA },
+            margins: { top: 40, bottom: 40, left: CELL_MARGIN_TWIPS, right: CELL_MARGIN_TWIPS },
+            children: [
+              new Paragraph({ spacing: { after: 0 }, children: inlineChildren(line.content, ctx, scope) }),
+            ],
+          }),
+        ],
+      });
+    }),
+  });
+}
+
 function blocks(nodes: TiptapNode[] | undefined, ctx: ContentContext, scope: Scope): Block[] {
   const out: Block[] = [];
   for (const node of nodes ?? []) {
@@ -476,6 +608,15 @@ function blocks(nodes: TiptapNode[] | undefined, ctx: ContentContext, scope: Sco
       case 'figure':
         out.push(...figureBlocks(node, ctx, scope));
         break;
+      case 'callout':
+        out.push(calloutBlock(node, ctx), new Paragraph({}));
+        break;
+      case 'taskList':
+        out.push(...taskListBlocks(node, ctx, scope));
+        break;
+      case 'calculation':
+        out.push(calculationBlock(node, ctx), new Paragraph({}));
+        break;
       default:
         ctx.warnings.add(`Ein unbekannter Inhalt («${node.type}») wurde als normaler Text übernommen.`);
         out.push(new Paragraph({ children: [new TextRun(cleanText(plainText(node)))] }));
@@ -496,6 +637,7 @@ export function hasContent(doc: TiptapNode): boolean {
     (n.type === 'text' && (n.text ?? '').trim().length > 0) ||
     n.type === 'figure' ||
     n.type === 'table' ||
+    n.type === 'calculation' ||
     (n.content ?? []).some(walk);
   return walk(doc);
 }

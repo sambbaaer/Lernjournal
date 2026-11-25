@@ -9,12 +9,15 @@
 import type { JournalSummary } from '@shared/journal';
 import type { SearchHit } from '@shared/search';
 import type { Taxonomy } from '@shared/taxonomy';
+import { searchKey } from '@shared/links';
+import type { Merkstelle } from '@shared/merkstellen';
 
 // Welcher Ausschnitt des Fachbuchs ist gewählt?
 export type FachbuchScope =
   | { kind: 'all' }
   | { kind: 'category'; id: string }
   | { kind: 'uncategorized' } // «noch einordnen»
+  | { kind: 'merkstellen' } // markierte Stellen mit Fachbegriff (AJ-33)
   | { kind: 'tag'; id: string };
 
 export type FachbuchState = {
@@ -49,6 +52,8 @@ export function inScope(j: JournalSummary, scope: FachbuchScope): boolean {
       return j.categoryIds.includes(scope.id);
     case 'uncategorized':
       return j.categoryIds.length === 0;
+    case 'merkstellen':
+      return true; // eigene Ansicht, siehe filterMerkstellen
     case 'tag':
       return j.tagIds.includes(scope.id);
   }
@@ -65,6 +70,8 @@ export function scopeLabel(scope: FachbuchScope, taxonomy: Taxonomy): string {
       return 'Alle Journale';
     case 'uncategorized':
       return 'Ohne Kategorie';
+    case 'merkstellen':
+      return 'Merkstellen';
     case 'category':
       return taxonomy.categories.find((c) => c.id === scope.id)?.name ?? 'Kategorie';
     case 'tag':
@@ -149,4 +156,33 @@ export function fachbuchItems(
 // «1 Journal», «3 Journale», «1 Treffer»
 export function countLabel(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+// Merkstellen (AJ-33): sichtbar (ohne Archiv, falls ausgeblendet) und nach
+// Suchbegriff gefiltert – Begriff, markierter Text oder Absatz. Bewusst lokal
+// (die Liste ist klein), ohne Volltextindex.
+export function filterMerkstellen(
+  list: readonly Merkstelle[],
+  query: string,
+  includeArchived: boolean,
+): Merkstelle[] {
+  const words = searchKey(query).split(' ').filter(Boolean);
+  return list.filter((m) => {
+    if (!includeArchived && m.status === 'archived') return false;
+    const hay = searchKey(`${m.term} ${m.text} ${m.context} ${m.journalTitle}`);
+    return words.every((w) => hay.includes(w));
+  });
+}
+
+// Nach Anfangsbuchstaben gruppiert (wie ein Register); Umlaute zum Grundbuchstaben
+export function groupByLetter(list: readonly Merkstelle[]): { letter: string; items: Merkstelle[] }[] {
+  const groups = new Map<string, Merkstelle[]>();
+  for (const m of list) {
+    const first = searchKey(m.term).charAt(0).toUpperCase();
+    const letter = /[A-Z]/.test(first) ? first : '#';
+    groups.set(letter, [...(groups.get(letter) ?? []), m]);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b)))
+    .map(([letter, items]) => ({ letter, items }));
 }

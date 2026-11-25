@@ -18,24 +18,20 @@ import { StatusBadge } from './StatusBadge';
 import { QvMarkButton } from './QvMarkButton';
 import {
   DEFAULT_FILTER,
+  isFiltered,
   matchesFilter,
   sanitizeFilter,
   type JournalFilter,
-  type StatusFilter,
 } from './journal-filter';
-
-const FILTERS: { id: StatusFilter; label: string }[] = [
-  { id: 'active', label: 'Alle (ohne Archiv)' },
-  { id: 'draft', label: 'Entwürfe' },
-  { id: 'completed', label: 'Abgeschlossen' },
-  { id: 'archived', label: 'Archiviert' },
-];
+import { JournalFilterFields } from './JournalFilterFields';
 
 const toolButton = 'flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm hover:bg-hover';
 
 export function JournalList() {
   const { state, dispatch } = useApp();
-  const [rawFilter, setFilter] = useState<JournalFilter>(DEFAULT_FILTER);
+  // Zentraler Filter (AJ-25): auch das Menüband ausserhalb des Editors setzt ihn
+  const rawFilter = state.journalFilter;
+  const setFilter = (next: JournalFilter) => dispatch({ type: 'setJournalFilter', filter: next });
   const { categories, tags } = state.taxonomy;
   // Gelöschte/zusammengeführte Kategorie im Filter → wieder «Alle»
   const filter = sanitizeFilter(
@@ -53,7 +49,7 @@ export function JournalList() {
     () => state.journals.filter((j) => matchesFilter(j, filter)),
     [state.journals, filter],
   );
-  const filtered = filter.category !== 'all' || filter.tag !== 'all';
+  const filtered = isFiltered({ ...filter, text: '' });
   const selected = rows.find((j) => j.id === selectedId) ?? null;
 
   function focusRow(id: string) {
@@ -98,20 +94,7 @@ export function JournalList() {
             className="w-56 rounded-sm border border-border-strong bg-surface py-1.5 pl-8 pr-2 text-sm placeholder:text-ink-muted"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          Anzeigen
-          <select
-            value={filter.status}
-            onChange={(e) => setFilter({ ...filter, status: e.target.value as StatusFilter })}
-            className="rounded-sm border border-border-strong bg-surface px-2 py-1.5 text-sm"
-          >
-            {FILTERS.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <JournalFilterFields />
         <div className="flex items-center gap-2 text-sm">
           <label htmlFor="journal-filter-category">Kategorie</label>
           <select
@@ -151,15 +134,21 @@ export function JournalList() {
           <button
             type="button"
             className="rounded-sm px-2 py-1.5 text-sm text-accent underline hover:bg-hover"
-            onClick={() => setFilter({ ...filter, category: 'all', tag: 'all' })}
+            onClick={() => setFilter({ ...DEFAULT_FILTER, text: filter.text })}
           >
             Filter zurücksetzen
           </button>
         )}
+      </div>
+      {/* Eigene Zeile für die Aktionen: Ihre Breite ändert sich mit der
+          Auswahl (z. B. «Wiederherstellen» statt «Archivieren»). Stünden sie
+          neben den Filtern, könnte die Zeile umbrechen und die Tabelle
+          zwischen zwei Klicks eines Doppelklicks verrutschen. */}
+      <div className="flex justify-end">
         <div
           role="toolbar"
           aria-label="Aktionen für ausgewähltes Journal"
-          className="ml-auto flex flex-wrap items-center gap-1"
+          className="flex flex-wrap items-center justify-end gap-1"
         >
           <button
             type="button"

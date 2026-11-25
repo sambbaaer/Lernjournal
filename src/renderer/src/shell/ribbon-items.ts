@@ -38,9 +38,19 @@ import {
   Tags,
   Trash2,
   Underline,
+  Info,
+  OctagonAlert,
+  Lightbulb,
+  ListChecks,
+  Calculator,
+  Wrench,
+  BookmarkPlus,
+  Brackets,
+  Blocks,
   Undo2,
 } from 'lucide-react';
 import { journalIdFromHref } from '@shared/links';
+import { insertBlock, toggleCallout } from '../editor/blocks';
 import { insertImages, pasteFromClipboard, pickImageFiles } from '../editor/insert-image';
 import { setJournalStatus } from '../journal/actions';
 import type { Action, AppState, RibbonTab } from '../state/app-state';
@@ -52,6 +62,13 @@ export type RibbonCtx = {
   openLinkDialog: () => void;
   openJournalLinkDialog: () => void;
 };
+
+const calloutItem = (kind: 'merke' | 'achtung' | 'tipp', label: string, icon: LucideIcon) =>
+  editorItem(`callout-${kind}`, label, icon, (e) => toggleCallout(e, kind), {
+    iconOnly: false,
+    pressed: (e) => e.isActive('callout', { kind }),
+    can: (e) => !e.isActive('calculation'),
+  });
 
 // Steht die Einfügemarke in einem Link? Interne Journal-Links (AJ-10) und
 // Weblinks werden getrennt angezeigt und bearbeitet.
@@ -71,8 +88,17 @@ export type RibbonItem = {
   run?: (c: RibbonCtx) => void;
   // Umschaltknopf: gedrückt (aria-pressed), z. B. «Fett» an der Einfügemarke aktiv
   pressed?: (c: RibbonCtx) => boolean;
+  // Zusatz im Tooltip, z. B. «auch mit [[ im Text»
+  hint?: string;
 };
-export type RibbonGroup = { id: string; label: string; items: RibbonItem[] };
+
+// Aufklapp-Menü mit verwandten Befehlen (wie «Schnellbausteine» in Word).
+// Spart Platz im Menüband; die Befehle selbst sind gewöhnliche RibbonItems.
+export type RibbonMenu = { kind: 'menu'; id: string; label: string; icon: LucideIcon; items: RibbonItem[] };
+export type RibbonEntry = RibbonItem | RibbonMenu;
+export const isMenu = (e: RibbonEntry): e is RibbonMenu => 'kind' in e && e.kind === 'menu';
+
+export type RibbonGroup = { id: string; label: string; items: RibbonEntry[] };
 
 const NO_EDITOR = 'Zuerst in einen Abschnitt des Journals klicken';
 const onlyInJournal = ({ state }: RibbonCtx) =>
@@ -190,6 +216,10 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
         editorItem('numbers', 'Nummerierung', ListOrdered, (e) => chain(e).toggleOrderedList().run(), {
           pressed: (e) => e.isActive('orderedList'),
         }),
+        editorItem('tasks', 'Checkliste', ListChecks, (e) => chain(e).toggleTaskList().run(), {
+          pressed: (e) => e.isActive('taskList'),
+          can: (e) => e.can().toggleTaskList(),
+        }),
       ],
     },
     {
@@ -255,6 +285,44 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
       ],
     },
     {
+      // Fachspezifische Bausteine (AJ-28–AJ-31) in EINEM Aufklapp-Menü wie
+      // «Schnellbausteine» in Word – sonst bräuchte das Menüband zwei Zeilen
+      id: 'bausteine',
+      label: 'Bausteine',
+      items: [
+        {
+          kind: 'menu',
+          id: 'blocks',
+          label: 'Bausteine',
+          icon: Blocks,
+          items: [
+            calloutItem('merke', 'Merke', Info),
+            calloutItem('achtung', 'Achtung', OctagonAlert),
+            calloutItem('tipp', 'Tipp', Lightbulb),
+            editorItem('checklist', 'Checkliste', ListChecks, (e) => insertBlock(e, 'checklist'), {
+              iconOnly: false,
+              pressed: (e) => e.isActive('taskList'),
+            }),
+            editorItem('calculation', 'Rechenblock', Calculator, (e) => insertBlock(e, 'calculation'), {
+              iconOnly: false,
+              can: (e) => !e.isActive('table') && !e.isActive('calculation'),
+            }),
+            // Störungstabelle (AJ-30): Symptom → Ursache → Massnahme
+            editorItem(
+              'troubleshooting',
+              'Störungstabelle',
+              Wrench,
+              (e) => insertBlock(e, 'troubleshooting'),
+              {
+                iconOnly: false,
+                can: (e) => !e.isActive('table'),
+              },
+            ),
+          ],
+        },
+      ],
+    },
+    {
       id: 'links',
       label: 'Verknüpfungen',
       items: [
@@ -272,6 +340,26 @@ export const RIBBON: Record<RibbonTab, RibbonGroup[]> = {
             pressed: (e) => activeLinkKind(e) === 'web',
           }),
           run: (c) => c.openLinkDialog(),
+        },
+        {
+          // Querverweis «[[…]]» auf Journal oder Schlagwort (AJ-27)
+          ...editorItem('cross-ref', 'Querverweis', Brackets, () => {}, { iconOnly: false }),
+          hint: 'auch mit [[ im Text',
+          run: ({ dispatch }) => dispatch({ type: 'openCrossRef', source: 'ribbon' }),
+        },
+      ],
+    },
+    {
+      // Merkstelle (AJ-33): markierter Text erscheint mit Fachbegriff im Fachbuch
+      id: 'fachbuch',
+      label: 'Fachbuch',
+      items: [
+        {
+          ...editorItem('merkstelle', 'Merkstelle', BookmarkPlus, () => {}, {
+            iconOnly: false,
+            pressed: (e) => e.isActive('merkstelle'),
+          }),
+          run: ({ dispatch }) => dispatch({ type: 'openMerkstelleDialog' }),
         },
       ],
     },

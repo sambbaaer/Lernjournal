@@ -59,6 +59,7 @@ export interface LernjournalApi {
   search: {
     query: Call<'search:query'>;
     rebuild: Call<'search:rebuild'>;
+    merkstellen: Call<'merkstellen:list'>;
   };
   mcp: {
     status: Call<'mcp:status'>;
@@ -66,6 +67,9 @@ export interface LernjournalApi {
     setDrafts: Call<'mcp:setDrafts'>;
     copy: Call<'mcp:copy'>;
     decide: Call<'mcp:decide'>;
+    setAutoStart: Call<'mcp:setAutoStart'>;
+    renewToken: Call<'mcp:renewToken'>;
+    saveClaudeExtension: Call<'mcp:saveClaudeExtension'>;
     onChanged: (listener: () => void) => () => void;
   };
   // Word-Export (AJ-12 Einzel-DOCX, AJ-13 Sammel-DOCX)

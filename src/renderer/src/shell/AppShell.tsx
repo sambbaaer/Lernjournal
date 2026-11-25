@@ -28,6 +28,7 @@ import { Welcome } from '../project/Welcome';
 import { Backstage } from './Backstage';
 import { NavigationPane } from './NavigationPane';
 import { Ribbon } from './Ribbon';
+import { QuickSearch } from '../search/QuickSearch';
 import { StatusBar } from './StatusBar';
 import { WindowTitleBar } from './WindowTitleBar';
 
@@ -238,6 +239,8 @@ export function AppShell({ version, variant = null }: { version: string | null; 
                 {views[state.view]}
               </main>
             </div>
+            {/* Schnellsuche Strg+K (AJ-26) */}
+            {state.quickSearchOpen && <QuickSearch />}
             {/* Word-Export (AJ-12/13): Hinweis R-10 → Speichern → Ergebnis */}
             {state.exportDialog && (
               <ExportDialog

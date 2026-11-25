@@ -28,7 +28,8 @@ import {
 } from './backup';
 import { COLLECTION_LIMITS, ExportResultSchema } from './export';
 import { JournalLinksSchema } from './links';
-import { McpDecisionResultSchema, McpDecisionSchema, McpStatusSchema } from './mcp';
+import { MerkstellenSchema } from './merkstellen';
+import { McpCopyFieldSchema, McpDecisionResultSchema, McpDecisionSchema, McpStatusSchema } from './mcp';
 import { SearchRequestSchema, SearchResultSchema } from './search';
 import { CategoryName, TAXONOMY_KINDS, TagName, TaxonomySchema } from './taxonomy';
 
@@ -290,13 +291,21 @@ export const ipcContract = {
   'search:query': { request: SearchRequestSchema, response: SearchResultSchema },
   // «Suchindex neu aufbauen»: liefert die Anzahl neu indexierter Journale
   'search:rebuild': { request: z.undefined(), response: z.object({ journals: z.number().int() }) },
+  // Merkstellen aller Journale (AJ-33) für Fachbuch und Querverweise
+  'merkstellen:list': { request: z.undefined(), response: MerkstellenSchema },
 
   // Lokale MCP-Freigabe und Prüfung. Der MCP-Client hat keinen IPC-Zugriff.
   'mcp:status': { request: z.undefined(), response: McpStatusSchema },
   'mcp:setActive': { request: z.strictObject({ enabled: z.boolean() }), response: McpStatusSchema },
   'mcp:setDrafts': { request: z.strictObject({ allowed: z.boolean() }), response: McpStatusSchema },
-  'mcp:copy': { request: z.strictObject({ field: z.enum(['endpoint', 'token']) }), response: z.boolean() },
+  'mcp:copy': { request: z.strictObject({ field: McpCopyFieldSchema }), response: z.boolean() },
   'mcp:decide': { request: McpDecisionSchema, response: McpDecisionResultSchema },
+  // Dauerhaft: MCP beim Öffnen eines Projekts automatisch aktivieren
+  'mcp:setAutoStart': { request: z.strictObject({ enabled: z.boolean() }), response: McpStatusSchema },
+  // Neuen Zugangsschlüssel erstellen (alte Einrichtungen verlieren den Zugang)
+  'mcp:renewToken': { request: z.undefined(), response: McpStatusSchema },
+  // Claude-Desktop-Erweiterung (.mcpb) speichern; false = Dialog abgebrochen
+  'mcp:saveClaudeExtension': { request: z.undefined(), response: z.boolean() },
 
   // --- Word-Export (AJ-12) ---
   // Ein Journal als Word-Dokument. Der Hauptprozess zeigt selbst den

@@ -1,6 +1,6 @@
 # Lernjournal – umsetzbares Backlog
 
-Stand: 2026-11-24. **P0:** AJ-00–AJ-17 (inkl. AJ-16b). **P1:** AJ-18, AJ-20–AJ-23 (AJ-19 Semesterbesprechung → P2) (erst nach bestandener P0-Abnahme inkl. Pilot; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
+Stand: 2026-11-25. **P0:** AJ-00–AJ-17 (inkl. AJ-16b). **P1:** AJ-18, AJ-20–AJ-23 (AJ-19 Semesterbesprechung → P2) (erst nach bestandener P0-Abnahme inkl. Pilot; Reihenfolge: AJ-18 PDF → AJ-20 QV-Mappe → Rest nach Pilot-Feedback). In Reihenfolge der Abhängigkeiten implementieren. Für jedes Ticket: Funktion, Tests, Dokumentation. `R-xx` siehe [QUELLEN.md](QUELLEN.md).
 
 Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung für eine Person mit KI-Unterstützung).
 
@@ -62,9 +62,28 @@ Grösse: S ≈ 1 Tag, M ≈ 2–4 Tage, L ≈ 1–2 Wochen (grobe Schätzung fü
 | AJ-18 ✔ | PDF-Export | Einzel- und Sammel-PDF offline via `printToPDF` mit eingebetteten Schriften, durchsuchbarem Text, Druckbildern und Dateigrösse. Sammlung mit Titelseite, verlinktem Inhaltsverzeichnis und Lesezeichen. | R-08 |
 | AJ-20 (Vormerkung und Export umgesetzt) | QV-Mappe | Dauerhafte Vormerkung je Journal (Schema v6), Vorauswahl im Sammelexport übernehmen, filtern und sortieren, konfigurierbare Mindestanzahl, Abgabehinweis und PDF. Kompetenzfilter gemäss R-15 bleibt beim späteren Kompetenzkatalog. | R-08, R-15 |
 | ✔ | Dunkelmodus | Hell, Dunkel und Systemeinstellung als lokale App-Einstellung. | Produktentscheid |
-| ✔ | Lokaler MCP-Zugang | Pro geöffnetem Projekt und Sitzung freischaltbar. Suche, Lesen, Vorschläge zur Überarbeitung und Verknüpfung, optional neue Entwürfe mit separater Freigabe. Änderungsprüfung in der App. | Produktentscheid, R-11 |
+| ✔ | Lokaler MCP-Zugang | Pro geöffnetem Projekt freischaltbar (optional automatisch), fester Zugangsschlüssel, Claude-Desktop-Erweiterung `.mcpb`. Suche, Lesen, Vorschläge zur Überarbeitung und Verknüpfung, optional neue Entwürfe mit separater Freigabe. Änderungsprüfung in der App. | Produktentscheid, R-11 |
 | AJ-21 | Kompetenzkatalog | versionierter Katalog 34200 offline inkl. Wortlaut, freiwillige Zuordnung Journal ↔ Handlungskompetenz/Leistungsziel, Standardfilter Print + Betrieb | R-09 |
 | AJ-22 | Abdeckungsübersicht | Matrix Bereiche a–g × Lehrjahr, Hinweis «Orientierung, keine amtliche Zuordnung» | R-09 |
 | AJ-23 (Vorlagen umgesetzt) | Qualitätshinweise und Vorlagen | Lernbericht, freier Eintrag, Maschinenwerte und Arbeitsablauf verfügbar. Offen sind nicht blockierende Hinweise, z. B. leere Reflexion oder Bild ohne Legende. | Bildungsplan und Produktentscheid |
+
+## Update 1 nach Store-Veröffentlichung (AJ-24–AJ-33) ✔ umgesetzt 2026-11-25
+
+Vorschläge des Besitzers nach der Store-Veröffentlichung, geprüft gegen SPEC und Code, vom Besitzer freigegeben und umgesetzt ([ADR 0012](adr/0012-bausteine-merkstellen-bildbeschriftung.md), Datenformat v7). Tests: Unit (`blocks-export.test.ts`, `start-progress`, `quick-search`, `cross-ref`, `annotation-logic`, `merkstellen`) und E2E (`update-a.test.mjs`, `update-bc.test.mjs`). Gemeinsamer Kostenfaktor aller neuen Editor-Bausteine: Jeder neue Knoten muss in `src/shared/editor-schema.ts` (Prüfung auch im Hauptprozess), in der Suchprojektion (FTS5), im DOCX- und PDF-Export, im Klartext für MCP und in den Golden Files nachgezogen werden. Ältere App-Versionen (portable EXE ohne Auto-Update) dürfen Projekte mit neuen Knoten nicht beschädigen → Schemaversion erhöhen, damit der bestehende Schutz vor neueren Dateiformaten greift.
+
+| ID | Umsetzung | Bewertung und Umsetzung | Grösse |
+|---|---|---|---|
+| AJ-24 ✔ | Startseite ohne Doppelungen, Fortschritt rechts | Gut machbar, alle Daten vorhanden: «Zuletzt bearbeitet» ohne Wiederholung in «Entwürfe/Abgeschlossen» (z. B. nur «Weiter schreiben» + kompakte Liste), Fortschrittsbereich mit Journalen pro Semester (Lehrjahr/Semester liegen vor), QV-Vormerkungen x von `qvMinimum` (konfigurierbar, nie hart codiert), offene Entwürfe. «Abgedeckte Kompetenzen» erst nach AJ-21/22. | S–M |
+| AJ-25 ✔ | Kontextabhängiges Menüband | Machbar: Formatgruppe nur bei aktivem Editor (wie Office-Kontextregister), sonst Suchfeld und Filter Lernort/Zeitraum/Status. Filter «Kompetenz» erst nach AJ-21. Tastatur (F6, Pfeiltasten, Tastentipps) und axe-Prüfung bleiben Pflicht. | S–M |
+| AJ-26 ✔ | Schnellsuche Strg+K | Machbar ohne neuen Index: Befehlspalette über Titel, Schlagwörter, Kategorien und den bestehenden FTS5-Index (AJ-11), dazu Befehle («Neues Journal», «Exportieren …»). Strg+Umschalt+F bleibt. | M |
+| AJ-27 ✔ | Querverweise mit `[[` | Machbar: `[[` öffnet die bestehende Journal-Link-Auswahl (AJ-10, inkl. «Erwähnt in»). Erweiterung: `[[Schlagwort]]` springt in die Fachbuch-Themenansicht; braucht eine Link-Variante im Schema, im Export als Text. Eigene «Fachbegriff-Seiten» gibt es nicht (siehe AJ-33). | S–M |
+| AJ-28 ✔ | Hinweisboxen «Merke», «Achtung», «Tipp» | Machbar als neuer Blockknoten mit Typ; DOCX als umrandeter Absatz mit Formatvorlage, PDF per CSS. | S–M |
+| AJ-29 ✔ | Abhakbare Checklisten | Machbar mit Tiptap TaskList; DOCX/PDF mit ☐/☑. | S |
+| AJ-30 ✔ | Störungstabelle (Symptom → Ursache → Massnahme) | Sehr günstig: vorbefüllte Tabelle über «Einfügen» bzw. als Vorlage (AJ-23), kein neuer Knoten nötig. | S |
+| AJ-31 ✔ | Rechenblock | Machbar, aber **ohne LaTeX empfohlen**: Lernende kennen LaTeX nicht. Block «Gegeben / Formel / Rechnung / Ergebnis» mit Fachsymbolen (bestehendes Einfügen-Menü). LaTeX (KaTeX, offline) höchstens optional später; Word-Export dann als Bild, weil LaTeX → Word-Formel (OMML) aufwendig ist. | M |
+| AJ-32 ✔ | Bild-Schnellbeschriftung | Machbar, grösster Brocken: Pfeile, Kreise, Nummern, Callouts als Vektor-Overlay in der Abbildung (nicht destruktiv, Original bleibt, nachträglich änderbar); für DOCX/PDF gerastert über die bestehende Bildumwandlung im verborgenen Fenster. Tastaturbedienung und Textalternative für Nummern beachten. | L |
+| AJ-33 ✔ | «Ins Fachbuch übernehmen» | **Nur umgedeutet machbar:** Eine bereinigte Kopie als Wiki-Artikel widerspricht dem Grundsatz «Fachbuch = Sicht, keine Duplikate» und entspricht den «eigenständigen Wissensseiten» (P2). Vorschlag «Merkstelle»: Markierter Bereich erhält einen Fachbegriff/Titel und erscheint im Fachbuch als eigener Eintrag mit Live-Auszug und Rückverweis ins Journal, der Text bleibt nur im Journal. Echte Wiki-Artikel nur nach SPEC-Änderung (Produktentscheid). | M–L |
+
+Umgesetzt in drei Paketen: A (AJ-24, AJ-25, AJ-26, AJ-30) ohne Datenformat-Änderung, B (AJ-27–AJ-29, AJ-31) und C (AJ-32, AJ-33) gemeinsam mit Datenformat v7. Abweichungen von der Bewertung: In der Ansicht «Journale» zeigt das Menüband nur die Suche (Filter stehen über der Liste); die Journalliste hat für die Aktionen eine eigene Zeile, damit sie bei Auswahlwechsel nicht umbricht. Offen nach Pilot: Filter «Kompetenz» und «abgedeckte Kompetenzen» mit AJ-21/22.
 
 **Definition of Done:** besteht das Leitprinzip «Einfachheit vor Vollständigkeit» (SPEC); offline ohne Anmeldung; sichere IPC; persistente Daten; Tests für Fehler und Normalfall; UI Schweizer Hochdeutsch, Office-vertraut, zugänglich (WCAG 2.2 AA sinngemäss); Dokumentation (SPEC/README/ADR) nachgeführt; keine vorgezogenen Funktionen aus späteren Prioritäten.

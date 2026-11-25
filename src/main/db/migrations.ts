@@ -39,6 +39,16 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 4, name: 'Journalvorlagen', up: (db) => db.exec(SCHEMA_V4) },
   { version: 5, name: 'Frei gestaltbare Journalabschnitte', up: migrateJournalSections },
   { version: 6, name: 'Journale für das QV vormerken', up: (db) => db.exec(SCHEMA_V6) },
+  {
+    version: 7,
+    // Keine Tabellenänderung: Neue Editor-Bausteine (Hinweisbox, Checkliste,
+    // Rechenblock, Merkstelle, Bildbeschriftung, Schlagwort-Querverweis) stehen
+    // im Journal-JSON. Die höhere Version schützt Projekte davor, mit einer
+    // älteren App (z. B. portable EXE ohne Update) geöffnet zu werden, die
+    // diese Inhalte nicht kennt und beim Speichern verwerfen würde.
+    name: 'Neue Editor-Bausteine (AJ-27 bis AJ-33)',
+    up: () => {},
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

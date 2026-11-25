@@ -1,27 +1,31 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createMcpHandler, type McpHttpHandler } from '@modelcontextprotocol/server';
 import { MCP_OFF, MCP_PORT, type McpStatus } from '@shared/mcp';
+import type { McpAccessStore } from './access';
 import { McpError } from './journal-edits';
 import { McpProposals } from './proposals';
 import { journalTools, type ToolDependencies } from './tools';
 
 const LOOPBACK = '127.0.0.1';
 const PATH = '/mcp';
+// Adresse für Einrichtungen, solange MCP noch nicht läuft (fester Port)
+export const DEFAULT_ENDPOINT = `http://${LOOPBACK}:${MCP_PORT}${PATH}`;
 const MAX_BODY = 128 * 1024;
 
 type Dependencies = ToolDependencies & {
   projectIdentity: () => object | null;
   changed: () => void;
+  // Dauerhafter Zugangsschlüssel und «automatisch aktivieren» (access.ts)
+  access: Pick<McpAccessStore, 'token' | 'autoStart' | 'setAutoStart' | 'renew'>;
   port?: number;
 };
 
 type Active = {
   project: object;
-  token: string;
   server: Server;
   handler: McpHttpHandler;
   proposals: McpProposals;
@@ -35,12 +39,36 @@ export class LocalMcpServer {
 
   status(): McpStatus {
     const session = this.active;
-    if (!session?.endpoint || !this.isActive(session)) return MCP_OFF;
+    const autoStart = this.deps.access.autoStart;
+    if (!session?.endpoint || !this.isActive(session)) return { ...MCP_OFF, autoStart };
     return {
       endpoint: session.endpoint.href,
       allowDrafts: session.proposals.allowDrafts,
       proposals: session.proposals.list,
+      autoStart,
+      defaultPort: session.endpoint.href === DEFAULT_ENDPOINT || this.deps.port !== undefined,
     };
+  }
+
+  // Adresse und Schlüssel für Client-Einrichtungen. Funktioniert auch vor der
+  // Aktivierung: Lernende können Claude zuerst einrichten und dann freigeben.
+  target(): { endpoint: string; token: string } {
+    const session = this.active;
+    const endpoint = session?.endpoint && this.isActive(session) ? session.endpoint.href : DEFAULT_ENDPOINT;
+    return { endpoint, token: this.deps.access.token };
+  }
+
+  setAutoStart(enabled: boolean): McpStatus {
+    this.deps.access.setAutoStart(enabled);
+    this.deps.changed();
+    return this.status();
+  }
+
+  // Neuer Schlüssel gilt sofort; bereits verbundene Clients erhalten danach 401.
+  renewToken(): McpStatus {
+    this.deps.access.renew();
+    this.deps.changed();
+    return this.status();
   }
 
   async start(): Promise<McpStatus> {
@@ -66,7 +94,6 @@ export class LocalMcpServer {
     server.maxConnections = 16;
     const session: Active = {
       project,
-      token: randomBytes(32).toString('base64url'),
       server,
       handler,
       proposals,
@@ -114,10 +141,6 @@ export class LocalMcpServer {
     return this.status();
   }
 
-  accessToken(): string {
-    return this.current().token;
-  }
-
   decide(id: string, apply: boolean) {
     return this.current().proposals.decide(id, apply);
   }
@@ -149,15 +172,20 @@ export class LocalMcpServer {
     };
     const endpoint = session.endpoint;
     if (!endpoint || !this.isActive(session)) return reject(503);
+    // Schutz vor DNS-Rebinding: nur Aufrufe an 127.0.0.1 oder localhost (mit
+    // unserem Port). «localhost» ist erlaubt, weil viele Clients und Anleitungen
+    // diese Schreibweise verwenden – vorher gab das 403.
+    const allowedHosts = [endpoint.host, `localhost:${endpoint.port}`];
+    const origin = request.headers.origin;
     if (
-      request.headers.host !== endpoint.host ||
-      (request.headers.origin !== undefined && request.headers.origin !== endpoint.origin)
+      !allowedHosts.includes(request.headers.host ?? '') ||
+      (origin !== undefined && !allowedHosts.some((host) => origin === `http://${host}`))
     )
       return reject(403);
     if (request.url !== PATH) return reject(404);
     const authorization = /^Bearer +([A-Za-z0-9_-]+)$/i.exec(request.headers.authorization ?? '');
     const supplied = Buffer.from(authorization?.[1] ?? '');
-    const expected = Buffer.from(session.token);
+    const expected = Buffer.from(this.deps.access.token);
     if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
       response.setHeader('WWW-Authenticate', 'Bearer');
       return reject(401);

@@ -6,6 +6,7 @@
 // Titel höher gewichten als Treffer irgendwo im Fliesstext.
 import { LEGACY_SECTION_KEYS, type LegacySections, type Sections } from '@shared/journal';
 import { JOURNAL_TEMPLATES } from '@shared/journal-templates';
+import { annotationTexts, parseAnnotations } from '@shared/annotations';
 import { MARK_END, MARK_START } from '@shared/search';
 
 const starterHeadings = Object.values(JOURNAL_TEMPLATES).flatMap((template) => template.sections);
@@ -41,8 +42,11 @@ function collect(node: unknown, body: string[], captions: string[]): void {
   if (n.type === 'figure') {
     const caption = n.attrs?.['caption'];
     if (typeof caption === 'string' && caption.trim()) captions.push(caption.trim());
+    // Texte der Bild-Schnellbeschriftung (AJ-32) wie Legenden durchsuchbar
+    captions.push(...annotationTexts(parseAnnotations(n.attrs?.['annotations'])));
   }
-  const inline = n.type === 'paragraph' || n.type === 'heading';
+  // Rechenblock-Zeilen enthalten Text direkt (wie ein Absatz)
+  const inline = n.type === 'paragraph' || n.type === 'heading' || n.type === 'calcLine';
   for (const child of Array.isArray(n.content) ? n.content : []) {
     collect(child, body, captions);
     if (!inline) body.push('\n');

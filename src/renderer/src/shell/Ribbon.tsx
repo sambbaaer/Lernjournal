@@ -1,15 +1,20 @@
 // Menüband: «Datei»-Knopf, Register und eine kompakte Befehlszeile.
 import { useId, useState } from 'react';
-import { LayoutTemplate } from 'lucide-react';
+import { LayoutTemplate, Search } from 'lucide-react';
 import { journalIdFromHref, journalLinkHref } from '@shared/links';
 import { useActiveEditor } from '../editor/EditorContext';
+import { CrossRefPicker } from '../editor/CrossRefPicker';
 import { LinkDialog } from '../editor/LinkDialog';
+import { MerkstelleDialog } from '../editor/MerkstelleDialog';
 import { displayTitle, openLinkedJournal } from '../journal/actions';
 import { JournalPicker } from '../journal/JournalPicker';
+import { DEFAULT_FILTER, isFiltered } from '../journal/journal-filter';
+import { JournalFilterFields } from '../journal/JournalFilterFields';
 import { useApp } from '../state/AppContext';
 import { commands } from '../state/commands';
 import { formatShortcut } from '../state/shortcuts';
-import { activeLinkKind, inTable, RIBBON, ribbonTabs, type RibbonCtx, type RibbonItem } from './ribbon-items';
+import { activeLinkKind, inTable, RIBBON, ribbonTabs, type RibbonCtx } from './ribbon-items';
+import { RibbonToolbar } from './RibbonToolbar';
 import { handleRovingKeys } from './roving';
 
 export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLButtonElement | null> }) {
@@ -104,25 +109,18 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
         aria-labelledby={`${baseId}-tab-${activeTab}`}
         className="border-t border-border-subtle bg-ribbon px-2 py-1"
       >
-        <div
-          role="toolbar"
-          aria-label={`Befehle ${tabs.find((t) => t.id === activeTab)?.label ?? ''}`}
-          className="flex flex-wrap items-center gap-y-1"
-          onKeyDown={(e) => handleRovingKeys(e, 'horizontal')}
-        >
-          {RIBBON[activeTab].map((group, gi) => (
-            <div
-              key={group.id}
-              role="group"
-              aria-label={group.label}
-              className={`flex items-center gap-0.5 px-1 ${gi > 0 ? 'border-l border-border-subtle' : ''}`}
-            >
-              {group.items.map((item, ii) => (
-                <RibbonButton key={item.id} item={item} ctx={ctx} first={gi === 0 && ii === 0} />
-              ))}
-            </div>
-          ))}
-        </div>
+        {activeTab === 'start' && state.view !== 'journal' ? (
+          // Ausserhalb des Editors (AJ-25): statt ausgegrauter Formatierung
+          // Schnellsuche und Filter – das Dashboard wirkt ruhiger.
+          <RibbonSearchBar />
+        ) : (
+          <RibbonToolbar
+            key={activeTab}
+            groups={RIBBON[activeTab]}
+            ctx={ctx}
+            label={`Befehle ${tabs.find((t) => t.id === activeTab)?.label ?? ''}`}
+          />
+        )}
       </div>
       {linkOpen && editor && (
         <LinkDialog
@@ -154,6 +152,17 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
             }
           }}
         />
+      )}
+      {/* Querverweis «[[…]]» (AJ-27) und Merkstelle (AJ-33) für den aktiven Abschnitt */}
+      {state.crossRef && editor && !editor.isDestroyed && state.view === 'journal' && (
+        <CrossRefPicker
+          editor={editor}
+          source={state.crossRef.source}
+          onClose={() => dispatch({ type: 'closeCrossRef' })}
+        />
+      )}
+      {state.merkstelleDialog && editor && !editor.isDestroyed && state.view === 'journal' && (
+        <MerkstelleDialog editor={editor} onClose={() => dispatch({ type: 'closeMerkstelleDialog' })} />
       )}
       {journalLinkOpen && editor && state.openJournal && (
         <JournalPicker
@@ -216,35 +225,51 @@ export function Ribbon({ fileButtonRef }: { fileButtonRef: React.RefObject<HTMLB
   );
 }
 
-function RibbonButton({ item, ctx, first }: { item: RibbonItem; ctx: RibbonCtx; first: boolean }) {
-  const reason = item.disabledReason(ctx);
-  const pressed = item.pressed ? item.pressed(ctx) : undefined;
-  const Icon = item.icon;
-  const shortcut = item.shortcut ? ` (${formatShortcut(item.shortcut)})` : '';
+// Menüband «Start» ausserhalb eines Journals: Suchfeld (öffnet die
+// Schnellsuche Strg+K) und Filter für die Journalliste (Status, Lernort,
+// Lehrjahr). Eine Filteränderung zeigt sofort die gefilterte Journalliste.
+// Bewusst keine Werkzeugleiste mit Pfeiltasten-Navigation: Die Pfeiltasten
+// gehören hier den Auswahllisten.
+function RibbonSearchBar() {
+  const { state, dispatch } = useApp();
+  const quick = commands['search.quick'];
+  const filtered = isFiltered({ ...state.journalFilter, text: '' });
+  const showList = () => {
+    if (state.view !== 'journale') dispatch({ type: 'navigate', view: 'journale' });
+  };
   return (
-    <button
-      type="button"
-      data-roving
-      // Nicht verfügbare Befehle bleiben fokussierbar (aria-disabled statt
-      // disabled), damit Tastatur- und Screenreader-Nutzende den Grund erfahren.
-      aria-disabled={reason ? true : undefined}
-      aria-pressed={pressed}
-      aria-label={item.label}
-      aria-keyshortcuts={item.shortcut}
-      aria-description={reason ?? undefined}
-      title={`${item.label}${shortcut}${reason ? ` – ${reason}` : ''}`}
-      tabIndex={first ? 0 : -1}
-      // Klick mit der Maus darf dem Editor den Fokus (und die Markierung) nicht nehmen
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => {
-        if (!reason) item.run?.(ctx);
-      }}
-      className={`flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-sm px-1.5 text-sm ${
-        reason ? 'cursor-default text-ink-disabled' : 'text-ink hover:bg-hover active:bg-pressed'
-      } ${pressed ? 'bg-selected outline outline-1 outline-accent' : ''}`}
-    >
-      <Icon aria-hidden="true" size={18} strokeWidth={1.75} />
-      {!item.iconOnly && <span>{item.label}</span>}
-    </button>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 py-0.5">
+      <button
+        type="button"
+        aria-keyshortcuts={quick.shortcut}
+        onClick={() => quick.run(state, dispatch)}
+        className="flex w-80 max-w-full items-center gap-2 rounded-sm border border-border-strong bg-surface px-2.5 py-1 text-left text-sm text-ink-muted hover:border-accent"
+      >
+        <Search aria-hidden="true" size={16} />
+        <span className="flex-1">Journale, Schlagwörter und Text durchsuchen …</span>
+        <kbd className="rounded-sm border border-border px-1 text-xs">{formatShortcut(quick.shortcut!)}</kbd>
+      </button>
+      {/* In der Ansicht «Journale» stehen dieselben Filter direkt über der
+          Liste – dort im Menüband nicht noch einmal (keine Doppelungen) */}
+      {state.view !== 'journale' && (
+        <div role="group" aria-label="Journale filtern" className="flex flex-wrap items-center gap-3">
+          <JournalFilterFields onChange={showList} />
+          {filtered && (
+            <button
+              type="button"
+              className="rounded-sm px-2 py-1 text-sm text-accent underline hover:bg-hover"
+              onClick={() =>
+                dispatch({
+                  type: 'setJournalFilter',
+                  filter: { ...DEFAULT_FILTER, text: state.journalFilter.text },
+                })
+              }
+            >
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -61,6 +61,7 @@ const api: LernjournalApi = {
   search: {
     query: (req) => ipcRenderer.invoke('search:query', req),
     rebuild: () => ipcRenderer.invoke('search:rebuild'),
+    merkstellen: () => ipcRenderer.invoke('merkstellen:list'),
   },
   mcp: {
     status: () => ipcRenderer.invoke('mcp:status'),
@@ -68,6 +69,9 @@ const api: LernjournalApi = {
     setDrafts: (req) => ipcRenderer.invoke('mcp:setDrafts', req),
     copy: (req) => ipcRenderer.invoke('mcp:copy', req),
     decide: (req) => ipcRenderer.invoke('mcp:decide', req),
+    setAutoStart: (req) => ipcRenderer.invoke('mcp:setAutoStart', req),
+    renewToken: () => ipcRenderer.invoke('mcp:renewToken'),
+    saveClaudeExtension: () => ipcRenderer.invoke('mcp:saveClaudeExtension'),
     onChanged: (listener) => {
       const wrapped = () => listener();
       ipcRenderer.on('lj:mcp-changed', wrapped);

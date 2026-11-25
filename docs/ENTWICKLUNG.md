@@ -97,6 +97,19 @@ src/renderer/src/editor/      SectionEditor, EditorContext (aktiver Editor fürs
 - Neue Formatierung? Erweiterung in `baseExtensions()` aufnehmen, DOCX-Abbildung (ADR 0002) ergänzen, Schema-Test erweitern.
 - Menüband-Befehle für den Editor über `editorItem()` in `ribbon-items.ts`; `onMouseDown.preventDefault()` verhindert, dass ein Klick dem Editor die Markierung nimmt.
 
+## Neue Editor-Bausteine (AJ-27–AJ-33)
+
+Hinweisbox, Checkliste, Rechenblock, Merkstelle und Bildbeschriftung stehen im gemeinsamen Schema (`src/shared/editor-schema.ts`, Bildbeschriftung in `src/shared/annotations.ts`). Wer einen weiteren Knoten ergänzt, zieht ihn überall nach – sonst gehen Inhalte im Export oder in der Suche verloren:
+
+1. Schema und Prüfung in `validateSections` (Attribute nur mit bekannten Werten)
+2. Klartext `plainTextOf` (`src/shared/journal.ts`, für MCP und Vorschau) und Suchprojektion (`src/main/search/projection.ts`)
+3. Word (`docx-content.ts`) und PDF (`pdf-document.ts`)
+4. Einfügen: `src/renderer/src/editor/blocks.ts` (Menüband und «Einfügen»-Menü im Dokument nutzen dieselbe Liste)
+5. Tests: `src/main/export/blocks-export.test.ts` (alle Schichten), E2E `e2e/update-bc.test.mjs`
+6. Datenformat: neue Knoten brauchen eine neue Schemaversion (leere Migration genügt), damit ältere Programme das Projekt nicht öffnen
+
+Querverweise «[[…]]» erkennt `handleTextInput` in `SectionEditor.tsx`; die Auswahl ist `CrossRefPicker.tsx`, die Logik `cross-ref.ts`. Merkstellen liest `MerkstellenService` bei jeder Abfrage aus den Journalen (IPC `merkstellen:list`). Beschriftete Bilder rechnet `renderAnnotatedImage` (`image-convert.ts`) für Word im verborgenen Fenster zusammen. [ADR 0012](adr/0012-bausteine-merkstellen-bildbeschriftung.md)
+
 ## Bilder
 ```
 src/renderer/src/editor/image-processing.ts   Ausrichtung, max. 2400 px, neu kodieren (Metadaten weg)
@@ -225,7 +238,7 @@ src/renderer/src/backup/                   BackupSection (Einstellungen), Restor
 
 ## Lokaler MCP-Zugang
 
-`src/main/mcp` stellt mit dem offiziellen TypeScript-SDK Streamable HTTP bereit. Der Listener und seine Vorschläge gehören zum aktuell geöffneten Projekt. Electron-IPC dient zur Aktivierung, zum Kopieren der Verbindungsdaten und zur Freigabe einzelner Vorschläge in der App. Bearbeitungen verwenden eine Revision des gespeicherten Journals und die bestehende Editor-Validierung. `e2e/mcp.test.mjs` prüft den vollständigen Arbeitsablauf über HTTP und die Oberfläche. [ADR 0011](adr/0011-lokaler-mcp-zugang.md)
+`src/main/mcp` stellt mit dem offiziellen TypeScript-SDK Streamable HTTP bereit. Der Listener und seine Vorschläge gehören zum aktuell geöffneten Projekt. Electron-IPC dient zur Aktivierung, zum Kopieren der Verbindungsdaten und zur Freigabe einzelner Vorschläge in der App. Bearbeitungen verwenden eine Revision des gespeicherten Journals und die bestehende Editor-Validierung. Der Zugangsschlüssel liegt dauerhaft in `mcp.json` im userData-Ordner (`access.ts`). `client-config.ts` erzeugt die Claude-Desktop-Erweiterung (`.mcpb`, Brücke `bridge/lernjournal-bridge.mjs` per `?raw`-Import) und die Einrichtungen für Claude Code und HTTP-Clients. `bridge.test.ts` startet die Brücke als eigenen Node-Prozess gegen den echten Server. `e2e/mcp.test.mjs` prüft den vollständigen Arbeitsablauf über HTTP und die Oberfläche. [ADR 0011](adr/0011-lokaler-mcp-zugang.md)
 
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.

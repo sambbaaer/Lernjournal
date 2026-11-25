@@ -19,15 +19,17 @@ Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist mass
 - Architekturentscheide als ADR unter docs/adr/; Spike-Code nur überführt (TS, Tests) übernehmen.
 - Pro Ticket Tests und Dokumentationspflege; aktuelle Bibliotheksversionen erst bei Implementierung prüfen.
 
-## Current Focus: Native Windows-11-Features, Word-Zoom, Fachsymbole & Opt-in Journal-Erinnerung
+## Current Focus: Update 1 nach Store-Veröffentlichung (AJ-24–AJ-33)
 ## Status: Completed
 ## Last Actions:
-- «Einfügen»-Knopf neben «Abschnitt hinzufügen» um Print-Fachsymbole (`ΔE`, `µm`, `°C`, `±`, `×`, `g/m²` + `Win+.`) ergänzt; Rechtsklick-Kontextmenü um `Emoji und Symbole (Win+.)` erweitert.
-- Word-typischer Dokument-Zoom (`80–150 %`, `- / 100 % / +` in der Statusleiste, `Strg+Mausrad`, `Strg++`, `Strg+-`, `Strg+0`) eingebaut.
-- Windows 11 `backgroundMaterial: 'mica'`, Taskleisten-Fortschrittsbalken (`win.setProgressBar`) und Speicherung von Fenstergrösse/Position/Maximiert-Status (`window-state.ts`) umgesetzt.
-- Opt-in Windows-11-Toast-Erinnerung & Infoleiste für neue Journale (im Onboarding-Assistenten und in den Einstellungen aktivierbar, Standard 30 Tage, frei konfigurierbar, mit «Neues Journal» und «Nicht jetzt» / 7-Tage-Snooze) eingebaut.
-- «Im Explorer öffnen» für den Projektordner in Statusleiste und Einstellungen (`project:showFolder` via `shell.openPath`) umgesetzt – kompatibel mit Store-MSIX und Portable-EXE.
+- Paket A: Startseite ohne Doppelungen mit Fortschritt (Semester, QV), Menüband ausserhalb des Editors mit Schnellsuche und Filtern (zentraler Filter), Schnellsuche Strg+K, Störungstabelle.
+- Paket B: Hinweisbox Merke/Achtung/Tipp, Checkliste, Rechenblock (ohne LaTeX), Querverweise «[[…]]» auf Journale, Schlagwörter (`lernjournal://tag/<uuid>`) und Merkstellen.
+- Paket C: Bild-Schnellbeschriftung (nicht destruktiv, SVG für Editor/PDF, im Word zusammengerechnet), Merkstellen statt Wiki-Kopie (Fachbuch-Register A–Z, Sprung zur Stelle).
+- Datenformat v7 (leere Migration als Schutz vor älteren Programmen), ADR 0012, SPEC v1.16, ENTWICKLUNG «Neue Editor-Bausteine».
+- Menüband einzeilig wie im vereinfachten Office-Menüband: Aufklapp-Menü «Bausteine», Beschriftungen von rechts weg, dann «Weitere Befehle» (`RibbonToolbar.tsx`, `ribbon-layout.ts`). CI-Job `store` baut das Store-MSIX als Artefakt `lernjournal-store-msix`.
+- Davor: MCP repariert (fester Schlüssel, Claude-Desktop-Erweiterung `.mcpb`, docs/MCP.md, Nachtrag ADR 0011).
 ## Next Steps:
-- Manuelle Prüfungen (Word 365, zweiter PC, verwaltetes Windows) und Pilot mit Lernenden gemäss `docs/PILOT.md`.
+- Version für das Store-Update erhöhen und Release bauen; Erweiterung und neue Bausteine in Word 365 und Claude Desktop unter Windows prüfen.
+- Manuelle Prüfungen und Pilot gemäss `docs/PILOT.md`; danach AJ-21/22 (Kompetenzkatalog, Abdeckung) inkl. Filter «Kompetenz».
 ## Active Plans:
 - `docs/SPEC.md`, `docs/BACKLOG.md`, `docs/ABNAHME.md`

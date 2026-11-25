@@ -1,4 +1,6 @@
 // Gemeinsame aufbereitete Journaldaten, eigenes Drucklayout für PDF (AJ-18).
+import { annotationSvg, describeAnnotations, parseAnnotations } from '@shared/annotations';
+import { CALC_LABELS, CALLOUT_LABELS, type CalcRole, type CalloutKind } from '@shared/editor-schema';
 import { journalIdFromHref } from '@shared/links';
 import {
   cleanText,
@@ -64,6 +66,19 @@ th > :last-child, td > :last-child { margin-bottom: 0; }
 figure { break-inside: avoid; text-align: center; margin: 4mm 0; }
 img { display: block; margin: 0 auto; max-width: 100%; max-height: 120mm; object-fit: contain; }
 figcaption { margin-top: 1.6mm; color: #4e4d60; font-size: 9pt; }
+.annotated { position: relative; display: inline-block; max-width: 100%; }
+.annotated img { max-height: 120mm; }
+.annotated svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.callout { break-inside: avoid; margin: 0 0 3mm; padding: 2mm 3mm; border-left: 1.4mm solid #3a3771; background: #eeedf6; }
+.callout-achtung { border-color: #c42b1c; background: #fdecea; }
+.callout-tipp { border-color: #0e7a0d; background: #e9f5e9; }
+.callout-label { font-weight: 700; margin-bottom: 1mm; }
+.callout > :last-child { margin-bottom: 0; }
+ul.tasks { list-style: none; padding-left: 1mm; }
+ul.tasks li { display: flex; gap: 2mm; }
+ul.tasks .box { flex: none; }
+table.calc th { width: 30mm; background: none; }
+table.calc tr.result td { font-weight: 700; }
 `;
 
 function renderCover(journals: ExportJournal[], author: ExportAuthor, info: CollectionInfo): string {
@@ -151,10 +166,34 @@ export function buildPdfDocument(input: PdfInput): { document: PdfDocument; warn
         if (!input.images.has(id)) missingImage = true;
         const caption = String(node.attrs?.['caption'] ?? '').trim();
         const alt = String(node.attrs?.['alt'] ?? '').trim() || caption;
-        const picture = input.images.has(id)
-          ? `<img src="./image/${encodeURIComponent(id)}" alt="${html(alt)}">`
+        // Bildbeschriftung (AJ-32): SVG deckungsgleich über dem Foto
+        const notes = parseAnnotations(node.attrs?.['annotations']);
+        const image = input.images.get(id);
+        const fullAlt = notes.length
+          ? `${alt}${alt ? ' – ' : ''}Beschriftet: ${describeAnnotations(notes)}`
+          : alt;
+        const img = `<img src="./image/${encodeURIComponent(id)}" alt="${html(fullAlt)}">`;
+        const picture = image
+          ? notes.length
+            ? `<span class="annotated">${img}${annotationSvg(notes, image.widthPx, image.heightPx).replace('<svg ', '<svg aria-hidden="true" ')}</span>`
+            : img
           : '<p>[Bild fehlt]</p>';
         return `<figure>${picture}<figcaption>Abbildung ${++figureNumber}${caption ? `: ${html(caption)}` : ''}</figcaption></figure>`;
+      }
+      case 'callout': {
+        const kind = node.attrs?.['kind'] as CalloutKind;
+        const label = CALLOUT_LABELS[kind] ?? 'Merke';
+        return `<aside class="callout callout-${html(String(kind))}"><p class="callout-label">${html(label)}</p>${children()}</aside>`;
+      }
+      case 'taskList':
+        return `<ul class="tasks">${children()}</ul>`;
+      case 'taskItem':
+        return `<li><span class="box">${node.attrs?.['checked'] === true ? '☑' : '☐'}</span><div>${children()}</div></li>`;
+      case 'calculation':
+        return `<table class="calc"><tbody>${children()}</tbody></table>`;
+      case 'calcLine': {
+        const role = String(node.attrs?.['role']) as CalcRole;
+        return `<tr${role === 'result' ? ' class="result"' : ''}><th scope="row">${html(CALC_LABELS[role] ?? '')}</th><td>${children()}</td></tr>`;
       }
       case 'doc':
         return children();

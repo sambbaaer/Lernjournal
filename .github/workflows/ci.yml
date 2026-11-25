@@ -28,6 +28,36 @@ jobs:
       # 2) App bauen und Ende-zu-Ende-Test mit Playwright (Sicherheitsgrenzen, Abläufe)
       - run: npm run test:e2e
 
+  # Store-Paket für ein Update (docs/STORE.md, Abschnitt 8): MSIX mit der echten
+  # Partner-Center-Identität, unsigniert (der Store signiert bei der Einreichung).
+  # Nur wenn Tests und E2E grün sind. Das Artefakt «lernjournal-store-msix» wird
+  # in Partner Center hochgeladen.
+  store:
+    needs: windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Store-Paket bauen
+        run: npm run dist:store
+      - name: Paket prüfen (mit Partner-Center-Identität)
+        run: npm run verify:store
+      - name: Prüfsumme
+        shell: pwsh
+        run: Get-FileHash dist/*-Store-*.msix -Algorithm SHA256 | Format-List | Tee-Object dist/STORE-SHA256.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: lernjournal-store-msix
+          path: |
+            dist/*-Store-*.msix
+            dist/STORE-SHA256.txt
+          retention-days: 30
+
   # Paketierung (AJ-16, AJ-16b, ADR 0007/0008): alle Windows-Ziele bauen und
   # prüfen, gepackt starten; MSIX (Store) mit Testzertifikat installieren,
   # Selbsttest mit Paketidentität, deinstallieren; NSIS-Testinstaller installieren
