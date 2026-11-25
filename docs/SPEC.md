@@ -85,7 +85,7 @@ Der Startbildschirm verwendet den hellen Markenakzent `#EAE2D6` und eigene Motiv
 
 **Farbschema:** «Hell», «Dunkel» oder «Systemeinstellung» in den Einstellungen. Die Wahl gilt für die App auf diesem Computer. Das PDF verwendet ein helles Drucklayout.
 
-**MCP:** Lernende können den lokalen Zugang pro Sitzung für das geöffnete Projekt freigeben. Ein MCP-Client mit Zugangsschlüssel darf Journale suchen und lesen und Textkorrekturen oder Verknüpfungen vorschlagen. Alle Vorschläge bleiben bis zur Bestätigung in Lernjournal unverbindlich. Neue Entwürfe brauchen zusätzlich eine eigene Freigabe. Projektwechsel, Schliessen oder Deaktivieren widerrufen den Zugang. [Einrichtung und Werkzeuge](MCP.md)
+**MCP:** Lernende können den lokalen Zugang für das geöffnete Projekt freigeben, auf Wunsch automatisch beim Öffnen eines Projekts. Der Zugangsschlüssel bleibt bis zur Erneuerung gleich. Für Claude Desktop erzeugt die App eine Erweiterung (`.mcpb`), für Claude Code und HTTP-Clients fertige Einrichtungen. Ein MCP-Client mit Zugangsschlüssel darf Journale suchen und lesen und Textkorrekturen oder Verknüpfungen vorschlagen. Alle Vorschläge bleiben bis zur Bestätigung in Lernjournal unverbindlich. Neue Entwürfe brauchen zusätzlich eine eigene Freigabe. Projektwechsel, Schliessen oder Deaktivieren widerrufen den Zugang. [Einrichtung und Werkzeuge](MCP.md)
 
 ## Architektur
 - **Electron Main:** Fenster, Dateioperationen, SQLite, Export, Backups. Einziger Ort mit FS-/DB-Rechten.

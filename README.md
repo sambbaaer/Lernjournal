@@ -19,7 +19,7 @@ Offlinefähige Windows-Desktop-App für Lernende Medientechnolog*innen EFZ zum F
 - Lokaler Projektordner; vollständiger portabler `.ajournal`-ZIP-Export.
 - PDF und bearbeitbares Word als Einzel- oder Sammelexport. Für die IPA/QV vorgemerkte Journale lassen sich im Export übernehmen und als PDF zusammenstellen.
 - Einstellbares Farbschema mit Hell, Dunkel und Systemeinstellung.
-- Optionaler lokaler MCP-Zugang unter «Einstellungen → MCP». Vorhandene Journale suchen, lesen, überarbeiten und verknüpfen. Neue Entwürfe lassen sich separat freigeben. [MCP einrichten](docs/MCP.md).
+- Optionaler lokaler MCP-Zugang unter «Einstellungen → MCP». Vorhandene Journale suchen, lesen, überarbeiten und verknüpfen. Neue Entwürfe lassen sich separat freigeben. Für Claude Desktop per Erweiterung mit einem Klick eingerichtet. [Was ist MCP und wie richte ich es ein?](docs/MCP.md).
 - Eigenständige Windows-Titelleiste mit App-Symbol und nativen Fensterknöpfen, kompaktes Menüband, Datei-Menü und Dokumentfläche.
 - Schweizer Hochdeutsch: «…», ss statt ß.
 

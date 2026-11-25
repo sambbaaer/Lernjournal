@@ -49,7 +49,17 @@ test('Renderer hat keinen Zugriff auf Node.js oder Electron', async () => {
       'backup',
       'taxonomy',
     ],
-    mcpKeys: ['status', 'setActive', 'setDrafts', 'copy', 'decide', 'onChanged'],
+    mcpKeys: [
+      'status',
+      'setActive',
+      'setDrafts',
+      'copy',
+      'decide',
+      'setAutoStart',
+      'renewToken',
+      'saveClaudeExtension',
+      'onChanged',
+    ],
   });
 });
 

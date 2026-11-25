@@ -19,15 +19,15 @@ Lies README.md, docs/SPEC.md, docs/BACKLOG.md und docs/QUELLEN.md. SPEC ist mass
 - Architekturentscheide als ADR unter docs/adr/; Spike-Code nur überführt (TS, Tests) übernehmen.
 - Pro Ticket Tests und Dokumentationspflege; aktuelle Bibliotheksversionen erst bei Implementierung prüfen.
 
-## Current Focus: Native Windows-11-Features, Word-Zoom, Fachsymbole & Opt-in Journal-Erinnerung
+## Current Focus: MCP-Reparatur & Bewertung Update-Kandidaten
 ## Status: Completed
 ## Last Actions:
-- «Einfügen»-Knopf neben «Abschnitt hinzufügen» um Print-Fachsymbole (`ΔE`, `µm`, `°C`, `±`, `×`, `g/m²` + `Win+.`) ergänzt; Rechtsklick-Kontextmenü um `Emoji und Symbole (Win+.)` erweitert.
-- Word-typischer Dokument-Zoom (`80–150 %`, `- / 100 % / +` in der Statusleiste, `Strg+Mausrad`, `Strg++`, `Strg+-`, `Strg+0`) eingebaut.
-- Windows 11 `backgroundMaterial: 'mica'`, Taskleisten-Fortschrittsbalken (`win.setProgressBar`) und Speicherung von Fenstergrösse/Position/Maximiert-Status (`window-state.ts`) umgesetzt.
-- Opt-in Windows-11-Toast-Erinnerung & Infoleiste für neue Journale (im Onboarding-Assistenten und in den Einstellungen aktivierbar, Standard 30 Tage, frei konfigurierbar, mit «Neues Journal» und «Nicht jetzt» / 7-Tage-Snooze) eingebaut.
-- «Im Explorer öffnen» für den Projektordner in Statusleiste und Einstellungen (`project:showFolder` via `shell.openPath`) umgesetzt – kompatibel mit Store-MSIX und Portable-EXE.
+- MCP repariert: Zugangsschlüssel dauerhaft (`mcp.json` im userData, «Schlüssel erneuern»), Host `localhost` erlaubt, Opt-in «Beim Öffnen eines Projekts automatisch aktivieren».
+- Claude-Desktop-Erweiterung `Lernjournal.mcpb` (MCP Bundle mit stdio-Brücke `src/main/mcp/bridge/lernjournal-bridge.mjs`, nur Node-Bordmittel); fertige Einrichtungen für Claude Code und VS Code/HTTP-Clients zum Kopieren.
+- Einstellungen → MCP neu: «Was ist MCP?», Freigabe, Einrichtung je Client; docs/MCP.md neu geschrieben, Nachtrag ADR 0011.
+- Update-Kandidaten AJ-24–AJ-33 bewertet (docs/BACKLOG.md, Abschnitt «Update-Kandidaten»).
 ## Next Steps:
-- Manuelle Prüfungen (Word 365, zweiter PC, verwaltetes Windows) und Pilot mit Lernenden gemäss `docs/PILOT.md`.
+- Erweiterung in echtem Claude Desktop unter Windows (Store-Lernjournal) prüfen.
+- Manuelle Prüfungen und Pilot gemäss `docs/PILOT.md`; danach Paket A der Update-Kandidaten.
 ## Active Plans:
 - `docs/SPEC.md`, `docs/BACKLOG.md`, `docs/ABNAHME.md`

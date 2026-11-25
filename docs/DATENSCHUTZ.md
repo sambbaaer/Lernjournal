@@ -22,7 +22,7 @@ Weder die Entwicklerin bzw. der Entwickler noch dein Lehrbetrieb oder deine Schu
 - Es gibt keine Weitergabe an Dritte, weil keine Daten das Gerät über das Programm verlassen.
 
 ## Optionaler lokaler MCP-Zugang
-Wenn du in den Einstellungen den lokalen MCP-Zugang (`127.0.0.1`) ausdrücklich für die aktuelle Sitzung freischaltest, kann ein auf deinem Computer verbundener MCP-Client die Journale des geöffneten Projekts lesen und Änderungsvorschläge einreichen. Ob und wie dieser verbundene Client Daten weiterverarbeitet, richtet sich nach dem von dir eingesetzten Client. Standardmässig ist der MCP-Zugang ausgeschaltet.
+Wenn du in den Einstellungen den lokalen MCP-Zugang (`127.0.0.1`) ausdrücklich freischaltest (von Hand oder, falls du es einschaltest, automatisch beim Öffnen eines Projekts), kann ein auf deinem Computer verbundener MCP-Client die Journale des geöffneten Projekts lesen und Änderungsvorschläge einreichen. Ob und wie dieser verbundene Client Daten weiterverarbeitet, richtet sich nach dem von dir eingesetzten Client. Standardmässig ist der MCP-Zugang ausgeschaltet.
 
 ## Microsoft Store und Windows
 Wenn du Lernjournal über den Microsoft Store beziehst, verarbeitet Microsoft für Kauf/Download, Installation und Updates Daten nach den eigenen Bestimmungen (Datenschutzerklärung von Microsoft). Ebenso richten sich Funktionen von Windows (z. B. Fehlerberichterstattung, Synchronisation von Ordnern wie «Dokumente» mit OneDrive) nach den Windows-Einstellungen deines Geräts. Liegt dein Projektordner in einem synchronisierten Ordner, werden die Daten vom jeweiligen Dienst übertragen – nicht von Lernjournal. Das Programm warnt, wenn es einen solchen Ordner erkennt.

@@ -179,6 +179,32 @@ test('Zwischenzeitliche Änderungen haben Vorrang vor MCP-Vorschlägen', async (
   assert.doesNotMatch(current.section.text, /Vorgeschlagener Nachtrag/);
 });
 
+test('Zugangsschlüssel bleibt nach erneuter Freigabe gleich, «automatisch aktivieren» wird gemerkt', async () => {
+  await panel().getByRole('button', { name: 'MCP deaktivieren' }).click();
+  await panel().getByRole('button', { name: 'MCP für dieses Projekt aktivieren' }).click();
+  await panel().getByRole('button', { name: 'MCP deaktivieren' }).waitFor();
+  await panel().getByRole('button', { name: 'Zugangsschlüssel kopieren' }).click();
+  await panel().getByText('Zugangsschlüssel kopiert.').waitFor();
+  assert.equal(await app.evaluate(() => globalThis.__mcpTestClipboard), token);
+  // Einrichtung für Claude Code enthält Adresse und denselben Schlüssel
+  await panel().getByRole('button', { name: 'Befehl für Claude Code kopieren' }).click();
+  await panel()
+    .getByText(/^Befehl für Claude Code kopiert/)
+    .waitFor();
+  assert.equal(
+    await app.evaluate(() => globalThis.__mcpTestClipboard),
+    `claude mcp add --transport http lernjournal ${endpoint} --header "Authorization: Bearer ${token}"`,
+  );
+  const auto = panel().getByRole('checkbox', { name: /Beim Öffnen eines Projekts automatisch aktivieren/ });
+  assert.equal(await auto.isChecked(), false);
+  await auto.click();
+  await panel()
+    .getByRole('checkbox', { name: /Beim Öffnen eines Projekts automatisch aktivieren/, checked: true })
+    .waitFor();
+  assert.equal((await post('tools/list', {})).status, 200);
+  assert.deepEqual(await runAxe(page), []);
+});
+
 test('Ein neuer Entwurf braucht eine separate Berechtigung und eine Einzelbestätigung', async () => {
   const args = {
     title: 'Neuer Entwurf zur Messung',

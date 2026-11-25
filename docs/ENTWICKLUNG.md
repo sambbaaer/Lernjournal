@@ -225,7 +225,7 @@ src/renderer/src/backup/                   BackupSection (Einstellungen), Restor
 
 ## Lokaler MCP-Zugang
 
-`src/main/mcp` stellt mit dem offiziellen TypeScript-SDK Streamable HTTP bereit. Der Listener und seine Vorschläge gehören zum aktuell geöffneten Projekt. Electron-IPC dient zur Aktivierung, zum Kopieren der Verbindungsdaten und zur Freigabe einzelner Vorschläge in der App. Bearbeitungen verwenden eine Revision des gespeicherten Journals und die bestehende Editor-Validierung. `e2e/mcp.test.mjs` prüft den vollständigen Arbeitsablauf über HTTP und die Oberfläche. [ADR 0011](adr/0011-lokaler-mcp-zugang.md)
+`src/main/mcp` stellt mit dem offiziellen TypeScript-SDK Streamable HTTP bereit. Der Listener und seine Vorschläge gehören zum aktuell geöffneten Projekt. Electron-IPC dient zur Aktivierung, zum Kopieren der Verbindungsdaten und zur Freigabe einzelner Vorschläge in der App. Bearbeitungen verwenden eine Revision des gespeicherten Journals und die bestehende Editor-Validierung. Der Zugangsschlüssel liegt dauerhaft in `mcp.json` im userData-Ordner (`access.ts`). `client-config.ts` erzeugt die Claude-Desktop-Erweiterung (`.mcpb`, Brücke `bridge/lernjournal-bridge.mjs` per `?raw`-Import) und die Einrichtungen für Claude Code und HTTP-Clients. `bridge.test.ts` startet die Brücke als eigenen Node-Prozess gegen den echten Server. `e2e/mcp.test.mjs` prüft den vollständigen Arbeitsablauf über HTTP und die Oberfläche. [ADR 0011](adr/0011-lokaler-mcp-zugang.md)
 
 ## Speichern (Autosave)
 - **Wann:** 800 ms nach der letzten Änderung, bei Dauertippen spätestens alle 10 s, beim Verlassen eines Journals, vor Projektwechseln, mit Strg+S und vor dem Schliessen des Fensters.

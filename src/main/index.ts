@@ -38,6 +38,8 @@ import { JournalService } from './journal/journal-service';
 import { createLinkHandlers } from './links/link-handlers';
 import { LinkService } from './links/link-service';
 import { MediaService } from './media/media-service';
+import { McpAccessStore } from './mcp/access';
+import { claudeCodeCommand, httpClientJson, writeMcpb } from './mcp/client-config';
 import { LocalMcpServer } from './mcp/local-server';
 import { createProjectHandlers, OpenedProjects } from './project/project-handlers';
 import { createTaxonomyHandlers } from './taxonomy/taxonomy-handlers';
@@ -121,6 +123,10 @@ const projects: ProjectService = new ProjectService({
     if (r.rows || r.files) console.log(`[medien] aufgeräumt: ${r.rows} Einträge, ${r.files} Dateien`);
     if (search.ensureComplete()) console.log('[suche] Suchindex war unvollständig und wurde neu aufgebaut');
     backups.afterOpen();
+    // Opt-in «automatisch aktivieren»: eingerichtete MCP-Clients verbinden sich
+    // sofort, ohne dass die Freigabe nach jedem Start neu geklickt werden muss.
+    if (mcpAccess.autoStart)
+      void mcp.start().catch((err: Error) => console.error(`[mcp] Autostart: ${err.message}`));
   },
   beforeClose: () => backups.beforeClose(),
   afterClose: () => {
@@ -146,8 +152,11 @@ const taxonomy = new TaxonomyService(
   () => new Date(),
   search,
 );
+// Zugangsschlüssel und «automatisch aktivieren» bleiben über Neustarts erhalten
+const mcpAccess = new McpAccessStore(path.join(app.getPath('userData'), 'mcp.json'));
 const mcp = new LocalMcpServer({
   version: app.getVersion(),
+  access: mcpAccess,
   journals,
   links,
   search,
@@ -453,12 +462,32 @@ function registerIpc() {
       'mcp:setActive': ({ enabled }) => (enabled ? mcp.start() : mcp.stop()),
       'mcp:setDrafts': ({ allowed }) => mcp.setDrafts(allowed),
       'mcp:copy': ({ field }) => {
-        const text = field === 'token' ? mcp.accessToken() : mcp.status().endpoint;
-        if (!text) return false;
+        const target = { ...mcp.target(), version: app.getVersion() };
+        const text = {
+          endpoint: target.endpoint,
+          token: target.token,
+          claudeCode: claudeCodeCommand(target),
+          httpJson: httpClientJson(target),
+        }[field];
         clipboard.writeText(text);
         return true;
       },
       'mcp:decide': ({ id, apply }) => mcp.decide(id, apply),
+      'mcp:setAutoStart': ({ enabled }) => mcp.setAutoStart(enabled),
+      'mcp:renewToken': () => mcp.renewToken(),
+      // Claude-Desktop-Erweiterung speichern (Vorschlag: «Downloads»). Doppelklick
+      // auf die Datei öffnet in Claude Desktop den Installationsdialog.
+      'mcp:saveClaudeExtension': async () => {
+        const file = await chooseSavePath({
+          title: 'Erweiterung für Claude Desktop speichern',
+          defaultPath: path.join(app.getPath('downloads'), 'Lernjournal.mcpb'),
+          filters: [{ name: 'Claude-Desktop-Erweiterung', extensions: ['mcpb'] }],
+          properties: ['showOverwriteConfirmation'],
+        });
+        if (!file) return false;
+        await writeMcpb(file, { ...mcp.target(), version: app.getVersion() });
+        return true;
+      },
       'media:add': ({ journalId, data, originalName }) => media.add({ journalId, data, originalName }),
       ...createExportHandlers({
         service: exporter,
