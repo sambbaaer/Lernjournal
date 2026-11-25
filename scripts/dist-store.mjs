@@ -15,6 +15,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+// Partner-Center-Standardwerte (per Umgebungsvariable überschreibbar)
+import { PARTNER_CENTER_DEFAULTS } from './store-defaults.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const { version, productName } = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -25,14 +27,6 @@ const builderConfig = await import('../electron-builder.ts').catch((err) => {
   process.exit(1);
 });
 const { AZURE_SIGN_ENV, REQUIRE_STORE_IDENTITY_ENV, storeIdentity, storeVersion } = builderConfig;
-
-// Partner-Center-Standardwerte für Lernjournal (können jederzeit per
-// Umgebungsvariable überschrieben werden)
-const PARTNER_CENTER_DEFAULTS = {
-  LERNJOURNAL_STORE_IDENTITY_NAME: 'SamuelBaer.Lernjournal',
-  LERNJOURNAL_STORE_PUBLISHER: 'CN=729E5805-5EBC-4960-8F61-C476DD08925A',
-  LERNJOURNAL_STORE_PUBLISHER_DISPLAY_NAME: 'Samuel Baer',
-};
 
 const env = { ...PARTNER_CENTER_DEFAULTS, ...process.env, [REQUIRE_STORE_IDENTITY_ENV]: '1' };
 for (const name of [
@@ -77,4 +71,4 @@ if (!existsSync(file)) {
   process.exit(1);
 }
 console.log(`\nFertig: ${file}`);
-console.log('Prüfen: npm run verify:package – dann in Partner Center hochladen (docs/STORE.md).');
+console.log('Prüfen: npm run verify:store – dann in Partner Center hochladen (docs/STORE.md).');

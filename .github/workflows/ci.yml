@@ -45,8 +45,8 @@ jobs:
       - run: npm ci
       - name: Store-Paket bauen
         run: npm run dist:store
-      - name: Paket prüfen
-        run: npm run verify:package
+      - name: Paket prüfen (mit Partner-Center-Identität)
+        run: npm run verify:store
       - name: Prüfsumme
         shell: pwsh
         run: Get-FileHash dist/*-Store-*.msix -Algorithm SHA256 | Format-List | Tee-Object dist/STORE-SHA256.txt
